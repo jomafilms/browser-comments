@@ -66,7 +66,15 @@ export default function CommentsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
-      fetchComments();
+
+      // Update the comment locally instead of refetching to maintain scroll position
+      setComments(prevComments =>
+        prevComments.map(comment =>
+          comment.id === id
+            ? { ...comment, status: newStatus }
+            : comment
+        )
+      );
     } catch (error) {
       console.error('Error updating status:', error);
     }

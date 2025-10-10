@@ -12,6 +12,8 @@ export interface DrawingElement {
   start?: { x: number; y: number };
   end?: { x: number; y: number };
   text?: string;
+  width?: number;
+  height?: number;
 }
 
 export interface TextAnnotation {
@@ -38,11 +40,13 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
   const [elements, setElements] = useState<DrawingElement[]>();
   const [currentElement, setCurrentElement] = useState<DrawingElement | null>(null);
   const [textBgOpacity, setTextBgOpacity] = useState<'transparent' | 'white'>('white');
-  const [showTextInput, setShowTextInput] = useState(false);
-  const [textInputPos, setTextInputPos] = useState({ x: 0, y: 0 });
-  const [textValue, setTextValue] = useState('');
   const [annotationsEnabled, setAnnotationsEnabled] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedTextIndex, setSelectedTextIndex] = useState<number | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [editingTextIndex, setEditingTextIndex] = useState<number | null>(null);
+  const [resizingTextIndex, setResizingTextIndex] = useState<number | null>(null);
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -121,27 +125,8 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
         break;
 
       case 'text':
-        if (element.start && element.text) {
-          // Draw text background
-          ctx.font = '16px sans-serif';
-          const textMetrics = ctx.measureText(element.text);
-          const textHeight = 20;
-          const padding = 4;
-
-          if (textBgOpacity === 'white') {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-            ctx.fillRect(
-              element.start.x - padding,
-              element.start.y - textHeight + padding,
-              textMetrics.width + padding * 2,
-              textHeight + padding
-            );
-          }
-
-          // Draw text
-          ctx.fillStyle = element.color;
-          ctx.fillText(element.text, element.start.x, element.start.y);
-        }
+        // Text is rendered as HTML divs, not on canvas
+        // Will be drawn on canvas only during screenshot
         break;
     }
   };
@@ -183,8 +168,18 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
     const y = e.clientY - rect.top;
 
     if (tool === 'text') {
-      setShowTextInput(true);
-      setTextInputPos({ x, y });
+      // Create text box immediately
+      const newElement: DrawingElement = {
+        type: 'text',
+        color,
+        start: { x, y },
+        text: '',
+        width: 200,
+        height: 60,
+      };
+      const newElements = [...(elements || []), newElement];
+      setElements(newElements);
+      setEditingTextIndex(newElements.length - 1); // Start editing immediately
       return;
     }
 
@@ -231,19 +226,90 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
     setIsDrawing(false);
   };
 
-  const handleTextSubmit = () => {
-    if (textValue.trim()) {
-      const newElement: DrawingElement = {
-        type: 'text',
-        color,
-        start: textInputPos,
-        text: textValue,
-      };
-      setElements([...(elements || []), newElement]);
-      redrawCanvas();
+  const handleTextChange = (index: number, newText: string) => {
+    if (!elements) return;
+    const updatedElements = [...elements];
+    updatedElements[index] = {
+      ...updatedElements[index],
+      text: newText,
+    };
+    setElements(updatedElements);
+  };
+
+  const handleDeleteText = (index: number) => {
+    if (!elements) return;
+    const updatedElements = elements.filter((_, i) => i !== index);
+    setElements(updatedElements);
+    setEditingTextIndex(null);
+  };
+
+  const handleTextDragStart = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const textElement = elements?.[index];
+    if (textElement && textElement.start) {
+      setSelectedTextIndex(index);
+      setDragOffset({
+        x: e.clientX - textElement.start.x,
+        y: e.clientY - textElement.start.y,
+      });
     }
-    setTextValue('');
-    setShowTextInput(false);
+  };
+
+  const handleTextDrag = (e: React.MouseEvent) => {
+    if (selectedTextIndex !== null && elements) {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const newX = e.clientX - rect.left - dragOffset.x;
+      const newY = e.clientY - rect.top - dragOffset.y;
+
+      const updatedElements = [...elements];
+      updatedElements[selectedTextIndex] = {
+        ...updatedElements[selectedTextIndex],
+        start: { x: newX, y: newY },
+      };
+      setElements(updatedElements);
+    }
+  };
+
+  const handleTextDragEnd = () => {
+    setSelectedTextIndex(null);
+  };
+
+  const handleResizeStart = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const textElement = elements?.[index];
+    if (textElement && textElement.start) {
+      setResizingTextIndex(index);
+      setResizeStart({
+        x: e.clientX,
+        y: e.clientY,
+        width: textElement.width || 200,
+        height: textElement.height || 60,
+      });
+    }
+  };
+
+  const handleResize = (e: React.MouseEvent) => {
+    if (resizingTextIndex !== null && elements) {
+      const deltaX = e.clientX - resizeStart.x;
+      const deltaY = e.clientY - resizeStart.y;
+
+      const newWidth = Math.max(100, resizeStart.width + deltaX);
+      const newHeight = Math.max(40, resizeStart.height + deltaY);
+
+      const updatedElements = [...elements];
+      updatedElements[resizingTextIndex] = {
+        ...updatedElements[resizingTextIndex],
+        width: newWidth,
+        height: newHeight,
+      };
+      setElements(updatedElements);
+    }
+  };
+
+  const handleResizeEnd = () => {
+    setResizingTextIndex(null);
   };
 
   const handleUndo = () => {
@@ -301,6 +367,46 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
 
       // Draw annotations on top
       ctx.drawImage(canvas, 0, 0);
+
+      // Draw text annotations on top (since they're HTML divs, not on canvas)
+      elements?.forEach(element => {
+        if (element.type === 'text' && element.start && element.text) {
+          ctx.font = '16px sans-serif';
+          const padding = 4;
+
+          // Draw background if enabled
+          if (textBgOpacity === 'white') {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.fillRect(
+              element.start.x,
+              element.start.y,
+              element.width || 200,
+              element.height || 60
+            );
+          }
+
+          // Draw text with word wrapping
+          ctx.fillStyle = element.color;
+          const maxWidth = (element.width || 200) - padding * 2;
+          const lineHeight = 20;
+          const words = element.text.split(' ');
+          let line = '';
+          let y = element.start.y + lineHeight;
+
+          for (let n = 0; n < words.length; n++) {
+            const testLine = line + words[n] + ' ';
+            const metrics = ctx.measureText(testLine);
+            if (metrics.width > maxWidth && n > 0) {
+              ctx.fillText(line, element.start.x + padding, y);
+              line = words[n] + ' ';
+              y += lineHeight;
+            } else {
+              line = testLine;
+            }
+          }
+          ctx.fillText(line, element.start.x + padding, y);
+        }
+      });
 
       const imageData = combinedCanvas.toDataURL('image/png');
 
@@ -438,37 +544,6 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
         </div>
       </div>
 
-      {/* Text Input Modal */}
-      {showTextInput && (
-        <div
-          className="absolute z-50 bg-white p-4 rounded shadow-lg"
-          style={{ left: textInputPos.x, top: textInputPos.y }}
-        >
-          <input
-            type="text"
-            value={textValue}
-            onChange={(e) => setTextValue(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleTextSubmit()}
-            className="border p-2 rounded"
-            placeholder="Enter text..."
-            autoFocus
-          />
-          <div className="flex gap-2 mt-2">
-            <button onClick={handleTextSubmit} className="px-3 py-1 bg-blue-500 text-white rounded">
-              Add
-            </button>
-            <button
-              onClick={() => {
-                setShowTextInput(false);
-                setTextValue('');
-              }}
-              className="px-3 py-1 bg-gray-200 rounded"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Annotation Container */}
       <div id="annotation-container" className="relative w-full h-full">
@@ -489,8 +564,82 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-          style={{ pointerEvents: showTextInput || !annotationsEnabled ? 'none' : 'auto' }}
+          style={{ pointerEvents: !annotationsEnabled ? 'none' : 'auto' }}
         />
+
+        {/* Draggable Text Annotations */}
+        {elements?.map((element, index) => {
+          if (element.type === 'text' && element.start) {
+            const isEditing = editingTextIndex === index;
+            return (
+              <div
+                key={index}
+                className="absolute border-2 border-dashed border-blue-400 hover:border-blue-600 group"
+                style={{
+                  left: element.start.x,
+                  top: element.start.y,
+                  width: element.width || 200,
+                  height: element.height || 60,
+                  backgroundColor: textBgOpacity === 'white' ? 'rgba(255, 255, 255, 0.9)' : 'transparent',
+                  pointerEvents: annotationsEnabled ? 'auto' : 'none',
+                }}
+                onMouseDown={(e) => {
+                  if (!isEditing) handleTextDragStart(index, e);
+                }}
+                onMouseMove={(e) => {
+                  handleTextDrag(e);
+                  handleResize(e);
+                }}
+                onMouseUp={() => {
+                  handleTextDragEnd();
+                  handleResizeEnd();
+                }}
+                onMouseLeave={() => {
+                  handleTextDragEnd();
+                  handleResizeEnd();
+                }}
+              >
+                {/* Delete button */}
+                <button
+                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteText(index);
+                  }}
+                  style={{ pointerEvents: 'auto' }}
+                >
+                  ×
+                </button>
+
+                {/* Resize handle */}
+                <div
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-blue-500 cursor-nwse-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    handleResizeStart(index, e);
+                  }}
+                  style={{ pointerEvents: 'auto' }}
+                />
+
+                {/* Text content */}
+                <textarea
+                  className="w-full h-full resize-none border-none outline-none bg-transparent p-1"
+                  style={{
+                    color: element.color,
+                    fontSize: '16px',
+                    cursor: isEditing ? 'text' : 'move',
+                  }}
+                  value={element.text || ''}
+                  onChange={(e) => handleTextChange(index, e.target.value)}
+                  onFocus={() => setEditingTextIndex(index)}
+                  onBlur={() => setEditingTextIndex(null)}
+                  placeholder="Type here..."
+                />
+              </div>
+            );
+          }
+          return null;
+        })}
       </div>
     </div>
   );
