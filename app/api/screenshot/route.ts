@@ -19,7 +19,6 @@ export async function POST(request: NextRequest) {
       const puppeteer = await import('puppeteer-core');
       browser = await puppeteer.default.launch({
         args: chromium.args,
-        defaultViewport: chromium.defaultViewport,
         executablePath: await chromium.executablePath(),
         headless: chromium.headless,
       });
