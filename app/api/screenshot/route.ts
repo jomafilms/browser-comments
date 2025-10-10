@@ -18,9 +18,9 @@ export async function POST(request: NextRequest) {
       // Use puppeteer-core with chromium for Vercel
       const puppeteer = await import('puppeteer-core');
       browser = await puppeteer.default.launch({
-        args: chromium.args,
+        args: [...chromium.args, '--hide-scrollbars', '--disable-web-security'],
         executablePath: await chromium.executablePath(),
-        headless: chromium.headless,
+        headless: true,
       });
     } else {
       // Use regular puppeteer for local development
