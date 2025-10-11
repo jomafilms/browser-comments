@@ -33,6 +33,7 @@ interface AnnotationCanvasProps {
 export default function AnnotationCanvas({ onSave, onNewComment, onViewComments, iframeUrl }: AnnotationCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
 
   const [tool, setTool] = useState<Tool>('pen');
   const [color, setColor] = useState<Color>('#EF4444');
@@ -376,27 +377,11 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
 
   const handleSave = async () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const iframe = iframeRef.current;
+    if (!canvas || !iframe) return;
 
     setIsSaving(true);
     try {
-      // Use Puppeteer on the server to capture the webpage (bypasses CORS completely)
-      const response = await fetch('/api/screenshot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: iframeUrl,
-          width: canvas.width,
-          height: canvas.height,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to capture screenshot');
-      }
-
-      const { image } = await response.json();
-
       // Create combined canvas
       const combinedCanvas = document.createElement('canvas');
       combinedCanvas.width = canvas.width;
@@ -404,58 +389,158 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
       const ctx = combinedCanvas.getContext('2d');
       if (!ctx) return;
 
-      // Load the screenshot and draw it
-      const img = new Image();
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = image;
-      });
+      let capturedIframe = false;
 
-      ctx.drawImage(img, 0, 0, combinedCanvas.width, combinedCanvas.height);
+      // Try same-origin capture first (works if CORS headers are set)
+      try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (iframeDoc) {
+          console.log('Same-origin iframe detected, using html2canvas...');
 
-      // Draw annotations on top
-      ctx.drawImage(canvas, 0, 0);
+          // Get iframe dimensions
+          const iframeRect = iframe.getBoundingClientRect();
 
-      // Draw text annotations on top (since they're HTML divs, not on canvas)
-      elements?.forEach(element => {
-        if (element.type === 'text' && element.start && element.text) {
-          ctx.font = '16px sans-serif';
-          const padding = 4;
+          // Use html2canvas to capture the iframe's current state
+          const html2canvas = (await import('html2canvas')).default;
+          const iframeCanvas = await html2canvas(iframeDoc.body, {
+            width: iframeRect.width,
+            height: iframeRect.height,
+            windowWidth: iframeRect.width,
+            windowHeight: iframeRect.height,
+            useCORS: true,
+            allowTaint: true,
+            scrollX: 0,
+            scrollY: 0,
+            x: 0,
+            y: 0,
+          });
 
-          // Draw background if enabled
-          if (textBgOpacity === 'white') {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-            ctx.fillRect(
-              element.start.x,
-              element.start.y,
-              element.width || 200,
-              element.height || 60
-            );
-          }
-
-          // Draw text with word wrapping
-          ctx.fillStyle = element.color;
-          const maxWidth = (element.width || 200) - padding * 2;
-          const lineHeight = 20;
-          const words = element.text.split(' ');
-          let line = '';
-          let y = element.start.y + lineHeight;
-
-          for (let n = 0; n < words.length; n++) {
-            const testLine = line + words[n] + ' ';
-            const metrics = ctx.measureText(testLine);
-            if (metrics.width > maxWidth && n > 0) {
-              ctx.fillText(line, element.start.x + padding, y);
-              line = words[n] + ' ';
-              y += lineHeight;
-            } else {
-              line = testLine;
-            }
-          }
-          ctx.fillText(line, element.start.x + padding, y);
+          // Draw iframe capture scaled to match canvas size
+          ctx.drawImage(iframeCanvas, 0, 0, combinedCanvas.width, combinedCanvas.height);
+          capturedIframe = true;
+          console.log('Successfully captured same-origin iframe');
         }
-      });
+      } catch (sameOriginError) {
+        console.log('Same-origin capture failed (expected for cross-origin):', sameOriginError);
+      }
+
+      // If same-origin capture failed, use screen capture
+      if (!capturedIframe) {
+        console.log('Using screen capture for cross-origin iframe...');
+
+        // Temporarily hide toolbar and spinner only (keep annotations visible for capture)
+        setIsSaving(false);
+
+        if (toolbarRef.current) {
+          toolbarRef.current.style.display = 'none';
+        }
+
+        // Wait for UI to update
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            displaySurface: 'browser',
+          } as MediaTrackConstraints,
+          audio: false,
+          preferCurrentTab: true,
+        } as any);
+
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.play();
+
+        // Wait for video to be ready
+        await new Promise((resolve) => {
+          video.onloadedmetadata = resolve;
+        });
+
+        // Wait one more frame to ensure video is fully loaded
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        // Get video dimensions
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
+
+        // Calculate the iframe position relative to the viewport
+        const iframeRect = iframe.getBoundingClientRect();
+
+        // Calculate scale factor between video capture and actual screen
+        const scaleX = videoWidth / window.innerWidth;
+        const scaleY = videoHeight / window.innerHeight;
+
+        // Draw the iframe area WITH annotations (they're already visible in the capture)
+        ctx.drawImage(
+          video,
+          iframeRect.left * scaleX,
+          iframeRect.top * scaleY,
+          iframeRect.width * scaleX,
+          iframeRect.height * scaleY,
+          0,
+          0,
+          combinedCanvas.width,
+          combinedCanvas.height
+        );
+
+        // Stop the stream
+        stream.getTracks().forEach(track => track.stop());
+        console.log('Successfully captured via screen share');
+
+        // Restore UI state
+        if (toolbarRef.current) {
+          toolbarRef.current.style.display = '';
+        }
+        setIsSaving(true);
+
+        // Skip redrawing annotations since they're already in the screen capture
+        capturedIframe = true; // Reuse this flag to skip annotation redraw
+      }
+
+      // Only draw annotations if NOT using screen capture (which already includes them)
+      if (!capturedIframe) {
+        // Draw canvas annotations on top (pen, arrow, rectangle, circle)
+        ctx.drawImage(canvas, 0, 0);
+
+        // Draw text annotations on top (since they're HTML divs, not on canvas)
+        elements?.forEach(element => {
+          if (element.type === 'text' && element.start && element.text) {
+            ctx.font = '16px sans-serif';
+            const padding = 4;
+
+            // Draw background if enabled
+            if (textBgOpacity === 'white') {
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+              ctx.fillRect(
+                element.start.x,
+                element.start.y,
+                element.width || 200,
+                element.height || 60
+              );
+            }
+
+            // Draw text with word wrapping
+            ctx.fillStyle = element.color;
+            const maxWidth = (element.width || 200) - padding * 2;
+            const lineHeight = 20;
+            const words = element.text.split(' ');
+            let line = '';
+            let y = element.start.y + lineHeight;
+
+            for (let n = 0; n < words.length; n++) {
+              const testLine = line + words[n] + ' ';
+              const metrics = ctx.measureText(testLine);
+              if (metrics.width > maxWidth && n > 0) {
+                ctx.fillText(line, element.start.x + padding, y);
+                line = words[n] + ' ';
+                y += lineHeight;
+              } else {
+                line = testLine;
+              }
+            }
+            ctx.fillText(line, element.start.x + padding, y);
+          }
+        });
+      }
 
       const imageData = combinedCanvas.toDataURL('image/png');
 
@@ -501,7 +586,7 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
       )}
 
       {/* Toolbar */}
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-white backdrop-blur-sm shadow-lg rounded-lg p-4 flex gap-4 items-center transition-all duration-200 opacity-30 hover:opacity-100">
+      <div ref={toolbarRef} className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-white backdrop-blur-sm shadow-lg rounded-lg p-4 flex gap-4 items-center transition-all duration-200 opacity-30 hover:opacity-100">
         {/* Tool Selection */}
         <div className="flex gap-2">
           <button
