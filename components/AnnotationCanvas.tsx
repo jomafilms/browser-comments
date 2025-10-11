@@ -391,6 +391,8 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
 
       let capturedIframe = false;
 
+      console.log('Starting screenshot capture...');
+
       // Try same-origin capture first (works if CORS headers are set)
       try {
         const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
@@ -428,6 +430,12 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
       if (!capturedIframe) {
         console.log('Using screen capture for cross-origin iframe...');
 
+        // Check if screen capture is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+          console.error('Screen capture not available in this browser');
+          throw new Error('Screen capture is not supported in this browser. Please try a different browser or ask the site owner to enable CORS headers.');
+        }
+
         // Temporarily hide toolbar and spinner only (keep annotations visible for capture)
         setIsSaving(false);
 
@@ -438,6 +446,7 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
         // Wait for UI to update
         await new Promise(resolve => setTimeout(resolve, 300));
 
+        console.log('Requesting screen share permission...');
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: {
             displaySurface: 'browser',
@@ -445,6 +454,7 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
           audio: false,
           preferCurrentTab: true,
         } as any);
+        console.log('Screen share granted, stream:', stream);
 
         const video = document.createElement('video');
         video.srcObject = stream;
