@@ -109,6 +109,24 @@ export default function CommentsPage() {
     }
   };
 
+  const deleteComment = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this comment? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await fetch(`/api/comments/${id}`, {
+        method: 'DELETE',
+      });
+
+      // Remove the comment from local state
+      setComments(prevComments => prevComments.filter(comment => comment.id !== id));
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      alert('Failed to delete comment. Please try again.');
+    }
+  };
+
   // Sort comments based on selected mode
   const sortComments = (commentsToSort: Comment[]) => {
     if (sortMode === 'recent') {
@@ -293,9 +311,17 @@ export default function CommentsPage() {
                             </a>
                           </div>
 
-                          <div className="text-sm text-gray-500 mb-3">
-                            {new Date(comment.created_at).toLocaleDateString()} at{' '}
-                            {new Date(comment.created_at).toLocaleTimeString()}
+                          <div className="text-sm text-gray-500 mb-3 pb-3 border-b border-gray-200 flex justify-between items-center">
+                            <span>
+                              {new Date(comment.created_at).toLocaleDateString()} at{' '}
+                              {new Date(comment.created_at).toLocaleTimeString()}
+                            </span>
+                            <button
+                              onClick={() => deleteComment(comment.id)}
+                              className="text-xs text-red-500 hover:text-red-700 hover:underline"
+                            >
+                              delete
+                            </button>
                           </div>
 
                           <div className="flex-1 overflow-y-auto">

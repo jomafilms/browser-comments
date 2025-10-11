@@ -157,4 +157,13 @@ export async function updateProjectName(
   }
 }
 
+export async function deleteComment(id: number): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query(`DELETE FROM comments WHERE id = $1`, [id]);
+  } finally {
+    client.release();
+  }
+}
+
 export default pool;

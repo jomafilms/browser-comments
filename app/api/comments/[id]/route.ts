@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateCommentStatus, addNoteToComment } from '@/lib/db';
+import { updateCommentStatus, addNoteToComment, deleteComment } from '@/lib/db';
 
 export async function PATCH(
   request: NextRequest,
@@ -23,6 +23,26 @@ export async function PATCH(
     console.error('Error updating comment:', error);
     return NextResponse.json(
       { error: 'Failed to update comment' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: idString } = await context.params;
+    const id = parseInt(idString);
+
+    await deleteComment(id);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting comment:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete comment' },
       { status: 500 }
     );
   }
