@@ -282,15 +282,20 @@ export default function CommentsPage() {
                         {/* Text/Metadata - 30-40% width */}
                         <div className="w-[35%] p-4 flex flex-col">
                           <div className="flex items-start justify-between mb-2">
-                            <span
-                              className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                                comment.status === 'open'
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-green-100 text-green-800'
-                              }`}
-                            >
-                              {comment.status}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-1 rounded bg-gray-200 text-gray-700 text-xs font-mono">
+                                #{comment.id}
+                              </span>
+                              <span
+                                className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                                  comment.status === 'open'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-green-100 text-green-800'
+                                }`}
+                              >
+                                {comment.status}
+                              </span>
+                            </div>
                             <button
                               onClick={() => toggleStatus(comment.id, comment.status)}
                               className="text-sm text-blue-500 hover:underline"

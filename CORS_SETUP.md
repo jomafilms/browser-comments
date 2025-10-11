@@ -24,7 +24,7 @@ If you'd like to enable automatic capture, you can add these HTTP headers to you
 ```javascript
 // Node.js/Express example
 const allowedOrigins = [
-  'https://browser-comments.vercel.app/comments'  
+  'https://browser-comments.vercel.app'
 ];
 
 app.use((req, res, next) => {
