@@ -47,6 +47,7 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
   const [editingTextIndex, setEditingTextIndex] = useState<number | null>(null);
   const [resizingTextIndex, setResizingTextIndex] = useState<number | null>(null);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [justFinishedEditing, setJustFinishedEditing] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -161,6 +162,12 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Ignore clicks if we just finished editing a text box
+    if (justFinishedEditing) {
+      setJustFinishedEditing(false);
+      return;
+    }
+
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
@@ -255,7 +262,7 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
     }
   };
 
-  const handleTextDrag = (e: React.MouseEvent) => {
+  const handleTextDrag = (e: MouseEvent) => {
     if (selectedTextIndex !== null && elements) {
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -276,6 +283,27 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
     setSelectedTextIndex(null);
   };
 
+  // Add document-level event listeners for dragging
+  useEffect(() => {
+    if (selectedTextIndex !== null) {
+      const handleMouseMove = (e: MouseEvent) => {
+        handleTextDrag(e);
+      };
+
+      const handleMouseUp = () => {
+        handleTextDragEnd();
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [selectedTextIndex, dragOffset, elements]);
+
   const handleResizeStart = (index: number, e: React.MouseEvent) => {
     e.stopPropagation();
     const textElement = elements?.[index];
@@ -290,13 +318,13 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
     }
   };
 
-  const handleResize = (e: React.MouseEvent) => {
+  const handleResize = (e: MouseEvent) => {
     if (resizingTextIndex !== null && elements) {
       const deltaX = e.clientX - resizeStart.x;
       const deltaY = e.clientY - resizeStart.y;
 
-      const newWidth = Math.max(100, resizeStart.width + deltaX);
-      const newHeight = Math.max(40, resizeStart.height + deltaY);
+      const newWidth = Math.max(100, Math.min(1200, resizeStart.width + deltaX));
+      const newHeight = Math.max(40, Math.min(800, resizeStart.height + deltaY));
 
       const updatedElements = [...elements];
       updatedElements[resizingTextIndex] = {
@@ -311,6 +339,27 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
   const handleResizeEnd = () => {
     setResizingTextIndex(null);
   };
+
+  // Add document-level event listeners for resizing
+  useEffect(() => {
+    if (resizingTextIndex !== null) {
+      const handleMouseMove = (e: MouseEvent) => {
+        handleResize(e);
+      };
+
+      const handleMouseUp = () => {
+        handleResizeEnd();
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [resizingTextIndex, resizeStart, elements]);
 
   const handleUndo = () => {
     if (elements && elements.length > 0) {
@@ -421,6 +470,11 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
         }));
 
       onSave(imageData, textAnnotations);
+
+      // Clear annotations after successful save
+      setElements([]);
+      setCurrentElement(null);
+      redrawCanvas();
     } catch (error) {
       console.error('Error capturing screenshot:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -550,10 +604,10 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
         {/* iframe */}
         <iframe
           ref={iframeRef}
-          src={`/api/proxy?url=${encodeURIComponent(iframeUrl)}`}
+          src={iframeUrl}
           className="w-full h-full border-0"
           title="Web page to annotate"
-          sandbox="allow-scripts allow-same-origin"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation-by-user-activation"
         />
 
         {/* Canvas Overlay */}
@@ -574,30 +628,21 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
             return (
               <div
                 key={index}
-                className="absolute border-2 border-dashed border-blue-400 hover:border-blue-600 group"
+                className={`absolute group ${annotationsEnabled ? 'border-2 border-dashed border-blue-400 hover:border-blue-600' : 'border-none'}`}
                 style={{
                   left: element.start.x,
                   top: element.start.y,
                   width: element.width || 200,
                   height: element.height || 60,
-                  backgroundColor: textBgOpacity === 'white' ? 'rgba(255, 255, 255, 0.9)' : 'transparent',
+                  backgroundColor: annotationsEnabled && textBgOpacity === 'white' ? 'rgba(255, 255, 255, 0.9)' : 'transparent',
                   pointerEvents: annotationsEnabled ? 'auto' : 'none',
+                  zIndex: 10,
                 }}
                 onMouseDown={(e) => {
+                  e.stopPropagation();
                   if (!isEditing) handleTextDragStart(index, e);
                 }}
-                onMouseMove={(e) => {
-                  handleTextDrag(e);
-                  handleResize(e);
-                }}
-                onMouseUp={() => {
-                  handleTextDragEnd();
-                  handleResizeEnd();
-                }}
-                onMouseLeave={() => {
-                  handleTextDragEnd();
-                  handleResizeEnd();
-                }}
+                onClick={(e) => e.stopPropagation()}
               >
                 {/* Delete button */}
                 <button
@@ -613,28 +658,48 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
 
                 {/* Resize handle */}
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-blue-500 cursor-nwse-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-500 rounded-br cursor-nwse-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                   onMouseDown={(e) => {
                     e.stopPropagation();
+                    e.preventDefault();
                     handleResizeStart(index, e);
                   }}
-                  style={{ pointerEvents: 'auto' }}
-                />
+                  style={{ pointerEvents: 'auto', zIndex: 20 }}
+                >
+                  <div className="w-2 h-2 border-b-2 border-r-2 border-white"></div>
+                </div>
 
                 {/* Text content */}
-                <textarea
-                  className="w-full h-full resize-none border-none outline-none bg-transparent p-1"
-                  style={{
-                    color: element.color,
-                    fontSize: '16px',
-                    cursor: isEditing ? 'text' : 'move',
-                  }}
-                  value={element.text || ''}
-                  onChange={(e) => handleTextChange(index, e.target.value)}
-                  onFocus={() => setEditingTextIndex(index)}
-                  onBlur={() => setEditingTextIndex(null)}
-                  placeholder="Type here..."
-                />
+                {isEditing ? (
+                  <textarea
+                    className="w-full h-full resize-none border-none outline-none bg-transparent p-1 overflow-auto"
+                    style={{
+                      color: element.color,
+                      fontSize: '16px',
+                      cursor: 'text',
+                    }}
+                    value={element.text || ''}
+                    onChange={(e) => handleTextChange(index, e.target.value)}
+                    onBlur={() => {
+                      setEditingTextIndex(null);
+                      setJustFinishedEditing(true);
+                    }}
+                    autoFocus
+                    placeholder="Type here..."
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full p-1 overflow-auto whitespace-pre-wrap break-words"
+                    style={{
+                      color: element.color,
+                      fontSize: '16px',
+                      cursor: 'move',
+                    }}
+                    onDoubleClick={() => setEditingTextIndex(index)}
+                  >
+                    {element.text || <span className="text-gray-400">Double click to type...</span>}
+                  </div>
+                )}
               </div>
             );
           }
