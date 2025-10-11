@@ -443,6 +443,12 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
           toolbarRef.current.style.display = 'none';
         }
 
+        // Temporarily enable text backgrounds for capture
+        const wasAnnotationsEnabled = annotationsEnabled;
+        if (!annotationsEnabled) {
+          setAnnotationsEnabled(true);
+        }
+
         // Wait for UI to update
         await new Promise(resolve => setTimeout(resolve, 300));
 
@@ -501,6 +507,11 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
           toolbarRef.current.style.display = '';
         }
         setIsSaving(true);
+
+        // Restore annotations state if it was disabled
+        if (!wasAnnotationsEnabled) {
+          setAnnotationsEnabled(false);
+        }
 
         // Skip redrawing annotations since they're already in the screen capture
         capturedIframe = true; // Reuse this flag to skip annotation redraw
