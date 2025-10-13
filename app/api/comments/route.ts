@@ -39,8 +39,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const projectName = searchParams.get('projectName') || undefined;
     const status = searchParams.get('status') as 'open' | 'resolved' | undefined;
+    const excludeImages = searchParams.get('excludeImages') === 'true';
 
-    const comments = await getComments({ projectName, status });
+    const comments = await getComments({ projectName, status, excludeImages });
     return NextResponse.json(comments);
   } catch (error) {
     console.error('Error fetching comments:', error);

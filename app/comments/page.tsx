@@ -32,6 +32,7 @@ export default function CommentsPage() {
   const [expandedComment, setExpandedComment] = useState<number | null>(null);
   const [newNote, setNewNote] = useState('');
   const [sortMode, setSortMode] = useState<'recent' | 'resolved-bottom'>('recent');
+  const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     fetchComments();
@@ -39,10 +40,13 @@ export default function CommentsPage() {
 
   const fetchComments = async () => {
     setLoading(true);
+    setLoadedImages(new Set()); // Reset loaded images when fetching new comments
+
     try {
       const params = new URLSearchParams();
       if (selectedProject !== 'all') params.append('projectName', selectedProject);
       if (filter !== 'all') params.append('status', filter);
+      params.append('excludeImages', 'true'); // Exclude images from initial load
 
       const response = await fetch(`/api/comments?${params}`);
       const data = await response.json();
@@ -57,6 +61,46 @@ export default function CommentsPage() {
       setLoading(false);
     }
   };
+
+  // Load images progressively after comments are loaded
+  useEffect(() => {
+    if (comments.length === 0 || loading) return;
+
+    // Sort comments to get the display order
+    const sortedCommentIds = sortComments(comments).map(c => c.id);
+
+    // Load images one by one in display order
+    const loadImagesSequentially = async () => {
+      for (const commentId of sortedCommentIds) {
+        // Skip if already loaded
+        if (loadedImages.has(commentId)) continue;
+
+        try {
+          const response = await fetch(`/api/comments/${commentId}`);
+          const { image_data } = await response.json();
+
+          // Update the comment with the loaded image
+          setComments(prevComments =>
+            prevComments.map(comment =>
+              comment.id === commentId
+                ? { ...comment, image_data }
+                : comment
+            )
+          );
+
+          // Mark as loaded
+          setLoadedImages(prev => new Set([...prev, commentId]));
+
+          // Small delay between loading images to avoid overwhelming the server
+          await new Promise(resolve => setTimeout(resolve, 50));
+        } catch (error) {
+          console.error(`Error loading image for comment ${commentId}:`, error);
+        }
+      }
+    };
+
+    loadImagesSequentially();
+  }, [comments.length, loading, sortMode]); // Re-run when sort mode changes
 
   const toggleStatus = async (id: number, currentStatus: 'open' | 'resolved') => {
     const newStatus = currentStatus === 'open' ? 'resolved' : 'open';
@@ -272,11 +316,15 @@ export default function CommentsPage() {
                       <div className="flex">
                         {/* Image - 60-70% width */}
                         <div className="w-[65%] bg-gray-100 flex items-center justify-center p-4">
-                          <img
-                            src={comment.image_data}
-                            alt="Screenshot"
-                            className="max-w-full max-h-[60vh] object-contain"
-                          />
+                          {comment.image_data ? (
+                            <img
+                              src={comment.image_data}
+                              alt="Screenshot"
+                              className="max-w-full max-h-[60vh] object-contain"
+                            />
+                          ) : (
+                            <div className="text-gray-400 text-sm">Loading image...</div>
+                          )}
                         </div>
 
                         {/* Text/Metadata - 30-40% width */}

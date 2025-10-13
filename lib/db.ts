@@ -72,10 +72,16 @@ export async function saveComment(data: {
 export async function getComments(filters?: {
   projectName?: string;
   status?: 'open' | 'resolved';
+  excludeImages?: boolean;
 }): Promise<Comment[]> {
   const client = await pool.connect();
   try {
-    let query = 'SELECT * FROM comments WHERE 1=1';
+    // If excludeImages is true, select all fields except image_data
+    const selectClause = filters?.excludeImages
+      ? 'id, url, project_name, \'\' as image_data, text_annotations, status, created_at, updated_at'
+      : '*';
+
+    let query = `SELECT ${selectClause} FROM comments WHERE 1=1`;
     const params: any[] = [];
 
     if (filters?.projectName) {
