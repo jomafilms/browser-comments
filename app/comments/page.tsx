@@ -40,10 +40,63 @@ export default function CommentsPage() {
   const [sortMode, setSortMode] = useState<'recent' | 'resolved-bottom'>('recent');
   const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Initialize filters from URL parameters on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    const statusParam = params.get('status');
+    if (statusParam === 'open' || statusParam === 'resolved') {
+      setFilter(statusParam);
+    }
+
+    const projectParam = params.get('project');
+    if (projectParam) {
+      setSelectedProject(projectParam);
+    }
+
+    const priorityParam = params.get('priority');
+    if (priorityParam) {
+      setSelectedPriority(priorityParam.toLowerCase());
+    }
+
+    const assigneeParam = params.get('assignee');
+    if (assigneeParam) {
+      setSelectedAssignee(assigneeParam);
+    }
+
+    const viewParam = params.get('view');
+    if (viewParam === 'table' || viewParam === 'card') {
+      setViewMode(viewParam);
+    }
+
+    setIsInitialized(true);
+  }, []);
+
+  // Update URL when filters change
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const params = new URLSearchParams();
+
+    if (filter !== 'all') params.set('status', filter);
+    if (selectedProject !== 'all') params.set('project', selectedProject);
+    if (selectedPriority !== 'all') params.set('priority', selectedPriority);
+    if (selectedAssignee !== 'all') params.set('assignee', selectedAssignee);
+    if (viewMode !== 'card') params.set('view', viewMode);
+
+    const queryString = params.toString();
+    const newUrl = queryString ? `/comments?${queryString}` : '/comments';
+
+    // Update URL without reloading the page
+    window.history.replaceState({}, '', newUrl);
+  }, [filter, selectedProject, selectedPriority, selectedAssignee, viewMode, isInitialized]);
 
   useEffect(() => {
+    if (!isInitialized) return;
     fetchComments();
-  }, [filter, selectedProject, selectedPriority, selectedAssignee]);
+  }, [filter, selectedProject, selectedPriority, selectedAssignee, isInitialized]);
 
   const fetchComments = async () => {
     setLoading(true);
@@ -124,7 +177,12 @@ export default function CommentsPage() {
       setComments(prevComments =>
         prevComments.map(comment =>
           comment.id === id
-            ? { ...comment, status: newStatus }
+            ? {
+                ...comment,
+                status: newStatus,
+                // Reset priority_number to 0 when resolving
+                priority_number: newStatus === 'resolved' ? 0 : comment.priority_number
+              }
             : comment
         )
       );

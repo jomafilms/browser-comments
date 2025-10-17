@@ -104,11 +104,26 @@ export default function CommentsTableView({
     const [movedComment] = reorderedComments.splice(draggedIndex, 1);
     reorderedComments.splice(targetIndex, 0, movedComment);
 
-    // Renumber all items sequentially starting from 1
-    const updates = reorderedComments.map((comment, index) => ({
-      id: comment.id,
-      priorityNumber: index + 1
-    }));
+    // Renumber only OPEN items sequentially starting from 1
+    // Resolved items keep priority_number = 0
+    let currentNumber = 1;
+    const updates = reorderedComments.map((comment) => {
+      if (comment.status === 'resolved') {
+        // Keep resolved comments at 0
+        return {
+          id: comment.id,
+          priorityNumber: 0
+        };
+      } else {
+        // Renumber open comments sequentially
+        const priorityNumber = currentNumber;
+        currentNumber++;
+        return {
+          id: comment.id,
+          priorityNumber
+        };
+      }
+    });
 
     // Use batch update if available, otherwise update individually
     if (onBatchUpdatePriority) {

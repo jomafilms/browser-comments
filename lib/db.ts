@@ -176,10 +176,18 @@ export async function updateCommentStatus(
 ): Promise<void> {
   const client = await pool.connect();
   try {
-    await client.query(
-      `UPDATE comments SET status = $1, updated_at = NOW() WHERE id = $2`,
-      [status, id]
-    );
+    // When resolving a comment, also reset priority_number to 0
+    if (status === 'resolved') {
+      await client.query(
+        `UPDATE comments SET status = $1, priority_number = 0, updated_at = NOW() WHERE id = $2`,
+        [status, id]
+      );
+    } else {
+      await client.query(
+        `UPDATE comments SET status = $1, updated_at = NOW() WHERE id = $2`,
+        [status, id]
+      );
+    }
   } finally {
     client.release();
   }
