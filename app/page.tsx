@@ -8,6 +8,9 @@ export default function Home() {
   const router = useRouter();
   const [url, setUrl] = useState('');
   const [projectName, setProjectName] = useState('');
+  const [priority, setPriority] = useState<'high' | 'med' | 'low'>('med');
+  const [priorityNumber, setPriorityNumber] = useState(0);
+  const [assignee, setAssignee] = useState<'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari'>('dev1');
   const [showAnnotation, setShowAnnotation] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [projects, setProjects] = useState<Array<{name: string, url: string}>>([]);
@@ -108,6 +111,9 @@ export default function Home() {
           projectName,
           imageData,
           textAnnotations,
+          priority,
+          priorityNumber,
+          assignee,
         }),
       });
 
@@ -192,6 +198,53 @@ export default function Home() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               onKeyDown={(e) => e.key === 'Enter' && handleStart()}
             />
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Priority
+              </label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as 'high' | 'med' | 'low')}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="high">High</option>
+                <option value="med">Med</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+            <div className="w-24">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                #
+              </label>
+              <input
+                type="number"
+                value={priorityNumber}
+                onChange={(e) => setPriorityNumber(parseInt(e.target.value) || 0)}
+                min="0"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Assign To
+            </label>
+            <select
+              value={assignee}
+              onChange={(e) => setAssignee(e.target.value as 'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari')}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="dev1">Dev1</option>
+              <option value="dev2">Dev2</option>
+              <option value="dev3">Dev3</option>
+              <option value="dev4">Dev4</option>
+              <option value="Annie">Annie</option>
+              <option value="Mari">Mari</option>
+            </select>
           </div>
 
           <button

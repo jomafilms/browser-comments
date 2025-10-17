@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import CommentsTableView from '@/components/CommentsTableView';
 
 interface TextAnnotation {
   text: string;
@@ -18,6 +19,9 @@ interface Comment {
   image_data: string;
   text_annotations: TextAnnotation[];
   status: 'open' | 'resolved';
+  priority: 'high' | 'med' | 'low';
+  priority_number: number;
+  assignee: 'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari';
   created_at: string;
   updated_at: string;
 }
@@ -27,16 +31,19 @@ export default function CommentsPage() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('all');
   const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [selectedPriority, setSelectedPriority] = useState<string>('all');
+  const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
   const [projects, setProjects] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedComment, setExpandedComment] = useState<number | null>(null);
   const [newNote, setNewNote] = useState('');
   const [sortMode, setSortMode] = useState<'recent' | 'resolved-bottom'>('recent');
   const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
 
   useEffect(() => {
     fetchComments();
-  }, [filter, selectedProject]);
+  }, [filter, selectedProject, selectedPriority, selectedAssignee]);
 
   const fetchComments = async () => {
     setLoading(true);
@@ -46,6 +53,8 @@ export default function CommentsPage() {
       const params = new URLSearchParams();
       if (selectedProject !== 'all') params.append('projectName', selectedProject);
       if (filter !== 'all') params.append('status', filter);
+      if (selectedPriority !== 'all') params.append('priority', selectedPriority);
+      if (selectedAssignee !== 'all') params.append('assignee', selectedAssignee);
       params.append('excludeImages', 'true'); // Exclude images from initial load
 
       const response = await fetch(`/api/comments?${params}`);
@@ -171,6 +180,70 @@ export default function CommentsPage() {
     }
   };
 
+  const updatePriority = async (id: number, priority: 'high' | 'med' | 'low', priorityNumber: number) => {
+    try {
+      await fetch(`/api/comments/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priority, priorityNumber }),
+      });
+
+      // Update the comment locally
+      setComments(prevComments =>
+        prevComments.map(comment =>
+          comment.id === id
+            ? { ...comment, priority, priority_number: priorityNumber }
+            : comment
+        )
+      );
+    } catch (error) {
+      console.error('Error updating priority:', error);
+    }
+  };
+
+  const batchUpdatePriority = async (updates: Array<{id: number, priorityNumber: number}>) => {
+    try {
+      await fetch('/api/comments/batch-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      });
+
+      // Update all comments locally
+      setComments(prevComments =>
+        prevComments.map(comment => {
+          const update = updates.find(u => u.id === comment.id);
+          return update
+            ? { ...comment, priority_number: update.priorityNumber }
+            : comment;
+        })
+      );
+    } catch (error) {
+      console.error('Error batch updating priorities:', error);
+    }
+  };
+
+  const updateAssignee = async (id: number, assignee: 'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari') => {
+    try {
+      await fetch(`/api/comments/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignee }),
+      });
+
+      // Update the comment locally
+      setComments(prevComments =>
+        prevComments.map(comment =>
+          comment.id === id
+            ? { ...comment, assignee }
+            : comment
+        )
+      );
+    } catch (error) {
+      console.error('Error updating assignee:', error);
+    }
+  };
+
   // Sort comments based on selected mode
   const sortComments = (commentsToSort: Comment[]) => {
     if (sortMode === 'recent') {
@@ -262,6 +335,33 @@ export default function CommentsPage() {
               ))}
             </select>
 
+            {/* Priority Filter */}
+            <select
+              value={selectedPriority}
+              onChange={(e) => setSelectedPriority(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg"
+            >
+              <option value="all">All Priorities</option>
+              <option value="high">High</option>
+              <option value="med">Med</option>
+              <option value="low">Low</option>
+            </select>
+
+            {/* Assignee Filter */}
+            <select
+              value={selectedAssignee}
+              onChange={(e) => setSelectedAssignee(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg"
+            >
+              <option value="all">All Assignees</option>
+              <option value="dev1">Dev1</option>
+              <option value="dev2">Dev2</option>
+              <option value="dev3">Dev3</option>
+              <option value="dev4">Dev4</option>
+              <option value="Annie">Annie</option>
+              <option value="Mari">Mari</option>
+            </select>
+
             {/* Sort Options */}
             <div className="flex gap-2 border-l pl-4">
               <span className="text-sm text-gray-600 self-center">Sort:</span>
@@ -302,11 +402,33 @@ export default function CommentsPage() {
               Create First Comment
             </button>
           </div>
+        ) : viewMode === 'table' ? (
+          <CommentsTableView
+            comments={comments}
+            onUpdatePriority={updatePriority}
+            onUpdateAssignee={updateAssignee}
+            onToggleStatus={toggleStatus}
+            onDeleteComment={deleteComment}
+            onSwitchToCardView={() => setViewMode('card')}
+            onBatchUpdatePriority={batchUpdatePriority}
+          />
         ) : (
           <div className="space-y-8">
             {Object.entries(groupedComments).map(([projectName, projectComments]) => (
               <div key={projectName} className="bg-white rounded-lg shadow-sm p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">{projectName}</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-800">{projectName}</h2>
+                  <button
+                    onClick={() => setViewMode('table')}
+                    className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded flex items-center gap-2"
+                    title="Switch to table view"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Table
+                  </button>
+                </div>
                 <div className="space-y-4">
                   {projectComments.map((comment) => (
                     <div
@@ -330,7 +452,7 @@ export default function CommentsPage() {
                         {/* Text/Metadata - 30-40% width */}
                         <div className="w-[35%] p-4 flex flex-col">
                           <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="px-2 py-1 rounded bg-gray-200 text-gray-700 text-xs font-mono">
                                 #{comment.id}
                               </span>
@@ -343,6 +465,17 @@ export default function CommentsPage() {
                               >
                                 {comment.status}
                               </span>
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-semibold ${
+                                  comment.priority === 'high'
+                                    ? 'bg-red-100 text-red-800'
+                                    : comment.priority === 'med'
+                                    ? 'bg-orange-100 text-orange-800'
+                                    : 'bg-blue-100 text-blue-800'
+                                }`}
+                              >
+                                {comment.priority.toUpperCase()} {comment.priority_number > 0 ? `#${comment.priority_number}` : ''}
+                              </span>
                             </div>
                             <button
                               onClick={() => toggleStatus(comment.id, comment.status)}
@@ -350,6 +483,38 @@ export default function CommentsPage() {
                             >
                               {comment.status === 'open' ? 'Resolve' : 'Reopen'}
                             </button>
+                          </div>
+
+                          <div className="flex gap-2 mb-3">
+                            <select
+                              value={comment.priority}
+                              onChange={(e) => updatePriority(comment.id, e.target.value as 'high' | 'med' | 'low', comment.priority_number)}
+                              className="text-xs px-2 py-1 border border-gray-300 rounded"
+                            >
+                              <option value="high">High</option>
+                              <option value="med">Med</option>
+                              <option value="low">Low</option>
+                            </select>
+                            <input
+                              type="number"
+                              value={comment.priority_number}
+                              onChange={(e) => updatePriority(comment.id, comment.priority, parseInt(e.target.value) || 0)}
+                              className="text-xs px-2 py-1 border border-gray-300 rounded w-16"
+                              placeholder="#"
+                              min="0"
+                            />
+                            <select
+                              value={comment.assignee}
+                              onChange={(e) => updateAssignee(comment.id, e.target.value as 'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari')}
+                              className="text-xs px-2 py-1 border border-gray-300 rounded"
+                            >
+                              <option value="dev1">Dev1</option>
+                              <option value="dev2">Dev2</option>
+                              <option value="dev3">Dev3</option>
+                              <option value="dev4">Dev4</option>
+                              <option value="Annie">Annie</option>
+                              <option value="Mari">Mari</option>
+                            </select>
                           </div>
 
                           <div className="text-sm text-gray-600 mb-3">

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateCommentStatus, addNoteToComment, deleteComment } from '@/lib/db';
+import { updateCommentStatus, addNoteToComment, deleteComment, updateCommentPriority, updateCommentAssignee } from '@/lib/db';
 import pool from '@/lib/db';
 
 export async function GET(
@@ -52,6 +52,14 @@ export async function PATCH(
 
     if (body.note) {
       await addNoteToComment(id, body.note);
+    }
+
+    if (body.priority !== undefined && body.priorityNumber !== undefined) {
+      await updateCommentPriority(id, body.priority, body.priorityNumber);
+    }
+
+    if (body.assignee !== undefined) {
+      await updateCommentAssignee(id, body.assignee);
     }
 
     return NextResponse.json({ success: true });
