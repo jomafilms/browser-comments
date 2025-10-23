@@ -366,12 +366,12 @@ export default function CommentsPage() {
           </div>
 
           {/* Filters */}
-          <div className="flex gap-4 flex-wrap">
+          <div className="flex gap-3 flex-wrap items-center">
             {/* Status Filter */}
-            <div className="flex gap-2">
+            <div className="flex gap-1">
               <button
                 onClick={() => setFilter('all')}
-                className={`px-4 py-2 rounded-lg ${
+                className={`px-3 py-1.5 rounded ${
                   filter === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-200'
                 }`}
               >
@@ -379,7 +379,7 @@ export default function CommentsPage() {
               </button>
               <button
                 onClick={() => setFilter('open')}
-                className={`px-4 py-2 rounded-lg ${
+                className={`px-3 py-1.5 rounded ${
                   filter === 'open' ? 'bg-blue-500 text-white' : 'bg-gray-200'
                 }`}
               >
@@ -387,7 +387,7 @@ export default function CommentsPage() {
               </button>
               <button
                 onClick={() => setFilter('resolved')}
-                className={`px-4 py-2 rounded-lg ${
+                className={`px-3 py-1.5 rounded ${
                   filter === 'resolved' ? 'bg-blue-500 text-white' : 'bg-gray-200'
                 }`}
               >
@@ -399,7 +399,8 @@ export default function CommentsPage() {
             <select
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg"
+              className="px-3 py-1.5 border border-gray-300 rounded max-w-[200px] truncate"
+              title={selectedProject}
             >
               <option value="all">All Projects</option>
               {projects.map((project) => (
@@ -413,7 +414,7 @@ export default function CommentsPage() {
             <select
               value={selectedPriority}
               onChange={(e) => setSelectedPriority(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg"
+              className="px-3 py-1.5 border border-gray-300 rounded"
             >
               <option value="all">All Priorities</option>
               <option value="high">High</option>
@@ -425,7 +426,7 @@ export default function CommentsPage() {
             <select
               value={selectedAssignee}
               onChange={(e) => setSelectedAssignee(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg"
+              className="px-3 py-1.5 border border-gray-300 rounded"
             >
               <option value="all">All Assignees</option>
               <option value="dev1">Dev1</option>
@@ -437,19 +438,18 @@ export default function CommentsPage() {
             </select>
 
             {/* Sort Options */}
-            <div className="flex gap-2 border-l pl-4">
-              <span className="text-sm text-gray-600 self-center">Sort:</span>
+            <div className="flex gap-1 border-l pl-3">
               <button
                 onClick={() => setSortMode('recent')}
-                className={`px-4 py-2 rounded-lg text-sm ${
+                className={`px-3 py-1.5 rounded text-sm ${
                   sortMode === 'recent' ? 'bg-purple-500 text-white' : 'bg-gray-200'
                 }`}
               >
-                Most Recent
+                Recent
               </button>
               <button
                 onClick={() => setSortMode('resolved-bottom')}
-                className={`px-4 py-2 rounded-lg text-sm ${
+                className={`px-3 py-1.5 rounded text-sm ${
                   sortMode === 'resolved-bottom' ? 'bg-purple-500 text-white' : 'bg-gray-200'
                 }`}
               >
@@ -457,11 +457,11 @@ export default function CommentsPage() {
               </button>
               <button
                 onClick={() => setSortMode('priority')}
-                className={`px-4 py-2 rounded-lg text-sm ${
+                className={`px-3 py-1.5 rounded text-sm ${
                   sortMode === 'priority' ? 'bg-purple-500 text-white' : 'bg-gray-200'
                 }`}
               >
-                By Priority
+                Priority
               </button>
             </div>
           </div>
