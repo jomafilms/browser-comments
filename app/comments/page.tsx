@@ -41,6 +41,7 @@ export default function CommentsPage() {
   const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [isInitialized, setIsInitialized] = useState(false);
+  const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
   // Initialize filters from URL parameters on mount
   useEffect(() => {
@@ -523,7 +524,8 @@ export default function CommentsPage() {
                             <img
                               src={comment.image_data}
                               alt="Screenshot"
-                              className="max-w-full max-h-[60vh] object-contain"
+                              className="max-w-full max-h-[60vh] object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => setExpandedImage(comment.image_data)}
                             />
                           ) : (
                             <div className="text-gray-400 text-sm">Loading image...</div>
@@ -600,15 +602,12 @@ export default function CommentsPage() {
                           </div>
 
                           <div className="text-sm text-gray-600 mb-3">
-                            <p className="font-semibold">URL:</p>
-                            <a
-                              href={comment.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-500 hover:underline truncate block"
+                            <button
+                              onClick={() => setExpandedImage(comment.image_data)}
+                              className="text-blue-500 hover:underline text-left"
                             >
-                              {comment.url}
-                            </a>
+                              View full size →
+                            </button>
                           </div>
 
                           <div className="text-sm text-gray-500 mb-3 pb-3 border-b border-gray-200 flex justify-between items-center">
@@ -672,6 +671,29 @@ export default function CommentsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Image Overlay Modal */}
+        {expandedImage && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
+            onClick={() => setExpandedImage(null)}
+          >
+            <div className="relative max-w-[95vw] max-h-[95vh]">
+              <button
+                onClick={() => setExpandedImage(null)}
+                className="absolute top-4 right-4 bg-white text-black rounded-full w-10 h-10 flex items-center justify-center hover:bg-gray-200 z-10"
+              >
+                ✕
+              </button>
+              <img
+                src={expandedImage}
+                alt="Expanded screenshot"
+                className="max-w-full max-h-[95vh] object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
           </div>
         )}
       </div>
