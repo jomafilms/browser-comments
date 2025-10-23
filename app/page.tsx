@@ -15,6 +15,7 @@ export default function Home() {
   const [isSaving, setIsSaving] = useState(false);
   const [projects, setProjects] = useState<Array<{name: string, url: string}>>([]);
   const [selectedProject, setSelectedProject] = useState<string>('new');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // Fetch existing projects first
@@ -37,6 +38,7 @@ export default function Home() {
         // Auto-start annotation
         setShowAnnotation(true);
       }
+      setIsLoading(false);
     }
   }, [projects]);
 
@@ -147,6 +149,16 @@ export default function Home() {
           </div>
         )}
         <AnnotationCanvas onSave={handleSave} onViewComments={handleViewComments} iframeUrl={url} />
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+        <div className="bg-white p-8 rounded-xl shadow-xl">
+          <p className="text-lg text-gray-700">Loading project...</p>
+        </div>
       </div>
     );
   }
