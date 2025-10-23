@@ -175,31 +175,41 @@ export default function CommentsTableView({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full table-fixed">
+              <colgroup>
+                <col style={{ width: '60px' }} />
+                <col style={{ width: '60px' }} />
+                <col style={{ width: '140px' }} />
+                <col style={{ width: '80px' }} />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '80px' }} />
+                <col style={{ width: '80px' }} />
+                <col />
+              </colgroup>
               <thead className="bg-gray-100 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                    Thumbnail
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Thumb
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     #
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Priority
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     P#
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Assignee
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                    Delete
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Del
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Primary Note
                   </th>
                 </tr>
@@ -218,12 +228,12 @@ export default function CommentsTableView({
                       }`}
                     >
                       {/* Thumbnail */}
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-2 align-top">
                         {comment.image_data ? (
                           <img
                             src={comment.image_data}
                             alt="Comment thumbnail"
-                            className="w-16 h-16 object-cover rounded border border-gray-300"
+                            className="w-12 h-12 object-cover rounded border border-gray-300"
                           />
                         ) : (
                           <div className="w-16 h-16 bg-gray-100 rounded border border-gray-300 flex items-center justify-center text-xs text-gray-400">
@@ -233,12 +243,12 @@ export default function CommentsTableView({
                       </td>
 
                       {/* Comment # */}
-                      <td className="px-4 py-3 text-sm font-mono text-gray-700">
+                      <td className="px-2 py-2 align-top text-sm font-mono text-gray-700">
                         #{comment.id}
                       </td>
 
                       {/* Priority toggle buttons */}
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-2 align-top">
                         <div className="flex gap-1">
                           <button
                             onClick={(e) => {
@@ -289,19 +299,20 @@ export default function CommentsTableView({
                       </td>
 
                       {/* Priority # */}
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-2 align-top">
                         <input
                           type="number"
                           value={comment.priority_number}
                           onChange={(e) => onUpdatePriority(comment.id, comment.priority, parseInt(e.target.value) || 0)}
-                          className="text-xs px-2 py-1 border border-gray-300 rounded w-full"
+                          className="text-sm px-3 py-1 border border-gray-300 rounded w-16 text-center"
                           min="0"
                           onClick={(e) => e.stopPropagation()}
+                          style={{ color: '#000', appearance: 'textfield' }}
                         />
                       </td>
 
                       {/* Assignee dropdown */}
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-2 align-top">
                         <select
                           value={comment.assignee}
                           onChange={(e) => onUpdateAssignee(comment.id, e.target.value as 'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari')}
@@ -318,7 +329,7 @@ export default function CommentsTableView({
                       </td>
 
                       {/* Status badge */}
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-2 align-top">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -335,7 +346,7 @@ export default function CommentsTableView({
                       </td>
 
                       {/* Delete button */}
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-2 align-top">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -348,7 +359,7 @@ export default function CommentsTableView({
                       </td>
 
                       {/* Primary Note */}
-                      <td className="px-4 py-3 text-sm text-gray-700">
+                      <td className="px-2 py-2 align-top text-sm text-gray-700 whitespace-normal break-words">
                         {comment.text_annotations && comment.text_annotations.length > 0
                           ? comment.text_annotations[0].text
                           : <span className="text-gray-400 italic">No notes</span>

@@ -17,20 +17,28 @@ export default function Home() {
   const [selectedProject, setSelectedProject] = useState<string>('new');
 
   useEffect(() => {
-    // Load saved URL and project from localStorage
-    const savedUrl = localStorage.getItem('lastUrl');
-    const savedProject = localStorage.getItem('lastProject');
-    if (savedUrl) setUrl(savedUrl);
-    if (savedProject) setProjectName(savedProject);
-
-    // Auto-start if we have both URL and project saved
-    if (savedUrl && savedProject) {
-      setShowAnnotation(true);
-    }
-
-    // Fetch existing projects
+    // Fetch existing projects first
     fetchProjects();
   }, []);
+
+  useEffect(() => {
+    // Once projects are loaded, set defaults
+    if (projects.length > 0) {
+      const adobeMaxProject = projects.find(p => p.name === 'Adobe Max 2025 Map Notes');
+      if (adobeMaxProject) {
+        setSelectedProject(adobeMaxProject.name);
+        setProjectName(adobeMaxProject.name);
+        setUrl(adobeMaxProject.url);
+
+        // Save to localStorage
+        localStorage.setItem('lastUrl', adobeMaxProject.url);
+        localStorage.setItem('lastProject', adobeMaxProject.name);
+
+        // Auto-start annotation
+        setShowAnnotation(true);
+      }
+    }
+  }, [projects]);
 
   const fetchProjects = async () => {
     try {
@@ -97,7 +105,7 @@ export default function Home() {
   };
 
   const handleViewComments = () => {
-    router.push('/comments');
+    router.push('/comments?project=Adobe+Max+2025+Map+Notes');
   };
 
   const handleSave = async (imageData: string, textAnnotations: TextAnnotation[]) => {
@@ -255,7 +263,7 @@ export default function Home() {
           </button>
 
           <button
-            onClick={() => router.push('/comments')}
+            onClick={() => router.push('/comments?project=Adobe+Max+2025+Map+Notes')}
             className="w-full px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
           >
             View All Comments

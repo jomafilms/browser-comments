@@ -29,15 +29,15 @@ interface Comment {
 export default function CommentsPage() {
   const router = useRouter();
   const [comments, setComments] = useState<Comment[]>([]);
-  const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('all');
-  const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('open');
+  const [selectedProject, setSelectedProject] = useState<string>('Adobe Max 2025 Map Notes');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
   const [projects, setProjects] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedComment, setExpandedComment] = useState<number | null>(null);
   const [newNote, setNewNote] = useState('');
-  const [sortMode, setSortMode] = useState<'recent' | 'resolved-bottom'>('recent');
+  const [sortMode, setSortMode] = useState<'recent' | 'resolved-bottom' | 'priority'>('priority');
   const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [isInitialized, setIsInitialized] = useState(false);
@@ -309,12 +309,27 @@ export default function CommentsPage() {
       return [...commentsToSort].sort((a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
-    } else {
+    } else if (sortMode === 'resolved-bottom') {
       // Sort with resolved at bottom, open ones by most recent
       return [...commentsToSort].sort((a, b) => {
         if (a.status === 'resolved' && b.status === 'open') return 1;
         if (a.status === 'open' && b.status === 'resolved') return -1;
         // If both same status, sort by most recent
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+    } else {
+      // Sort by priority (high, med, low), then by priority_number (ASC), then by created_at (DESC)
+      const priorityOrder = { high: 0, med: 1, low: 2 };
+      return [...commentsToSort].sort((a, b) => {
+        // First sort by priority level
+        if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
+          return priorityOrder[a.priority] - priorityOrder[b.priority];
+        }
+        // Within same priority, sort by priority_number (ascending)
+        if (a.priority_number !== b.priority_number) {
+          return a.priority_number - b.priority_number;
+        }
+        // If priority_number is the same, sort by most recent
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
     }
@@ -439,6 +454,14 @@ export default function CommentsPage() {
               >
                 Resolved to Bottom
               </button>
+              <button
+                onClick={() => setSortMode('priority')}
+                className={`px-4 py-2 rounded-lg text-sm ${
+                  sortMode === 'priority' ? 'bg-purple-500 text-white' : 'bg-gray-200'
+                }`}
+              >
+                By Priority
+              </button>
             </div>
           </div>
         </div>
@@ -557,9 +580,10 @@ export default function CommentsPage() {
                               type="number"
                               value={comment.priority_number}
                               onChange={(e) => updatePriority(comment.id, comment.priority, parseInt(e.target.value) || 0)}
-                              className="text-xs px-2 py-1 border border-gray-300 rounded w-16"
+                              className="text-sm px-3 py-1 border border-gray-300 rounded w-20 text-center"
                               placeholder="#"
                               min="0"
+                              style={{ color: '#000', appearance: 'textfield' }}
                             />
                             <select
                               value={comment.assignee}
