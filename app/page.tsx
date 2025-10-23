@@ -18,20 +18,33 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch existing projects first
-    fetchProjects();
+    // Try to load from localStorage first for instant start
+    const savedUrl = localStorage.getItem('lastUrl');
+    const savedProject = localStorage.getItem('lastProject');
+
+    if (savedUrl && savedProject === 'Adobe Max 2025 Map Notes') {
+      // Instant load from cache
+      setUrl(savedUrl);
+      setProjectName(savedProject);
+      setSelectedProject(savedProject);
+      setShowAnnotation(true);
+      setIsLoading(false);
+    } else {
+      // Fallback: fetch projects and find Adobe Max
+      fetchProjects();
+    }
   }, []);
 
   useEffect(() => {
-    // Once projects are loaded, set defaults
-    if (projects.length > 0) {
+    // Only run if we're still loading and projects are fetched
+    if (isLoading && projects.length > 0) {
       const adobeMaxProject = projects.find(p => p.name === 'Adobe Max 2025 Map Notes');
       if (adobeMaxProject) {
         setSelectedProject(adobeMaxProject.name);
         setProjectName(adobeMaxProject.name);
         setUrl(adobeMaxProject.url);
 
-        // Save to localStorage
+        // Save to localStorage for next time
         localStorage.setItem('lastUrl', adobeMaxProject.url);
         localStorage.setItem('lastProject', adobeMaxProject.name);
 
@@ -40,7 +53,7 @@ export default function Home() {
       }
       setIsLoading(false);
     }
-  }, [projects]);
+  }, [projects, isLoading]);
 
   const fetchProjects = async () => {
     try {
