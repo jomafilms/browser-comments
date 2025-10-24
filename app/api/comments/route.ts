@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     const projectName = searchParams.get('projectName') || undefined;
     const status = searchParams.get('status') as 'open' | 'resolved' | undefined;
     const priority = searchParams.get('priority') as 'high' | 'med' | 'low' | undefined;
-    const assignee = searchParams.get('assignee') as 'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari' | undefined;
+    const assignee = searchParams.get('assignee') as 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari' | undefined;
     const excludeImages = searchParams.get('excludeImages') === 'true';
 
     const comments = await getComments({ projectName, status, priority, assignee, excludeImages });
