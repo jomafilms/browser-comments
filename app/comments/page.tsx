@@ -43,6 +43,7 @@ export default function CommentsPage() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const [highlightedCommentId, setHighlightedCommentId] = useState<number | null>(null);
+  const [searchCommentId, setSearchCommentId] = useState<string>('');
 
   // Initialize filters from URL parameters on mount
   useEffect(() => {
@@ -394,6 +395,7 @@ export default function CommentsPage() {
                   <button
                     onClick={() => {
                       setHighlightedCommentId(null);
+                      setSearchCommentId('');
                       const params = new URLSearchParams(window.location.search);
                       params.delete('commentId');
                       const newUrl = params.toString() ? `/comments?${params.toString()}` : '/comments';
@@ -406,12 +408,43 @@ export default function CommentsPage() {
                 </div>
               )}
             </div>
-            <button
-              onClick={() => router.push('/')}
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-            >
-              New Comment
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Search by comment # */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const id = parseInt(searchCommentId);
+                  if (!isNaN(id) && id > 0) {
+                    setHighlightedCommentId(id);
+                    const params = new URLSearchParams(window.location.search);
+                    params.set('commentId', id.toString());
+                    window.history.replaceState({}, '', `/comments?${params.toString()}`);
+                  }
+                }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  type="number"
+                  value={searchCommentId}
+                  onChange={(e) => setSearchCommentId(e.target.value)}
+                  placeholder="Jump to #"
+                  min="1"
+                  className="w-24 px-2 py-1 border border-gray-300 rounded text-sm"
+                />
+                <button
+                  type="submit"
+                  className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm"
+                >
+                  Go
+                </button>
+              </form>
+              <button
+                onClick={() => router.push('/')}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+              >
+                New Comment
+              </button>
+            </div>
           </div>
 
           {/* Filters */}
