@@ -601,14 +601,16 @@ export default function CommentsPage() {
                             </select>
                           </div>
 
-                          <div className="text-sm text-gray-600 mb-3">
-                            <button
-                              onClick={() => setExpandedImage(comment.image_data)}
-                              className="text-blue-500 hover:underline text-left"
-                            >
-                              View full size →
-                            </button>
-                          </div>
+                          {comment.image_data && (
+                            <div className="text-sm text-gray-600 mb-3">
+                              <button
+                                onClick={() => setExpandedImage(comment.image_data)}
+                                className="text-blue-500 hover:underline text-left"
+                              >
+                                View full size →
+                              </button>
+                            </div>
+                          )}
 
                           <div className="text-sm text-gray-500 mb-3 pb-3 border-b border-gray-200 flex justify-between items-center">
                             <span>
