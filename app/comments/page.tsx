@@ -72,6 +72,11 @@ export default function CommentsPage() {
       setViewMode(viewParam);
     }
 
+    const sortParam = params.get('sort');
+    if (sortParam === 'recent' || sortParam === 'resolved-bottom' || sortParam === 'priority') {
+      setSortMode(sortParam);
+    }
+
     setIsInitialized(true);
   }, []);
 
@@ -86,13 +91,14 @@ export default function CommentsPage() {
     if (selectedPriority !== 'all') params.set('priority', selectedPriority);
     if (selectedAssignee !== 'all') params.set('assignee', selectedAssignee);
     if (viewMode !== 'card') params.set('view', viewMode);
+    if (sortMode !== 'recent') params.set('sort', sortMode);
 
     const queryString = params.toString();
     const newUrl = queryString ? `/comments?${queryString}` : '/comments';
 
     // Update URL without reloading the page
     window.history.replaceState({}, '', newUrl);
-  }, [filter, selectedProject, selectedPriority, selectedAssignee, viewMode, isInitialized]);
+  }, [filter, selectedProject, selectedPriority, selectedAssignee, viewMode, sortMode, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized) return;
