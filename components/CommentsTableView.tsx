@@ -18,7 +18,7 @@ interface Comment {
   status: 'open' | 'resolved';
   priority: 'high' | 'med' | 'low';
   priority_number: number;
-  assignee: 'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari';
+  assignee: 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari';
   created_at: string;
   updated_at: string;
 }
@@ -26,7 +26,7 @@ interface Comment {
 interface CommentsTableViewProps {
   comments: Comment[];
   onUpdatePriority: (id: number, priority: 'high' | 'med' | 'low', priorityNumber: number) => Promise<void>;
-  onUpdateAssignee: (id: number, assignee: 'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari') => Promise<void>;
+  onUpdateAssignee: (id: number, assignee: 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari') => Promise<void>;
   onToggleStatus: (id: number, currentStatus: 'open' | 'resolved') => Promise<void>;
   onDeleteComment: (id: number) => Promise<void>;
   onSwitchToCardView: () => void;
@@ -315,14 +315,14 @@ export default function CommentsTableView({
                       <td className="px-2 py-2 align-top">
                         <select
                           value={comment.assignee}
-                          onChange={(e) => onUpdateAssignee(comment.id, e.target.value as 'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari')}
+                          onChange={(e) => onUpdateAssignee(comment.id, e.target.value as 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari')}
                           className="text-xs px-2 py-1 border border-gray-300 rounded w-full"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <option value="dev1">Dev1</option>
                           <option value="dev2">Dev2</option>
                           <option value="dev3">Dev3</option>
-                          <option value="dev4">Dev4</option>
+                          <option value="Sessions">Sessions</option>
                           <option value="Annie">Annie</option>
                           <option value="Mari">Mari</option>
                         </select>

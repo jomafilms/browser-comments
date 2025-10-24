@@ -15,7 +15,7 @@ export interface Comment {
   status: 'open' | 'resolved';
   priority: 'high' | 'med' | 'low';
   priority_number: number;
-  assignee: 'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari';
+  assignee: 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari';
   created_at: Date;
   updated_at: Date;
 }
@@ -58,11 +58,13 @@ export async function initDB() {
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='assignee') THEN
           ALTER TABLE comments ADD COLUMN assignee TEXT DEFAULT 'dev1';
-          ALTER TABLE comments ADD CONSTRAINT comments_assignee_check CHECK (assignee IN ('dev1', 'dev2', 'dev3', 'dev4', 'Annie', 'Mari'));
+          ALTER TABLE comments ADD CONSTRAINT comments_assignee_check CHECK (assignee IN ('dev1', 'dev2', 'dev3', 'Sessions', 'Annie', 'Mari'));
         ELSE
+          -- Migrate dev4 to Sessions before updating constraint
+          UPDATE comments SET assignee = 'Sessions' WHERE assignee = 'dev4';
           -- Drop old constraint if it exists and recreate with new values (no NULL)
           ALTER TABLE comments DROP CONSTRAINT IF EXISTS comments_assignee_check;
-          ALTER TABLE comments ADD CONSTRAINT comments_assignee_check CHECK (assignee IN ('dev1', 'dev2', 'dev3', 'dev4', 'Annie', 'Mari'));
+          ALTER TABLE comments ADD CONSTRAINT comments_assignee_check CHECK (assignee IN ('dev1', 'dev2', 'dev3', 'Sessions', 'Annie', 'Mari'));
           -- Update any NULL values to dev1
           UPDATE comments SET assignee = 'dev1' WHERE assignee IS NULL;
           -- Make column NOT NULL
@@ -92,7 +94,7 @@ export async function saveComment(data: {
   textAnnotations: TextAnnotation[];
   priority?: 'high' | 'med' | 'low';
   priorityNumber?: number;
-  assignee?: 'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari';
+  assignee?: 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari';
 }): Promise<Comment> {
   const client = await pool.connect();
   try {
@@ -120,7 +122,7 @@ export async function getComments(filters?: {
   projectName?: string;
   status?: 'open' | 'resolved';
   priority?: 'high' | 'med' | 'low';
-  assignee?: 'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari';
+  assignee?: 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari';
   excludeImages?: boolean;
 }): Promise<Comment[]> {
   const client = await pool.connect();
@@ -265,7 +267,7 @@ export async function updateCommentPriority(
 
 export async function updateCommentAssignee(
   id: number,
-  assignee: 'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari'
+  assignee: 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari'
 ): Promise<void> {
   const client = await pool.connect();
   try {

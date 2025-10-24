@@ -10,7 +10,7 @@ export default function Home() {
   const [projectName, setProjectName] = useState('');
   const [priority, setPriority] = useState<'high' | 'med' | 'low'>('med');
   const [priorityNumber, setPriorityNumber] = useState(0);
-  const [assignee, setAssignee] = useState<'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari'>('dev1');
+  const [assignee, setAssignee] = useState<'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari'>('dev1');
   const [showAnnotation, setShowAnnotation] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [projects, setProjects] = useState<Array<{name: string, url: string}>>([]);
@@ -268,13 +268,13 @@ export default function Home() {
             </label>
             <select
               value={assignee}
-              onChange={(e) => setAssignee(e.target.value as 'dev1' | 'dev2' | 'dev3' | 'dev4' | 'Annie' | 'Mari')}
+              onChange={(e) => setAssignee(e.target.value as 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari')}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="dev1">Dev1</option>
               <option value="dev2">Dev2</option>
               <option value="dev3">Dev3</option>
-              <option value="dev4">Dev4</option>
+              <option value="Sessions">Sessions</option>
               <option value="Annie">Annie</option>
               <option value="Mari">Mari</option>
             </select>
