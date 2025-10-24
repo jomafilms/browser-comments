@@ -114,17 +114,10 @@ export default function CommentsPage() {
     fetchComments();
   }, [filter, selectedProject, selectedPriority, selectedAssignee, isInitialized]);
 
-  // Scroll to highlighted comment after comments are loaded
-  useEffect(() => {
-    if (highlightedCommentId && comments.length > 0 && !loading) {
-      setTimeout(() => {
-        const element = document.getElementById(`comment-${highlightedCommentId}`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 500); // Small delay to ensure images are rendered
-    }
-  }, [highlightedCommentId, comments, loading]);
+  // Filter to show only highlighted comment if commentId is set
+  const displayComments = highlightedCommentId
+    ? comments.filter(c => c.id === highlightedCommentId)
+    : comments;
 
   const fetchComments = async () => {
     setLoading(true);
@@ -372,7 +365,7 @@ export default function CommentsPage() {
   };
 
   // Group comments by project
-  const groupedComments = comments.reduce((acc, comment) => {
+  const groupedComments = displayComments.reduce((acc, comment) => {
     if (!acc[comment.project_name]) {
       acc[comment.project_name] = [];
     }
@@ -391,7 +384,28 @@ export default function CommentsPage() {
       <div className="bg-white shadow-sm border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-bold text-gray-800">Comments</h1>
+            <div className="flex items-center gap-4">
+              <h1 className="text-2xl font-bold text-gray-800">Comments</h1>
+              {highlightedCommentId && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
+                  <span className="text-sm text-blue-700">
+                    Viewing comment #{highlightedCommentId}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setHighlightedCommentId(null);
+                      const params = new URLSearchParams(window.location.search);
+                      params.delete('commentId');
+                      const newUrl = params.toString() ? `/comments?${params.toString()}` : '/comments';
+                      window.history.replaceState({}, '', newUrl);
+                    }}
+                    className="text-blue-700 hover:text-blue-900 font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => router.push('/')}
               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
@@ -521,7 +535,7 @@ export default function CommentsPage() {
           </div>
         ) : viewMode === 'table' ? (
           <CommentsTableView
-            comments={comments}
+            comments={displayComments}
             onUpdatePriority={updatePriority}
             onUpdateAssignee={updateAssignee}
             onToggleStatus={toggleStatus}
