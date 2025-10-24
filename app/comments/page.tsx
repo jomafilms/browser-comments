@@ -101,7 +101,7 @@ export default function CommentsPage() {
     if (selectedPriority !== 'all') params.set('priority', selectedPriority);
     if (selectedAssignee !== 'all') params.set('assignee', selectedAssignee);
     if (viewMode !== 'card') params.set('view', viewMode);
-    if (sortMode !== 'recent') params.set('sort', sortMode);
+    params.set('sort', sortMode); // Always include sort mode
 
     const queryString = params.toString();
     const newUrl = queryString ? `/comments?${queryString}` : '/comments';
