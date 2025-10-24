@@ -60,13 +60,14 @@ export async function initDB() {
           ALTER TABLE comments ADD COLUMN assignee TEXT DEFAULT 'dev1';
           ALTER TABLE comments ADD CONSTRAINT comments_assignee_check CHECK (assignee IN ('dev1', 'dev2', 'dev3', 'Sessions', 'Annie', 'Mari'));
         ELSE
-          -- Migrate dev4 to Sessions before updating constraint
-          UPDATE comments SET assignee = 'Sessions' WHERE assignee = 'dev4';
-          -- Drop old constraint if it exists and recreate with new values (no NULL)
+          -- Drop old constraint first (allows us to update dev4 values)
           ALTER TABLE comments DROP CONSTRAINT IF EXISTS comments_assignee_check;
-          ALTER TABLE comments ADD CONSTRAINT comments_assignee_check CHECK (assignee IN ('dev1', 'dev2', 'dev3', 'Sessions', 'Annie', 'Mari'));
+          -- Migrate dev4 to Sessions
+          UPDATE comments SET assignee = 'Sessions' WHERE assignee = 'dev4';
           -- Update any NULL values to dev1
           UPDATE comments SET assignee = 'dev1' WHERE assignee IS NULL;
+          -- Recreate constraint with new values
+          ALTER TABLE comments ADD CONSTRAINT comments_assignee_check CHECK (assignee IN ('dev1', 'dev2', 'dev3', 'Sessions', 'Annie', 'Mari'));
           -- Make column NOT NULL
           ALTER TABLE comments ALTER COLUMN assignee SET DEFAULT 'dev1';
           ALTER TABLE comments ALTER COLUMN assignee SET NOT NULL;

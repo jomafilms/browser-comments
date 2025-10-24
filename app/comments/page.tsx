@@ -113,7 +113,15 @@ export default function CommentsPage() {
 
       const response = await fetch(`/api/comments?${params}`);
       const data = await response.json();
-      setComments(data);
+
+      if (!response.ok) {
+        console.error('API error:', data);
+        setComments([]);
+        setProjects([]);
+        return;
+      }
+
+      setComments(Array.isArray(data) ? data : []);
 
       // Extract unique projects
       const uniqueProjects = Array.from(new Set(data.map((c: Comment) => c.project_name)));
