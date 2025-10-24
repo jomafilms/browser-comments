@@ -42,6 +42,7 @@ export default function CommentsPage() {
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [isInitialized, setIsInitialized] = useState(false);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [highlightedCommentId, setHighlightedCommentId] = useState<number | null>(null);
 
   // Initialize filters from URL parameters on mount
   useEffect(() => {
@@ -77,6 +78,14 @@ export default function CommentsPage() {
       setSortMode(sortParam);
     }
 
+    const commentIdParam = params.get('commentId');
+    if (commentIdParam) {
+      const id = parseInt(commentIdParam);
+      if (!isNaN(id)) {
+        setHighlightedCommentId(id);
+      }
+    }
+
     setIsInitialized(true);
   }, []);
 
@@ -104,6 +113,18 @@ export default function CommentsPage() {
     if (!isInitialized) return;
     fetchComments();
   }, [filter, selectedProject, selectedPriority, selectedAssignee, isInitialized]);
+
+  // Scroll to highlighted comment after comments are loaded
+  useEffect(() => {
+    if (highlightedCommentId && comments.length > 0 && !loading) {
+      setTimeout(() => {
+        const element = document.getElementById(`comment-${highlightedCommentId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 500); // Small delay to ensure images are rendered
+    }
+  }, [highlightedCommentId, comments, loading]);
 
   const fetchComments = async () => {
     setLoading(true);
@@ -529,7 +550,12 @@ export default function CommentsPage() {
                   {projectComments.map((comment) => (
                     <div
                       key={comment.id}
-                      className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow"
+                      id={`comment-${comment.id}`}
+                      className={`border rounded-lg overflow-hidden hover:shadow-md transition-all ${
+                        highlightedCommentId === comment.id
+                          ? 'ring-4 ring-blue-500 shadow-lg'
+                          : ''
+                      }`}
                     >
                       <div className="flex">
                         {/* Image - 60-70% width */}
@@ -553,6 +579,17 @@ export default function CommentsPage() {
                               <span className="px-2 py-1 rounded bg-gray-200 text-gray-700 text-xs font-mono">
                                 #{comment.id}
                               </span>
+                              <button
+                                onClick={() => {
+                                  const url = `${window.location.origin}/comments?commentId=${comment.id}&status=${filter}&project=${encodeURIComponent(selectedProject)}&sort=${sortMode}`;
+                                  navigator.clipboard.writeText(url);
+                                  alert('Link copied to clipboard!');
+                                }}
+                                className="px-2 py-1 rounded bg-blue-100 text-blue-700 text-xs hover:bg-blue-200"
+                                title="Copy link to this comment"
+                              >
+                                🔗
+                              </button>
                               <span
                                 className={`px-3 py-1 rounded-full text-sm font-semibold ${
                                   comment.status === 'open'
