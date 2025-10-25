@@ -158,8 +158,8 @@ export default function CommentsPage() {
   useEffect(() => {
     if (comments.length === 0 || loading) return;
 
-    // Sort comments to get the display order
-    const sortedCommentIds = sortComments(comments).map(c => c.id);
+    // Only load images for displayed comments (respects filters and highlighted comment)
+    const sortedCommentIds = sortComments(displayComments).map(c => c.id);
 
     // Load images one by one in display order
     const loadImagesSequentially = async () => {
@@ -192,7 +192,7 @@ export default function CommentsPage() {
     };
 
     loadImagesSequentially();
-  }, [comments.length, loading, sortMode]); // Re-run when sort mode changes
+  }, [displayComments.length, loading, sortMode, highlightedCommentId]); // Re-run when displayed comments change
 
   const toggleStatus = async (id: number, currentStatus: 'open' | 'resolved') => {
     const newStatus = currentStatus === 'open' ? 'resolved' : 'open';
