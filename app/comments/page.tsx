@@ -628,7 +628,7 @@ export default function CommentsPage() {
                               </span>
                               <button
                                 onClick={() => {
-                                  const url = `${window.location.origin}/comments?commentId=${comment.id}&status=${filter}&project=${encodeURIComponent(selectedProject)}&sort=${sortMode}`;
+                                  const url = `${window.location.origin}/comments?commentId=${comment.id}`;
                                   navigator.clipboard.writeText(url);
                                   alert('Link copied to clipboard!');
                                 }}
