@@ -19,14 +19,19 @@ export default function Home() {
 
   useEffect(() => {
     // Try to load from localStorage first for instant start
-    const savedUrl = localStorage.getItem('lastUrl');
     const savedProject = localStorage.getItem('lastProject');
 
-    if (savedUrl && savedProject === 'Adobe Max 2025 Map Notes') {
-      // Instant load from cache
-      setUrl(savedUrl);
+    if (savedProject === 'Adobe Max 2025 Map Notes') {
+      // Always use the new live URL for Adobe Max project
+      const liveUrl = 'https://www.adobemap.com';
+      setUrl(liveUrl);
       setProjectName(savedProject);
       setSelectedProject(savedProject);
+
+      // Update localStorage with new URL
+      localStorage.setItem('lastUrl', liveUrl);
+      localStorage.setItem('lastProject', savedProject);
+
       setShowAnnotation(true);
       setIsLoading(false);
     } else {
@@ -42,10 +47,13 @@ export default function Home() {
       if (adobeMaxProject) {
         setSelectedProject(adobeMaxProject.name);
         setProjectName(adobeMaxProject.name);
-        setUrl(adobeMaxProject.url);
+
+        // Always use the new live URL for Adobe Max project
+        const liveUrl = 'https://www.adobemap.com';
+        setUrl(liveUrl);
 
         // Save to localStorage for next time
-        localStorage.setItem('lastUrl', adobeMaxProject.url);
+        localStorage.setItem('lastUrl', liveUrl);
         localStorage.setItem('lastProject', adobeMaxProject.name);
 
         // Auto-start annotation
