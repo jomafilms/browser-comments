@@ -31,9 +31,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     const item = await addDecisionItem(
-      body.commentId,
       body.noteText,
-      body.noteIndex
+      body.commentId || null,
+      body.noteIndex || null,
+      body.source || null
     );
 
     return NextResponse.json(item);

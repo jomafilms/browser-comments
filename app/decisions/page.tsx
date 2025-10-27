@@ -5,9 +5,10 @@ import Link from 'next/link';
 
 interface DecisionItem {
   id: number;
-  comment_id: number;
+  comment_id: number | null;
   note_text: string;
-  note_index: number;
+  note_index: number | null;
+  source: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -26,6 +27,9 @@ interface DecisionWithComment extends DecisionItem {
 export default function DecisionsPage() {
   const [decisions, setDecisions] = useState<DecisionWithComment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newDecisionText, setNewDecisionText] = useState('');
+  const [newDecisionSource, setNewDecisionSource] = useState('');
 
   useEffect(() => {
     fetchDecisions();
@@ -75,6 +79,31 @@ export default function DecisionsPage() {
     }
   };
 
+  const addDecision = async () => {
+    if (!newDecisionText.trim()) {
+      alert('Please enter decision text');
+      return;
+    }
+
+    try {
+      await fetch('/api/decisions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          noteText: newDecisionText,
+          source: newDecisionSource || 'manual'
+        })
+      });
+
+      setNewDecisionText('');
+      setNewDecisionSource('');
+      setShowAddForm(false);
+      fetchDecisions();
+    } catch (error) {
+      console.error('Error adding decision:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -88,10 +117,59 @@ export default function DecisionsPage() {
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-gray-800">Decision Table</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Notes marked as decisions from comments
-          </p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Decision Table</h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Decisions from comments and meetings
+              </p>
+            </div>
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+            >
+              {showAddForm ? 'Cancel' : 'Add Decision'}
+            </button>
+          </div>
+
+          {/* Add Decision Form */}
+          {showAddForm && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
+              <h3 className="font-semibold mb-3">Add New Decision</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Decision / Note
+                  </label>
+                  <textarea
+                    value={newDecisionText}
+                    onChange={(e) => setNewDecisionText(e.target.value)}
+                    placeholder="Enter decision or note from meeting..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Source (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newDecisionSource}
+                    onChange={(e) => setNewDecisionSource(e.target.value)}
+                    placeholder="e.g., Client meeting, Dev team sync..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <button
+                  onClick={addDecision}
+                  className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                >
+                  Add Decision
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -109,6 +187,9 @@ export default function DecisionsPage() {
             <table className="w-full">
               <thead className="bg-gray-100 border-b">
                 <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Source
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Comment #
                   </th>
@@ -136,7 +217,16 @@ export default function DecisionsPage() {
                 {decisions.map((decision) => (
                   <tr key={decision.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm">
-                      {decision.comment ? (
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        decision.source === 'comment'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {decision.source || 'manual'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {decision.comment_id ? (
                         <Link
                           href={`/comments?commentId=${decision.comment_id}`}
                           className="text-blue-500 hover:underline font-mono"
@@ -144,7 +234,7 @@ export default function DecisionsPage() {
                           #{decision.comment_id}
                         </Link>
                       ) : (
-                        <span className="font-mono text-gray-400">#{decision.comment_id}</span>
+                        <span className="text-gray-400">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">

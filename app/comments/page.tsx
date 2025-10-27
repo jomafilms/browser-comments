@@ -269,9 +269,10 @@ export default function CommentsPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            commentId,
             noteText,
-            noteIndex
+            commentId,
+            noteIndex,
+            source: 'comment'
           })
         });
 

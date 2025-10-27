@@ -88,12 +88,23 @@ export async function initDB() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS decision_items (
         id SERIAL PRIMARY KEY,
-        comment_id INTEGER NOT NULL REFERENCES comments(id) ON DELETE CASCADE,
+        comment_id INTEGER REFERENCES comments(id) ON DELETE CASCADE,
         note_text TEXT NOT NULL,
-        note_index INTEGER NOT NULL,
+        note_index INTEGER,
+        source TEXT,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
+    `);
+
+    // Add source column if it doesn't exist (for existing databases)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='decision_items' AND column_name='source') THEN
+          ALTER TABLE decision_items ADD COLUMN source TEXT;
+        END IF;
+      END $$;
     `);
 
     // Create index on comment_id for faster lookups
@@ -301,25 +312,27 @@ export async function updateCommentAssignee(
 // Decision Items functions
 export interface DecisionItem {
   id: number;
-  comment_id: number;
+  comment_id: number | null;
   note_text: string;
-  note_index: number;
+  note_index: number | null;
+  source: string | null;
   created_at: Date;
   updated_at: Date;
 }
 
 export async function addDecisionItem(
-  commentId: number,
   noteText: string,
-  noteIndex: number
+  commentId?: number | null,
+  noteIndex?: number | null,
+  source?: string | null
 ): Promise<DecisionItem> {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `INSERT INTO decision_items (comment_id, note_text, note_index)
-       VALUES ($1, $2, $3)
+      `INSERT INTO decision_items (comment_id, note_text, note_index, source)
+       VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [commentId, noteText, noteIndex]
+      [commentId || null, noteText, noteIndex || null, source || null]
     );
     return result.rows[0];
   } finally {
