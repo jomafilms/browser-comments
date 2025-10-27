@@ -44,6 +44,7 @@ export default function CommentsPage() {
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const [highlightedCommentId, setHighlightedCommentId] = useState<number | null>(null);
   const [searchCommentId, setSearchCommentId] = useState<string>('');
+  const [decisionNotes, setDecisionNotes] = useState<Set<string>>(new Set()); // Track "commentId-noteIndex"
 
   // Initialize filters from URL parameters on mount
   useEffect(() => {
@@ -247,6 +248,37 @@ export default function CommentsPage() {
       setExpandedComment(null);
     } catch (error) {
       console.error('Error adding note:', error);
+    }
+  };
+
+  const toggleDecisionNote = async (commentId: number, noteIndex: number, noteText: string) => {
+    const key = `${commentId}-${noteIndex}`;
+
+    if (decisionNotes.has(key)) {
+      // Remove from decisions - we need to find and delete it from the database
+      // For now, just remove from local state
+      setDecisionNotes(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(key);
+        return newSet;
+      });
+    } else {
+      // Add to decisions
+      try {
+        await fetch('/api/decisions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            commentId,
+            noteText,
+            noteIndex
+          })
+        });
+
+        setDecisionNotes(prev => new Set([...prev, key]));
+      } catch (error) {
+        console.error('Error adding decision item:', error);
+      }
     }
   };
 
@@ -728,8 +760,15 @@ export default function CommentsPage() {
                             {comment.text_annotations && comment.text_annotations.length > 0 ? (
                               <ul className="space-y-2 text-sm">
                                 {comment.text_annotations.map((annotation, idx) => (
-                                  <li key={idx} className="text-gray-700">
-                                    {annotation.text}
+                                  <li key={idx} className="flex items-start gap-2 text-gray-700">
+                                    <input
+                                      type="checkbox"
+                                      checked={decisionNotes.has(`${comment.id}-${idx}`)}
+                                      onChange={() => toggleDecisionNote(comment.id, idx, annotation.text)}
+                                      className="mt-1 cursor-pointer"
+                                      title="Mark as decision item"
+                                    />
+                                    <span className="flex-1">{annotation.text}</span>
                                   </li>
                                 ))}
                               </ul>

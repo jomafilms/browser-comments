@@ -83,6 +83,23 @@ export async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_priority ON comments(priority);
       CREATE INDEX IF NOT EXISTS idx_assignee ON comments(assignee);
     `);
+
+    // Create decision_items table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS decision_items (
+        id SERIAL PRIMARY KEY,
+        comment_id INTEGER NOT NULL REFERENCES comments(id) ON DELETE CASCADE,
+        note_text TEXT NOT NULL,
+        note_index INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // Create index on comment_id for faster lookups
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_decision_comment_id ON decision_items(comment_id);
+    `);
   } finally {
     client.release();
   }
@@ -276,6 +293,69 @@ export async function updateCommentAssignee(
       `UPDATE comments SET assignee = $1, updated_at = NOW() WHERE id = $2`,
       [assignee, id]
     );
+  } finally {
+    client.release();
+  }
+}
+
+// Decision Items functions
+export interface DecisionItem {
+  id: number;
+  comment_id: number;
+  note_text: string;
+  note_index: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export async function addDecisionItem(
+  commentId: number,
+  noteText: string,
+  noteIndex: number
+): Promise<DecisionItem> {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `INSERT INTO decision_items (comment_id, note_text, note_index)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [commentId, noteText, noteIndex]
+    );
+    return result.rows[0];
+  } finally {
+    client.release();
+  }
+}
+
+export async function getDecisionItems(): Promise<DecisionItem[]> {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT * FROM decision_items ORDER BY created_at DESC`
+    );
+    return result.rows;
+  } finally {
+    client.release();
+  }
+}
+
+export async function deleteDecisionItem(id: number): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query(`DELETE FROM decision_items WHERE id = $1`, [id]);
+  } finally {
+    client.release();
+  }
+}
+
+export async function getDecisionItemsByCommentId(commentId: number): Promise<DecisionItem[]> {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT * FROM decision_items WHERE comment_id = $1 ORDER BY note_index`,
+      [commentId]
+    );
+    return result.rows;
   } finally {
     client.release();
   }
