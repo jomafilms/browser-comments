@@ -37,6 +37,7 @@ export default function CommentsPage() {
   const [loading, setLoading] = useState(true);
   const [expandedComment, setExpandedComment] = useState<number | null>(null);
   const [newNote, setNewNote] = useState('');
+  const [addNoteToDecisions, setAddNoteToDecisions] = useState(false);
   const [sortMode, setSortMode] = useState<'recent' | 'resolved-bottom' | 'priority'>('priority');
   const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
@@ -44,7 +45,6 @@ export default function CommentsPage() {
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const [highlightedCommentId, setHighlightedCommentId] = useState<number | null>(null);
   const [searchCommentId, setSearchCommentId] = useState<string>('');
-  const [decisionNotes, setDecisionNotes] = useState<Set<string>>(new Set()); // Track "commentId-noteIndex"
 
   // Initialize filters from URL parameters on mount
   useEffect(() => {
@@ -244,42 +244,32 @@ export default function CommentsPage() {
         )
       );
 
+      // If checkbox was checked, add to decision table
+      if (addNoteToDecisions) {
+        const comment = comments.find(c => c.id === id);
+        const noteIndex = comment ? comment.text_annotations.length : 0;
+
+        try {
+          await fetch('/api/decisions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              noteText: newNote,
+              commentId: id,
+              noteIndex,
+              source: 'comment'
+            })
+          });
+        } catch (error) {
+          console.error('Error adding to decision table:', error);
+        }
+      }
+
       setNewNote('');
+      setAddNoteToDecisions(false);
       setExpandedComment(null);
     } catch (error) {
       console.error('Error adding note:', error);
-    }
-  };
-
-  const toggleDecisionNote = async (commentId: number, noteIndex: number, noteText: string) => {
-    const key = `${commentId}-${noteIndex}`;
-
-    if (decisionNotes.has(key)) {
-      // Remove from decisions - we need to find and delete it from the database
-      // For now, just remove from local state
-      setDecisionNotes(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(key);
-        return newSet;
-      });
-    } else {
-      // Add to decisions
-      try {
-        await fetch('/api/decisions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            noteText,
-            commentId,
-            noteIndex,
-            source: 'comment'
-          })
-        });
-
-        setDecisionNotes(prev => new Set([...prev, key]));
-      } catch (error) {
-        console.error('Error adding decision item:', error);
-      }
     }
   };
 
@@ -761,15 +751,8 @@ export default function CommentsPage() {
                             {comment.text_annotations && comment.text_annotations.length > 0 ? (
                               <ul className="space-y-2 text-sm">
                                 {comment.text_annotations.map((annotation, idx) => (
-                                  <li key={idx} className="flex items-start gap-2 text-gray-700">
-                                    <input
-                                      type="checkbox"
-                                      checked={decisionNotes.has(`${comment.id}-${idx}`)}
-                                      onChange={() => toggleDecisionNote(comment.id, idx, annotation.text)}
-                                      className="mt-1 cursor-pointer"
-                                      title="Mark as decision item"
-                                    />
-                                    <span className="flex-1">{annotation.text}</span>
+                                  <li key={idx} className="text-gray-700">
+                                    {annotation.text}
                                   </li>
                                 ))}
                               </ul>
@@ -796,6 +779,21 @@ export default function CommentsPage() {
                                 className="w-full px-3 py-2 border rounded-lg text-sm"
                                 rows={3}
                               />
+                              <div className="mt-2 flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  id={`decision-checkbox-${comment.id}`}
+                                  checked={addNoteToDecisions}
+                                  onChange={(e) => setAddNoteToDecisions(e.target.checked)}
+                                  className="cursor-pointer"
+                                />
+                                <label
+                                  htmlFor={`decision-checkbox-${comment.id}`}
+                                  className="text-sm text-gray-700 cursor-pointer"
+                                >
+                                  Add to decision table
+                                </label>
+                              </div>
                               <button
                                 onClick={() => addNote(comment.id)}
                                 className="mt-2 w-full px-3 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
