@@ -19,23 +19,18 @@ export default function Home() {
 
   useEffect(() => {
     // Try to load from localStorage first for instant start
+    const savedUrl = localStorage.getItem('lastUrl');
     const savedProject = localStorage.getItem('lastProject');
 
-    if (savedProject === 'Adobe Max 2025 Map Notes') {
-      // Always use the new live URL for Adobe Max project
-      const liveUrl = 'https://www.adobemap.com';
-      setUrl(liveUrl);
+    if (savedUrl && savedProject) {
+      // Instant load from cache
+      setUrl(savedUrl);
       setProjectName(savedProject);
       setSelectedProject(savedProject);
-
-      // Update localStorage with new URL
-      localStorage.setItem('lastUrl', liveUrl);
-      localStorage.setItem('lastProject', savedProject);
-
       setShowAnnotation(true);
       setIsLoading(false);
     } else {
-      // Fallback: fetch projects and find Adobe Max
+      // Fetch projects from database
       fetchProjects();
     }
   }, []);
@@ -43,18 +38,16 @@ export default function Home() {
   useEffect(() => {
     // Only run if we're still loading and projects are fetched
     if (isLoading && projects.length > 0) {
-      const adobeMaxProject = projects.find(p => p.name === 'Adobe Max 2025 Map Notes');
-      if (adobeMaxProject) {
-        setSelectedProject(adobeMaxProject.name);
-        setProjectName(adobeMaxProject.name);
-
-        // Always use the new live URL for Adobe Max project
-        const liveUrl = 'https://www.adobemap.com';
-        setUrl(liveUrl);
+      // Load the first project from the database (most recent)
+      const firstProject = projects[0];
+      if (firstProject) {
+        setSelectedProject(firstProject.name);
+        setProjectName(firstProject.name);
+        setUrl(firstProject.url);
 
         // Save to localStorage for next time
-        localStorage.setItem('lastUrl', liveUrl);
-        localStorage.setItem('lastProject', adobeMaxProject.name);
+        localStorage.setItem('lastUrl', firstProject.url);
+        localStorage.setItem('lastProject', firstProject.name);
 
         // Auto-start annotation
         setShowAnnotation(true);
@@ -128,7 +121,7 @@ export default function Home() {
   };
 
   const handleViewComments = () => {
-    router.push('/comments?project=Adobe+Max+2025+Map+Notes');
+    router.push('/comments');
   };
 
   const handleSave = async (imageData: string, textAnnotations: TextAnnotation[]) => {
@@ -296,7 +289,7 @@ export default function Home() {
           </button>
 
           <button
-            onClick={() => router.push('/comments?project=Adobe+Max+2025+Map+Notes')}
+            onClick={() => router.push('/comments')}
             className="w-full px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
           >
             View All Comments

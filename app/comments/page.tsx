@@ -30,7 +30,7 @@ export default function CommentsPage() {
   const router = useRouter();
   const [comments, setComments] = useState<Comment[]>([]);
   const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('open');
-  const [selectedProject, setSelectedProject] = useState<string>('Adobe Max 2025 Map Notes');
+  const [selectedProject, setSelectedProject] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
   const [projects, setProjects] = useState<string[]>([]);
