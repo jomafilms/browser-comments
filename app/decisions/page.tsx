@@ -241,7 +241,7 @@ export default function DecisionsPage() {
                       {decision.comment?.project_name || 'N/A'}
                     </td>
                     <td className="px-4 py-3 text-sm">
-                      {decision.comment && (
+                      {decision.comment?.priority && (
                         <span
                           className={`px-2 py-1 rounded text-xs font-semibold ${
                             decision.comment.priority === 'high'
@@ -255,9 +255,10 @@ export default function DecisionsPage() {
                           {decision.comment.priority_number > 0 ? ` #${decision.comment.priority_number}` : ''}
                         </span>
                       )}
+                      {!decision.comment && <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
-                      {decision.comment?.assignee || 'N/A'}
+                      {decision.comment?.assignee || <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700 max-w-md">
                       {decision.note_text}
