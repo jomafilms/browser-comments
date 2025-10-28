@@ -33,6 +33,7 @@ export default function DecisionsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
   const [editSource, setEditSource] = useState('');
+  const [projectName, setProjectName] = useState<string>('All Projects');
 
   useEffect(() => {
     fetchDecisions();
@@ -61,6 +62,12 @@ export default function DecisionsPage() {
       );
 
       setDecisions(decisionsWithComments);
+
+      // Get project name from the first decision with a comment
+      const firstDecisionWithComment = decisionsWithComments.find(d => d.comment?.project_name);
+      if (firstDecisionWithComment?.comment?.project_name) {
+        setProjectName(firstDecisionWithComment.comment.project_name);
+      }
     } catch (error) {
       console.error('Error fetching decisions:', error);
     } finally {
@@ -161,7 +168,7 @@ export default function DecisionsPage() {
             <div>
               <h1 className="text-2xl font-bold text-gray-800">Decision Table</h1>
               <p className="text-sm text-gray-600 mt-1">
-                Decisions from comments and meetings
+                {projectName}
               </p>
             </div>
             <button
@@ -234,15 +241,6 @@ export default function DecisionsPage() {
                     Comment #
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Project
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Priority
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Assignee
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Decision Note
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -276,29 +274,6 @@ export default function DecisionsPage() {
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      {decision.comment?.project_name || 'N/A'}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {decision.comment?.priority && (
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-semibold ${
-                            decision.comment.priority === 'high'
-                              ? 'bg-red-100 text-red-800'
-                              : decision.comment.priority === 'med'
-                              ? 'bg-orange-100 text-orange-800'
-                              : 'bg-blue-100 text-blue-800'
-                          }`}
-                        >
-                          {decision.comment.priority.toUpperCase()}
-                          {decision.comment.priority_number > 0 ? ` #${decision.comment.priority_number}` : ''}
-                        </span>
-                      )}
-                      {!decision.comment && <span className="text-gray-400">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      {decision.comment?.assignee || <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700 max-w-md">
                       {editingId === decision.id ? (
