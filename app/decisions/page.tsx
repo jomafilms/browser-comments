@@ -30,6 +30,9 @@ export default function DecisionsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newDecisionText, setNewDecisionText] = useState('');
   const [newDecisionSource, setNewDecisionSource] = useState('');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editText, setEditText] = useState('');
+  const [editSource, setEditSource] = useState('');
 
   useEffect(() => {
     fetchDecisions();
@@ -76,6 +79,43 @@ export default function DecisionsPage() {
       setDecisions(prev => prev.filter(d => d.id !== id));
     } catch (error) {
       console.error('Error deleting decision:', error);
+    }
+  };
+
+  const startEdit = (decision: DecisionWithComment) => {
+    setEditingId(decision.id);
+    setEditText(decision.note_text);
+    setEditSource(decision.source || '');
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditText('');
+    setEditSource('');
+  };
+
+  const saveEdit = async (id: number) => {
+    if (!editText.trim()) {
+      alert('Decision text cannot be empty');
+      return;
+    }
+
+    try {
+      await fetch(`/api/decisions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          noteText: editText,
+          source: editSource || 'manual'
+        })
+      });
+
+      setEditingId(null);
+      setEditText('');
+      setEditSource('');
+      fetchDecisions();
+    } catch (error) {
+      console.error('Error updating decision:', error);
     }
   };
 
@@ -261,18 +301,60 @@ export default function DecisionsPage() {
                       {decision.comment?.assignee || <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700 max-w-md">
-                      {decision.note_text}
+                      {editingId === decision.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                            rows={2}
+                          />
+                          <input
+                            type="text"
+                            value={editSource}
+                            onChange={(e) => setEditSource(e.target.value)}
+                            placeholder="Source (optional)"
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => saveEdit(decision.id)}
+                              className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              className="px-2 py-1 bg-gray-300 text-gray-700 rounded text-xs hover:bg-gray-400"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        decision.note_text
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500">
                       {new Date(decision.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-sm">
-                      <button
-                        onClick={() => deleteDecision(decision.id)}
-                        className="text-red-500 hover:text-red-700 hover:underline"
-                      >
-                        Remove
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => startEdit(decision)}
+                          className="text-blue-500 hover:text-blue-700"
+                          title="Edit"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => deleteDecision(decision.id)}
+                          className="text-red-500 hover:text-red-700"
+                          title="Delete"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

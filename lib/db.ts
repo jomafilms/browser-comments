@@ -352,6 +352,26 @@ export async function getDecisionItems(): Promise<DecisionItem[]> {
   }
 }
 
+export async function updateDecisionItem(
+  id: number,
+  noteText: string,
+  source?: string | null
+): Promise<DecisionItem> {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `UPDATE decision_items
+       SET note_text = $1, source = $2, updated_at = NOW()
+       WHERE id = $3
+       RETURNING *`,
+      [noteText, source || null, id]
+    );
+    return result.rows[0];
+  } finally {
+    client.release();
+  }
+}
+
 export async function deleteDecisionItem(id: number): Promise<void> {
   const client = await pool.connect();
   try {
