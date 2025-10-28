@@ -45,6 +45,7 @@ export default function CommentsPage() {
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const [highlightedCommentId, setHighlightedCommentId] = useState<number | null>(null);
   const [searchCommentId, setSearchCommentId] = useState<string>('');
+  const [decisionNoteKeys, setDecisionNoteKeys] = useState<Set<string>>(new Set()); // Track "commentId-noteIndex" for notes in decisions
 
   // Initialize filters from URL parameters on mount
   useEffect(() => {
@@ -121,6 +122,25 @@ export default function CommentsPage() {
     ? comments.filter(c => c.id === highlightedCommentId)
     : comments;
 
+  const fetchDecisionItems = async () => {
+    try {
+      const response = await fetch('/api/decisions');
+      const decisions = await response.json();
+
+      // Build set of "commentId-noteIndex" keys for notes that are in decisions
+      const keys = new Set<string>();
+      decisions.forEach((decision: any) => {
+        if (decision.comment_id !== null && decision.note_index !== null) {
+          keys.add(`${decision.comment_id}-${decision.note_index}`);
+        }
+      });
+
+      setDecisionNoteKeys(keys);
+    } catch (error) {
+      console.error('Error fetching decision items:', error);
+    }
+  };
+
   const fetchComments = async () => {
     setLoading(true);
     setLoadedImages(new Set()); // Reset loaded images when fetching new comments
@@ -148,6 +168,9 @@ export default function CommentsPage() {
       // Extract unique projects
       const uniqueProjects = Array.from(new Set(data.map((c: Comment) => c.project_name)));
       setProjects(uniqueProjects as string[]);
+
+      // Fetch decision items to mark notes
+      fetchDecisionItems();
     } catch (error) {
       console.error('Error fetching comments:', error);
     } finally {
@@ -260,6 +283,9 @@ export default function CommentsPage() {
               source: 'comment'
             })
           });
+
+          // Refresh decision items to update indicators
+          fetchDecisionItems();
         } catch (error) {
           console.error('Error adding to decision table:', error);
         }
@@ -750,11 +776,23 @@ export default function CommentsPage() {
                             <p className="font-semibold text-sm mb-2">Notes:</p>
                             {comment.text_annotations && comment.text_annotations.length > 0 ? (
                               <ul className="space-y-2 text-sm">
-                                {comment.text_annotations.map((annotation, idx) => (
-                                  <li key={idx} className="text-gray-700">
-                                    {annotation.text}
-                                  </li>
-                                ))}
+                                {comment.text_annotations.map((annotation, idx) => {
+                                  const isInDecisions = decisionNoteKeys.has(`${comment.id}-${idx}`);
+                                  return (
+                                    <li key={idx} className="text-gray-700 flex items-start gap-1.5">
+                                      <span className="flex-1">{annotation.text}</span>
+                                      {isInDecisions && (
+                                        <a
+                                          href="/decisions"
+                                          className="text-green-600 hover:text-green-700 flex-shrink-0"
+                                          title="In decision table"
+                                        >
+                                          ✓
+                                        </a>
+                                      )}
+                                    </li>
+                                  );
+                                })}
                               </ul>
                             ) : (
                               <p className="text-gray-400 text-sm">No notes</p>
