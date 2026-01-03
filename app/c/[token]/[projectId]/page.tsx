@@ -19,10 +19,6 @@ export default function ReviewInterface() {
   const projectId = parseInt(params.projectId as string);
 
   const [project, setProject] = useState<Project | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [priority, setPriority] = useState<'high' | 'med' | 'low'>('med');
-  const [priorityNumber, setPriorityNumber] = useState(0);
-  const [assignee, setAssignee] = useState<'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari'>('dev1');
   const [isSaving, setIsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,8 +34,6 @@ export default function ReviewInterface() {
         }
 
         const projectData: Project[] = await response.json();
-        setProjects(projectData);
-
         const currentProject = projectData.find(p => p.id === projectId);
         if (!currentProject) {
           setError('Project not found');
@@ -76,9 +70,9 @@ export default function ReviewInterface() {
           projectName: project.name,
           imageData,
           textAnnotations,
-          priority,
-          priorityNumber,
-          assignee,
+          priority: 'med',
+          priorityNumber: 0,
+          assignee: 'dev1',
           projectId: project.id,
         }),
       });
@@ -121,69 +115,6 @@ export default function ReviewInterface() {
 
   return (
     <div className="relative">
-      {/* Top bar with project selector and navigation */}
-      <div className="fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-4">
-        <select
-          value={projectId}
-          onChange={(e) => router.push(`/c/${token}/${e.target.value}`)}
-          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium"
-        >
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-
-        <div className="flex items-center gap-2 ml-auto">
-          <select
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as 'high' | 'med' | 'low')}
-            className="px-2 py-1.5 border border-gray-300 rounded text-sm"
-          >
-            <option value="high">High</option>
-            <option value="med">Med</option>
-            <option value="low">Low</option>
-          </select>
-
-          <input
-            type="number"
-            value={priorityNumber}
-            onChange={(e) => setPriorityNumber(parseInt(e.target.value) || 0)}
-            min="0"
-            className="w-16 px-2 py-1.5 border border-gray-300 rounded text-sm"
-            placeholder="#"
-          />
-
-          <select
-            value={assignee}
-            onChange={(e) => setAssignee(e.target.value as 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari')}
-            className="px-2 py-1.5 border border-gray-300 rounded text-sm"
-          >
-            <option value="dev1">Dev1</option>
-            <option value="dev2">Dev2</option>
-            <option value="dev3">Dev3</option>
-            <option value="Sessions">Sessions</option>
-            <option value="Annie">Annie</option>
-            <option value="Mari">Mari</option>
-          </select>
-
-          <Link
-            href={`/c/${token}/comments`}
-            className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200"
-          >
-            Comments
-          </Link>
-
-          <Link
-            href={`/c/${token}/decisions`}
-            className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200"
-          >
-            Decisions
-          </Link>
-        </div>
-      </div>
-
       {/* Saving overlay */}
       {isSaving && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
@@ -193,14 +124,11 @@ export default function ReviewInterface() {
         </div>
       )}
 
-      {/* Main annotation canvas - offset for top bar */}
-      <div className="pt-12">
-        <AnnotationCanvas
-          onSave={handleSave}
-          onViewComments={handleViewComments}
-          iframeUrl={project.url}
-        />
-      </div>
+      <AnnotationCanvas
+        onSave={handleSave}
+        onViewComments={handleViewComments}
+        iframeUrl={project.url}
+      />
     </div>
   );
 }
