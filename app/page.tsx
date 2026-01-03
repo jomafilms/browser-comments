@@ -1,300 +1,329 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import AnnotationCanvas, { TextAnnotation } from '@/components/AnnotationCanvas';
+import { useRouter, useSearchParams } from 'next/navigation';
+
+interface Client {
+  id: number;
+  token: string;
+  name: string;
+  created_at: string;
+}
+
+interface Project {
+  id: number;
+  client_id: number;
+  name: string;
+  url: string;
+  client_name?: string;
+}
 
 export default function Home() {
   const router = useRouter();
-  const [url, setUrl] = useState('');
-  const [projectName, setProjectName] = useState('');
-  const [priority, setPriority] = useState<'high' | 'med' | 'low'>('med');
-  const [priorityNumber, setPriorityNumber] = useState(0);
-  const [assignee, setAssignee] = useState<'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari'>('dev1');
-  const [showAnnotation, setShowAnnotation] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [projects, setProjects] = useState<Array<{name: string, url: string}>>([]);
-  const [selectedProject, setSelectedProject] = useState<string>('new');
-  const [isLoading, setIsLoading] = useState(true);
+  const searchParams = useSearchParams();
+  const adminSecret = searchParams.get('admin');
+
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Admin form state
+  const [newClientName, setNewClientName] = useState('');
+  const [newProjectClientId, setNewProjectClientId] = useState<string>('');
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectUrl, setNewProjectUrl] = useState('');
+  const [showClientForm, setShowClientForm] = useState(false);
+  const [showProjectForm, setShowProjectForm] = useState(false);
 
   useEffect(() => {
-    // Try to load from localStorage first for instant start
-    const savedUrl = localStorage.getItem('lastUrl');
-    const savedProject = localStorage.getItem('lastProject');
-
-    if (savedUrl && savedProject) {
-      // Instant load from cache
-      setUrl(savedUrl);
-      setProjectName(savedProject);
-      setSelectedProject(savedProject);
-      setShowAnnotation(true);
-      setIsLoading(false);
+    if (adminSecret) {
+      checkAdmin();
     } else {
-      // Fetch projects from database
-      fetchProjects();
+      setLoading(false);
     }
-  }, []);
+  }, [adminSecret]);
 
-  useEffect(() => {
-    // Only run if we're still loading and projects are fetched
-    if (isLoading && projects.length > 0) {
-      // Load the first project from the database (most recent)
-      const firstProject = projects[0];
-      if (firstProject) {
-        setSelectedProject(firstProject.name);
-        setProjectName(firstProject.name);
-        setUrl(firstProject.url);
-
-        // Save to localStorage for next time
-        localStorage.setItem('lastUrl', firstProject.url);
-        localStorage.setItem('lastProject', firstProject.name);
-
-        // Auto-start annotation
-        setShowAnnotation(true);
-      }
-      setIsLoading(false);
-    }
-  }, [projects, isLoading]);
-
-  const fetchProjects = async () => {
+  const checkAdmin = async () => {
     try {
-      const response = await fetch('/api/comments');
-      const comments = await response.json();
+      const response = await fetch(`/api/clients?admin=${adminSecret}`);
+      if (response.ok) {
+        setIsAdmin(true);
+        const clientsData = await response.json();
+        setClients(clientsData);
 
-      // Get unique projects with their most recent URL
-      const projectMap = new Map<string, string>();
-      comments.forEach((comment: any) => {
-        if (!projectMap.has(comment.project_name)) {
-          projectMap.set(comment.project_name, comment.url);
+        // Fetch all projects
+        const projectsRes = await fetch(`/api/projects?admin=${adminSecret}`);
+        if (projectsRes.ok) {
+          const projectsData = await projectsRes.json();
+          setProjects(projectsData);
         }
-      });
 
-      const projectList = Array.from(projectMap.entries()).map(([name, url]) => ({
-        name,
-        url
-      }));
-
-      setProjects(projectList);
-    } catch (error) {
-      console.error('Error fetching projects:', error);
-    }
-  };
-
-  const handleProjectChange = (value: string) => {
-    setSelectedProject(value);
-    if (value !== 'new') {
-      const project = projects.find(p => p.name === value);
-      if (project) {
-        setProjectName(project.name);
-        setUrl(project.url);
+        if (clientsData.length > 0) {
+          setNewProjectClientId(clientsData[0].id.toString());
+        }
       }
-    } else {
-      // Clear for new project
-      setProjectName('');
-      setUrl('');
+    } catch (err) {
+      console.error('Error checking admin:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleStart = () => {
-    if (!url || !projectName) {
-      alert('Please enter both URL and project name');
+  const createClient = async () => {
+    if (!newClientName.trim()) {
+      alert('Please enter a client name');
       return;
     }
 
-    // Add https:// if no protocol specified
-    let formattedUrl = url;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      formattedUrl = 'https://' + url;
-    }
-    setUrl(formattedUrl);
-
-    // Save to localStorage
-    localStorage.setItem('lastUrl', formattedUrl);
-    localStorage.setItem('lastProject', projectName);
-
-    setShowAnnotation(true);
-  };
-
-  const handleNewComment = () => {
-    // Just reload the page to clear canvas and keep same URL/project
-    window.location.reload();
-  };
-
-  const handleViewComments = () => {
-    router.push('/comments');
-  };
-
-  const handleSave = async (imageData: string, textAnnotations: TextAnnotation[]) => {
-    setIsSaving(true);
     try {
-      const response = await fetch('/api/comments', {
+      const response = await fetch(`/api/clients?admin=${adminSecret}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newClientName })
+      });
+
+      if (response.ok) {
+        const client = await response.json();
+        setClients(prev => [...prev, client]);
+        setNewClientName('');
+        setShowClientForm(false);
+
+        // Show the access link
+        const url = `${window.location.origin}/c/${client.token}`;
+        alert(`Client created!\n\nAccess link:\n${url}\n\nThis link has been copied to your clipboard.`);
+        navigator.clipboard.writeText(url);
+      }
+    } catch (err) {
+      console.error('Error creating client:', err);
+      alert('Failed to create client');
+    }
+  };
+
+  const createProject = async () => {
+    if (!newProjectName.trim() || !newProjectUrl.trim() || !newProjectClientId) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    try {
+      let url = newProjectUrl;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+      }
+
+      const response = await fetch(`/api/projects?admin=${adminSecret}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url,
-          projectName,
-          imageData,
-          textAnnotations,
-          priority,
-          priorityNumber,
-          assignee,
-        }),
+          clientId: parseInt(newProjectClientId),
+          name: newProjectName,
+          url
+        })
       });
 
-      if (!response.ok) throw new Error('Failed to save');
-
-      // Success - spinner will just disappear
-    } catch (error) {
-      console.error('Error saving comment:', error);
-      alert('Failed to save comment. Please try again.');
-    } finally {
-      setIsSaving(false);
+      if (response.ok) {
+        const project = await response.json();
+        const client = clients.find(c => c.id === parseInt(newProjectClientId));
+        setProjects(prev => [...prev, { ...project, client_name: client?.name }]);
+        setNewProjectName('');
+        setNewProjectUrl('');
+        setShowProjectForm(false);
+      }
+    } catch (err) {
+      console.error('Error creating project:', err);
+      alert('Failed to create project');
     }
   };
 
-  if (showAnnotation) {
-    return (
-      <div className="relative">
-        {isSaving && (
-          <div className="absolute inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-            <div className="bg-white p-6 rounded-lg shadow-xl">
-              <p className="text-lg">Saving...</p>
-            </div>
-          </div>
-        )}
-        <AnnotationCanvas onSave={handleSave} onViewComments={handleViewComments} iframeUrl={url} />
-      </div>
-    );
-  }
+  const copyLink = (token: string) => {
+    const url = `${window.location.origin}/c/${token}`;
+    navigator.clipboard.writeText(url);
+    alert('Link copied to clipboard!');
+  };
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
         <div className="bg-white p-8 rounded-xl shadow-xl">
-          <p className="text-lg text-gray-700">Loading project...</p>
+          <p className="text-lg text-gray-700">Loading...</p>
         </div>
       </div>
     );
   }
 
+  // Admin view
+  if (isAdmin) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-white rounded-xl shadow-xl p-8 mb-8">
+            <h1 className="text-3xl font-bold mb-2 text-gray-800">Admin Dashboard</h1>
+            <p className="text-gray-600">Manage clients and projects</p>
+          </div>
+
+          {/* Clients Section */}
+          <div className="bg-white rounded-xl shadow-xl p-6 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Clients</h2>
+              <button
+                onClick={() => setShowClientForm(!showClientForm)}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+              >
+                {showClientForm ? 'Cancel' : 'Add Client'}
+              </button>
+            </div>
+
+            {showClientForm && (
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg border">
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    placeholder="Client name (e.g., Adobe)"
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+                    onKeyDown={(e) => e.key === 'Enter' && createClient()}
+                  />
+                  <button
+                    onClick={createClient}
+                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                  >
+                    Create
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {clients.length === 0 ? (
+              <p className="text-gray-500">No clients yet. Create one to get started.</p>
+            ) : (
+              <div className="space-y-3">
+                {clients.map((client) => (
+                  <div
+                    key={client.id}
+                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                  >
+                    <div>
+                      <h3 className="font-semibold text-gray-800">{client.name}</h3>
+                      <p className="text-sm text-gray-500 font-mono">/c/{client.token}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => copyLink(client.token)}
+                        className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+                      >
+                        Copy Link
+                      </button>
+                      <button
+                        onClick={() => window.open(`/c/${client.token}`, '_blank')}
+                        className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
+                      >
+                        Open
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Projects Section */}
+          <div className="bg-white rounded-xl shadow-xl p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Projects</h2>
+              <button
+                onClick={() => setShowProjectForm(!showProjectForm)}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                disabled={clients.length === 0}
+              >
+                {showProjectForm ? 'Cancel' : 'Add Project'}
+              </button>
+            </div>
+
+            {clients.length === 0 && (
+              <p className="text-gray-500 mb-4">Create a client first before adding projects.</p>
+            )}
+
+            {showProjectForm && clients.length > 0 && (
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg border">
+                <div className="space-y-3">
+                  <select
+                    value={newProjectClientId}
+                    onChange={(e) => setNewProjectClientId(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  >
+                    {clients.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {client.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="Project name (e.g., Mall Map)"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  />
+                  <input
+                    type="text"
+                    value={newProjectUrl}
+                    onChange={(e) => setNewProjectUrl(e.target.value)}
+                    placeholder="URL to review (e.g., example.com/page)"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  />
+                  <button
+                    onClick={createProject}
+                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                  >
+                    Create Project
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {projects.length === 0 ? (
+              <p className="text-gray-500">No projects yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">URL</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {projects.map((project) => (
+                      <tr key={project.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-700">{project.client_name}</td>
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{project.name}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500 truncate max-w-xs">{project.url}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Non-admin view - show simple landing
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
-      <div className="bg-white p-8 rounded-xl shadow-xl max-w-md w-full">
-        <h1 className="text-3xl font-bold mb-6 text-gray-800">Browser Comments</h1>
-        <p className="text-gray-600 mb-6">Annotate web pages and provide feedback</p>
-
-        <div className="space-y-4">
-          {/* Project Selection */}
-          {projects.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Project
-              </label>
-              <select
-                value={selectedProject}
-                onChange={(e) => handleProjectChange(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="new">+ Create New Project</option>
-                {projects.map((project) => (
-                  <option key={project.name} value={project.name}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Project Name
-            </label>
-            <input
-              type="text"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              placeholder="e.g., Website Redesign"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              onKeyDown={(e) => e.key === 'Enter' && handleStart()}
-              disabled={selectedProject !== 'new' && selectedProject !== ''}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              URL to Annotate
-            </label>
-            <input
-              type="text"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="e.g., example.com"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              onKeyDown={(e) => e.key === 'Enter' && handleStart()}
-            />
-          </div>
-
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Priority
-              </label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as 'high' | 'med' | 'low')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="high">High</option>
-                <option value="med">Med</option>
-                <option value="low">Low</option>
-              </select>
-            </div>
-            <div className="w-24">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                #
-              </label>
-              <input
-                type="number"
-                value={priorityNumber}
-                onChange={(e) => setPriorityNumber(parseInt(e.target.value) || 0)}
-                min="0"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Assign To
-            </label>
-            <select
-              value={assignee}
-              onChange={(e) => setAssignee(e.target.value as 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari')}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="dev1">Dev1</option>
-              <option value="dev2">Dev2</option>
-              <option value="dev3">Dev3</option>
-              <option value="Sessions">Sessions</option>
-              <option value="Annie">Annie</option>
-              <option value="Mari">Mari</option>
-            </select>
-          </div>
-
-          <button
-            onClick={handleStart}
-            className="w-full px-4 py-3 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition-colors"
-          >
-            Start Annotating
-          </button>
-
-          <button
-            onClick={() => router.push('/comments')}
-            className="w-full px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
-          >
-            View All Comments
-          </button>
-        </div>
+      <div className="bg-white p-8 rounded-xl shadow-xl max-w-md w-full text-center">
+        <h1 className="text-3xl font-bold mb-4 text-gray-800">Browser Comments</h1>
+        <p className="text-gray-600 mb-6">
+          Annotate web pages and provide feedback
+        </p>
+        <p className="text-gray-500 text-sm">
+          Use your access link to get started.
+        </p>
       </div>
     </div>
   );

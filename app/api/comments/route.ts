@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveComment, getComments, initDB } from '@/lib/db';
+import { saveComment, getComments, getCommentsByProjectId, getCommentsByClientId, getClientByToken, initDB } from '@/lib/db';
 
 // Initialize DB on first request
 let dbInitialized = false;
@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
       priority: body.priority || 'med',
       priorityNumber: body.priorityNumber || 0,
       assignee: body.assignee || null,
+      projectId: body.projectId || null,
     });
 
     return NextResponse.json(comment);
@@ -40,12 +41,31 @@ export async function GET(request: NextRequest) {
   try {
     await ensureDB();
     const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get('projectId');
+    const token = searchParams.get('token');
     const projectName = searchParams.get('projectName') || undefined;
     const status = searchParams.get('status') as 'open' | 'resolved' | undefined;
     const priority = searchParams.get('priority') as 'high' | 'med' | 'low' | undefined;
     const assignee = searchParams.get('assignee') as 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari' | undefined;
     const excludeImages = searchParams.get('excludeImages') === 'true';
 
+    // If token provided, get comments for that client
+    if (token) {
+      const client = await getClientByToken(token);
+      if (!client) {
+        return NextResponse.json({ error: 'Invalid token' }, { status: 404 });
+      }
+      const comments = await getCommentsByClientId(client.id, excludeImages);
+      return NextResponse.json(comments);
+    }
+
+    // If projectId provided, get comments for that project
+    if (projectId) {
+      const comments = await getCommentsByProjectId(parseInt(projectId), excludeImages);
+      return NextResponse.json(comments);
+    }
+
+    // Fall back to old behavior (for backwards compatibility)
     const comments = await getComments({ projectName, status, priority, assignee, excludeImages });
     return NextResponse.json(comments);
   } catch (error) {

@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { randomBytes } from 'crypto';
 
 // For local development, use standard pg Pool
 // For production with Neon, use @neondatabase/serverless
@@ -6,8 +7,25 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+// Client and Project interfaces
+export interface Client {
+  id: number;
+  token: string;
+  name: string;
+  created_at: Date;
+}
+
+export interface Project {
+  id: number;
+  client_id: number;
+  name: string;
+  url: string;
+  created_at: Date;
+}
+
 export interface Comment {
   id: number;
+  project_id: number | null;
   url: string;
   project_name: string;
   image_data: string; // base64 encoded image
@@ -31,6 +49,33 @@ export interface TextAnnotation {
 export async function initDB() {
   const client = await pool.connect();
   try {
+    // Create clients table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS clients (
+        id SERIAL PRIMARY KEY,
+        token VARCHAR(32) UNIQUE NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // Create projects table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id SERIAL PRIMARY KEY,
+        client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        url TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // Create indexes for clients and projects
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_clients_token ON clients(token);
+      CREATE INDEX IF NOT EXISTS idx_projects_client_id ON projects(client_id);
+    `);
+
     // Create table with base columns
     await client.query(`
       CREATE TABLE IF NOT EXISTS comments (
@@ -72,6 +117,10 @@ export async function initDB() {
           ALTER TABLE comments ALTER COLUMN assignee SET DEFAULT 'dev1';
           ALTER TABLE comments ALTER COLUMN assignee SET NOT NULL;
         END IF;
+        -- Add project_id column to comments
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='project_id') THEN
+          ALTER TABLE comments ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
+        END IF;
       END $$;
     `);
 
@@ -97,19 +146,24 @@ export async function initDB() {
       );
     `);
 
-    // Add source column if it doesn't exist (for existing databases)
+    // Add source and project_id columns if they don't exist (for existing databases)
     await client.query(`
       DO $$
       BEGIN
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='decision_items' AND column_name='source') THEN
           ALTER TABLE decision_items ADD COLUMN source TEXT;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='decision_items' AND column_name='project_id') THEN
+          ALTER TABLE decision_items ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
+        END IF;
       END $$;
     `);
 
-    // Create index on comment_id for faster lookups
+    // Create indexes for faster lookups
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_decision_comment_id ON decision_items(comment_id);
+      CREATE INDEX IF NOT EXISTS idx_decision_project_id ON decision_items(project_id);
+      CREATE INDEX IF NOT EXISTS idx_comments_project_id ON comments(project_id);
     `);
   } finally {
     client.release();
@@ -124,12 +178,13 @@ export async function saveComment(data: {
   priority?: 'high' | 'med' | 'low';
   priorityNumber?: number;
   assignee?: 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari';
+  projectId?: number;
 }): Promise<Comment> {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `INSERT INTO comments (url, project_name, image_data, text_annotations, priority, priority_number, assignee)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO comments (url, project_name, image_data, text_annotations, priority, priority_number, assignee, project_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
       [
         data.url,
@@ -138,7 +193,8 @@ export async function saveComment(data: {
         JSON.stringify(data.textAnnotations),
         data.priority || 'med',
         data.priorityNumber || 0,
-        data.assignee || 'dev1'
+        data.assignee || 'dev1',
+        data.projectId || null
       ]
     );
     return result.rows[0];
@@ -313,6 +369,7 @@ export async function updateCommentAssignee(
 export interface DecisionItem {
   id: number;
   comment_id: number | null;
+  project_id: number | null;
   note_text: string;
   note_index: number | null;
   source: string | null;
@@ -324,15 +381,16 @@ export async function addDecisionItem(
   noteText: string,
   commentId?: number | null,
   noteIndex?: number | null,
-  source?: string | null
+  source?: string | null,
+  projectId?: number | null
 ): Promise<DecisionItem> {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `INSERT INTO decision_items (comment_id, note_text, note_index, source)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO decision_items (comment_id, note_text, note_index, source, project_id)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [commentId || null, noteText, noteIndex || null, source || null]
+      [commentId || null, noteText, noteIndex || null, source || null, projectId || null]
     );
     return result.rows[0];
   } finally {
@@ -391,6 +449,185 @@ export async function getDecisionItemsByCommentId(commentId: number): Promise<De
     return result.rows;
   } finally {
     client.release();
+  }
+}
+
+// Client CRUD functions
+function generateToken(): string {
+  return randomBytes(16).toString('hex');
+}
+
+export async function createClient(name: string): Promise<Client> {
+  const dbClient = await pool.connect();
+  try {
+    const token = generateToken();
+    const result = await dbClient.query(
+      `INSERT INTO clients (token, name) VALUES ($1, $2) RETURNING *`,
+      [token, name]
+    );
+    return result.rows[0];
+  } finally {
+    dbClient.release();
+  }
+}
+
+export async function getClientByToken(token: string): Promise<Client | null> {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `SELECT * FROM clients WHERE token = $1`,
+      [token]
+    );
+    return result.rows[0] || null;
+  } finally {
+    dbClient.release();
+  }
+}
+
+export async function getClients(): Promise<Client[]> {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `SELECT * FROM clients ORDER BY name`
+    );
+    return result.rows;
+  } finally {
+    dbClient.release();
+  }
+}
+
+export async function deleteClient(id: number): Promise<void> {
+  const dbClient = await pool.connect();
+  try {
+    await dbClient.query(`DELETE FROM clients WHERE id = $1`, [id]);
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Project CRUD functions
+export async function createProject(clientId: number, name: string, url: string): Promise<Project> {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `INSERT INTO projects (client_id, name, url) VALUES ($1, $2, $3) RETURNING *`,
+      [clientId, name, url]
+    );
+    return result.rows[0];
+  } finally {
+    dbClient.release();
+  }
+}
+
+export async function getProjectsByClientId(clientId: number): Promise<Project[]> {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `SELECT * FROM projects WHERE client_id = $1 ORDER BY name`,
+      [clientId]
+    );
+    return result.rows;
+  } finally {
+    dbClient.release();
+  }
+}
+
+export async function getProjectById(id: number): Promise<Project | null> {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `SELECT * FROM projects WHERE id = $1`,
+      [id]
+    );
+    return result.rows[0] || null;
+  } finally {
+    dbClient.release();
+  }
+}
+
+export async function deleteProject(id: number): Promise<void> {
+  const dbClient = await pool.connect();
+  try {
+    await dbClient.query(`DELETE FROM projects WHERE id = $1`, [id]);
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Get comments by project ID
+export async function getCommentsByProjectId(projectId: number, excludeImages?: boolean): Promise<Comment[]> {
+  const dbClient = await pool.connect();
+  try {
+    const selectClause = excludeImages
+      ? 'id, project_id, url, project_name, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, created_at, updated_at'
+      : '*';
+
+    const result = await dbClient.query(
+      `SELECT ${selectClause} FROM comments WHERE project_id = $1
+       ORDER BY
+         CASE priority WHEN 'high' THEN 1 WHEN 'med' THEN 2 WHEN 'low' THEN 3 END,
+         priority_number DESC,
+         created_at DESC`,
+      [projectId]
+    );
+    return result.rows;
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Get comments by client ID (all projects for a client)
+export async function getCommentsByClientId(clientId: number, excludeImages?: boolean): Promise<Comment[]> {
+  const dbClient = await pool.connect();
+  try {
+    const selectClause = excludeImages
+      ? 'c.id, c.project_id, c.url, c.project_name, \'\' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.created_at, c.updated_at'
+      : 'c.*';
+
+    const result = await dbClient.query(
+      `SELECT ${selectClause} FROM comments c
+       JOIN projects p ON c.project_id = p.id
+       WHERE p.client_id = $1
+       ORDER BY
+         CASE c.priority WHEN 'high' THEN 1 WHEN 'med' THEN 2 WHEN 'low' THEN 3 END,
+         c.priority_number DESC,
+         c.created_at DESC`,
+      [clientId]
+    );
+    return result.rows;
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Get decision items by project ID
+export async function getDecisionItemsByProjectId(projectId: number): Promise<DecisionItem[]> {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `SELECT * FROM decision_items WHERE project_id = $1 ORDER BY created_at DESC`,
+      [projectId]
+    );
+    return result.rows;
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Get decision items by client ID
+export async function getDecisionItemsByClientId(clientId: number): Promise<DecisionItem[]> {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `SELECT d.* FROM decision_items d
+       JOIN projects p ON d.project_id = p.id
+       WHERE p.client_id = $1
+       ORDER BY d.created_at DESC`,
+      [clientId]
+    );
+    return result.rows;
+  } finally {
+    dbClient.release();
   }
 }
 
