@@ -11,6 +11,18 @@ async function ensureDB() {
   }
 }
 
+// CORS headers for cross-origin feedback widget
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+// Handle preflight requests
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function POST(request: NextRequest) {
   try {
     await ensureDB();
@@ -27,12 +39,12 @@ export async function POST(request: NextRequest) {
       projectId: body.projectId || null,
     });
 
-    return NextResponse.json(comment);
+    return NextResponse.json(comment, { headers: corsHeaders });
   } catch (error) {
     console.error('Error saving comment:', error);
     return NextResponse.json(
       { error: 'Failed to save comment' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
