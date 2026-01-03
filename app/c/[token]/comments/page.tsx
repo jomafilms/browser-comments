@@ -272,25 +272,6 @@ export default function ClientCommentsPage() {
               ))}
             </select>
 
-            {/* View Mode Toggle */}
-            <div className="flex gap-1 ml-auto">
-              <button
-                onClick={() => setViewMode('card')}
-                className={`px-3 py-1.5 rounded text-sm ${
-                  viewMode === 'card' ? 'bg-purple-500 text-white' : 'bg-gray-200'
-                }`}
-              >
-                Cards
-              </button>
-              <button
-                onClick={() => setViewMode('table')}
-                className={`px-3 py-1.5 rounded text-sm ${
-                  viewMode === 'table' ? 'bg-purple-500 text-white' : 'bg-gray-200'
-                }`}
-              >
-                Table
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -322,116 +303,142 @@ export default function ClientCommentsPage() {
             onBatchUpdatePriority={batchUpdatePriority}
           />
         ) : (
-          /* Card View */
-          <div className="space-y-4">
-            {comments.map((comment) => (
-              <div
-                key={comment.id}
-                className="bg-white border rounded-lg overflow-hidden hover:shadow-md transition-all"
-              >
-                <div className="flex">
-                  {/* Image - 65% width */}
-                  <div className="w-[65%] bg-gray-100 flex items-center justify-center p-4">
-                    {comment.image_data ? (
-                      <img
-                        src={comment.image_data}
-                        alt="Screenshot"
-                        className="max-w-full max-h-[60vh] object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                        onClick={() => setExpandedImage(comment.image_data)}
-                      />
-                    ) : (
-                      <div className="text-gray-400 text-sm">Loading image...</div>
-                    )}
-                  </div>
+          /* Card View - Grouped by Project */
+          <div className="space-y-8">
+            {Object.entries(
+              comments.reduce((acc, comment) => {
+                const projectName = comment.project_name || 'Unknown Project';
+                if (!acc[projectName]) acc[projectName] = [];
+                acc[projectName].push(comment);
+                return acc;
+              }, {} as Record<string, Comment[]>)
+            ).map(([projectName, projectComments]) => (
+              <div key={projectName} className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-800">{projectName}</h2>
+                  <button
+                    onClick={() => setViewMode('table')}
+                    className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded flex items-center gap-2"
+                    title="Switch to table view"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Table
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  {projectComments.map((comment) => (
+                    <div
+                      key={comment.id}
+                      className="border rounded-lg overflow-hidden hover:shadow-md transition-all"
+                    >
+                      <div className="flex">
+                        {/* Image - 65% width */}
+                        <div className="w-[65%] bg-gray-100 flex items-center justify-center p-4">
+                          {comment.image_data ? (
+                            <img
+                              src={comment.image_data}
+                              alt="Screenshot"
+                              className="max-w-full max-h-[60vh] object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => setExpandedImage(comment.image_data)}
+                            />
+                          ) : (
+                            <div className="text-gray-400 text-sm">Loading image...</div>
+                          )}
+                        </div>
 
-                  {/* Details - 35% width */}
-                  <div className="w-[35%] p-4 flex flex-col">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2 py-1 rounded bg-gray-200 text-gray-700 text-xs font-mono">
-                          #{comment.id}
-                        </span>
-                        <span
-                          className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                            comment.status === 'open'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-green-100 text-green-800'
-                          }`}
-                        >
-                          {comment.status}
-                        </span>
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-semibold ${
-                            comment.priority === 'high'
-                              ? 'bg-red-100 text-red-800'
-                              : comment.priority === 'med'
-                              ? 'bg-orange-100 text-orange-800'
-                              : 'bg-blue-100 text-blue-800'
-                          }`}
-                        >
-                          {comment.priority.toUpperCase()}
-                        </span>
+                        {/* Details - 35% width */}
+                        <div className="w-[35%] p-4 flex flex-col">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="px-2 py-1 rounded bg-gray-200 text-gray-700 text-xs font-mono">
+                                #{comment.id}
+                              </span>
+                              <span
+                                className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                                  comment.status === 'open'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-green-100 text-green-800'
+                                }`}
+                              >
+                                {comment.status}
+                              </span>
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-semibold ${
+                                  comment.priority === 'high'
+                                    ? 'bg-red-100 text-red-800'
+                                    : comment.priority === 'med'
+                                    ? 'bg-orange-100 text-orange-800'
+                                    : 'bg-blue-100 text-blue-800'
+                                }`}
+                              >
+                                {comment.priority.toUpperCase()}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => toggleStatus(comment.id, comment.status)}
+                              className="text-sm text-blue-500 hover:underline"
+                            >
+                              {comment.status === 'open' ? 'Resolve' : 'Reopen'}
+                            </button>
+                          </div>
+
+                          <div className="flex gap-2 mb-3">
+                            <select
+                              value={comment.priority}
+                              onChange={(e) => updatePriority(comment.id, e.target.value as 'high' | 'med' | 'low', comment.priority_number)}
+                              className="text-xs px-2 py-1 border border-gray-300 rounded"
+                            >
+                              <option value="high">High</option>
+                              <option value="med">Med</option>
+                              <option value="low">Low</option>
+                            </select>
+                            <select
+                              value={comment.assignee}
+                              onChange={(e) => updateAssignee(comment.id, e.target.value)}
+                              className="text-xs px-2 py-1 border border-gray-300 rounded"
+                            >
+                              <option value="dev1">Dev1</option>
+                              <option value="dev2">Dev2</option>
+                              <option value="dev3">Dev3</option>
+                              <option value="Sessions">Sessions</option>
+                              <option value="Annie">Annie</option>
+                              <option value="Mari">Mari</option>
+                            </select>
+                          </div>
+
+                          <div className="text-sm text-gray-500 mb-3 pb-3 border-b border-gray-200 flex justify-between items-center">
+                            <span>
+                              {new Date(comment.created_at).toLocaleDateString()} at{' '}
+                              {new Date(comment.created_at).toLocaleTimeString()}
+                            </span>
+                            <button
+                              onClick={() => deleteComment(comment.id)}
+                              className="text-xs text-red-500 hover:text-red-700 hover:underline"
+                            >
+                              delete
+                            </button>
+                          </div>
+
+                          <div className="flex-1 overflow-y-auto">
+                            <p className="font-semibold text-sm mb-2">Notes:</p>
+                            {comment.text_annotations && comment.text_annotations.length > 0 ? (
+                              <ul className="space-y-2 text-sm">
+                                {comment.text_annotations.map((annotation, idx) => (
+                                  <li key={idx} className="text-gray-700">
+                                    {annotation.text}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-gray-400 text-sm">No notes</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => toggleStatus(comment.id, comment.status)}
-                        className="text-sm text-blue-500 hover:underline"
-                      >
-                        {comment.status === 'open' ? 'Resolve' : 'Reopen'}
-                      </button>
                     </div>
-
-                    <div className="flex gap-2 mb-3">
-                      <select
-                        value={comment.priority}
-                        onChange={(e) => updatePriority(comment.id, e.target.value as 'high' | 'med' | 'low', comment.priority_number)}
-                        className="text-xs px-2 py-1 border border-gray-300 rounded"
-                      >
-                        <option value="high">High</option>
-                        <option value="med">Med</option>
-                        <option value="low">Low</option>
-                      </select>
-                      <select
-                        value={comment.assignee}
-                        onChange={(e) => updateAssignee(comment.id, e.target.value)}
-                        className="text-xs px-2 py-1 border border-gray-300 rounded"
-                      >
-                        <option value="dev1">Dev1</option>
-                        <option value="dev2">Dev2</option>
-                        <option value="dev3">Dev3</option>
-                        <option value="Sessions">Sessions</option>
-                        <option value="Annie">Annie</option>
-                        <option value="Mari">Mari</option>
-                      </select>
-                    </div>
-
-                    <div className="text-sm text-gray-500 mb-3 pb-3 border-b border-gray-200 flex justify-between items-center">
-                      <span>
-                        {new Date(comment.created_at).toLocaleDateString()} at{' '}
-                        {new Date(comment.created_at).toLocaleTimeString()}
-                      </span>
-                      <button
-                        onClick={() => deleteComment(comment.id)}
-                        className="text-xs text-red-500 hover:text-red-700 hover:underline"
-                      >
-                        delete
-                      </button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto">
-                      <p className="font-semibold text-sm mb-2">Notes:</p>
-                      {comment.text_annotations && comment.text_annotations.length > 0 ? (
-                        <ul className="space-y-2 text-sm">
-                          {comment.text_annotations.map((annotation, idx) => (
-                            <li key={idx} className="text-gray-700">
-                              {annotation.text}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-gray-400 text-sm">No notes</p>
-                      )}
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             ))}
