@@ -355,7 +355,7 @@ export async function getComments(filters?: {
   try {
     // If excludeImages is true, select all fields except image_data
     const selectClause = filters?.excludeImages
-      ? 'id, url, page_section, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, created_at, updated_at'
+      ? 'id, project_id, client_id, display_number, url, page_section, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, created_at, updated_at'
       : '*';
 
     let query = `SELECT ${selectClause} FROM comments WHERE 1=1`;
@@ -776,7 +776,7 @@ export async function getCommentsByProjectId(projectId: number, excludeImages?: 
   const dbClient = await pool.connect();
   try {
     const selectClause = excludeImages
-      ? 'id, project_id, url, page_section, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, created_at, updated_at'
+      ? 'id, project_id, client_id, display_number, url, page_section, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, created_at, updated_at'
       : '*';
 
     const result = await dbClient.query(
@@ -798,7 +798,7 @@ export async function getCommentsByClientId(clientId: number, excludeImages?: bo
   const dbClient = await pool.connect();
   try {
     const selectClause = excludeImages
-      ? 'c.id, c.project_id, c.url, c.page_section, \'\' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.created_at, c.updated_at'
+      ? 'c.id, c.project_id, c.client_id, c.display_number, c.url, c.page_section, \'\' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.created_at, c.updated_at'
       : 'c.*';
 
     const result = await dbClient.query(
