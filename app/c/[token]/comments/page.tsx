@@ -3,11 +3,17 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import ClientNav from '@/components/ClientNav';
 import CommentsTableView from '@/components/CommentsTableView';
 import CommentCard, { Comment } from '@/components/CommentCard';
 import ImageModal from '@/components/ImageModal';
 
 interface Project {
+  id: number;
+  name: string;
+}
+
+interface Assignee {
   id: number;
   name: string;
 }
@@ -18,6 +24,7 @@ export default function ClientCommentsPage() {
 
   const [comments, setComments] = useState<Comment[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('open');
   const [selectedProject, setSelectedProject] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
@@ -96,6 +103,17 @@ export default function ClientCommentsPage() {
     }
   };
 
+  const fetchAssignees = async () => {
+    try {
+      const response = await fetch(`/api/assignees?token=${token}`);
+      if (response.ok) {
+        setAssignees(await response.json());
+      }
+    } catch (error) {
+      console.error('Error fetching assignees:', error);
+    }
+  };
+
   const fetchData = async () => {
     try {
       const projectsRes = await fetch(`/api/projects?token=${token}`);
@@ -103,6 +121,7 @@ export default function ClientCommentsPage() {
       setProjects(await projectsRes.json());
       await fetchComments();
       fetchDecisionItems();
+      fetchAssignees();
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to load data');
@@ -248,29 +267,26 @@ export default function ClientCommentsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold text-gray-800">Comments</h1>
-              {highlightedCommentId && (
-                <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
-                  <span className="text-sm text-blue-700">Viewing comment #{highlightedCommentId}</span>
-                  <button onClick={() => { setHighlightedCommentId(null); setSearchCommentId(''); const urlParams = new URLSearchParams(window.location.search); urlParams.delete('commentId'); window.history.replaceState({}, '', urlParams.toString() ? `/c/${token}/comments?${urlParams.toString()}` : `/c/${token}/comments`); }} className="text-blue-700 hover:text-blue-900 font-bold">✕</button>
-                </div>
-              )}
+      {/* Navigation */}
+      <div className="sticky top-0 z-10">
+        <ClientNav token={token}>
+          {highlightedCommentId && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
+              <span className="text-sm text-blue-700">#{highlightedCommentId}</span>
+              <button onClick={() => { setHighlightedCommentId(null); setSearchCommentId(''); const urlParams = new URLSearchParams(window.location.search); urlParams.delete('commentId'); window.history.replaceState({}, '', urlParams.toString() ? `/c/${token}/comments?${urlParams.toString()}` : `/c/${token}/comments`); }} className="text-blue-700 hover:text-blue-900 font-bold">✕</button>
             </div>
-            <div className="flex items-center gap-3">
-              <form onSubmit={(e) => { e.preventDefault(); const id = parseInt(searchCommentId); if (!isNaN(id) && id > 0) { setHighlightedCommentId(id); const urlParams = new URLSearchParams(window.location.search); urlParams.set('commentId', id.toString()); window.history.replaceState({}, '', `/c/${token}/comments?${urlParams.toString()}`); }}} className="flex items-center gap-2">
-                <input type="number" value={searchCommentId} onChange={(e) => setSearchCommentId(e.target.value)} placeholder="Jump to #" min="1" className="w-24 px-2 py-1 border border-gray-300 rounded text-sm" />
-                <button type="submit" className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm">Go</button>
-              </form>
-              <Link href={`/c/${token}`} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">New Comment</Link>
-            </div>
-          </div>
+          )}
+          <form onSubmit={(e) => { e.preventDefault(); const id = parseInt(searchCommentId); if (!isNaN(id) && id > 0) { setHighlightedCommentId(id); const urlParams = new URLSearchParams(window.location.search); urlParams.set('commentId', id.toString()); window.history.replaceState({}, '', `/c/${token}/comments?${urlParams.toString()}`); }}} className="flex items-center gap-2">
+            <input type="number" value={searchCommentId} onChange={(e) => setSearchCommentId(e.target.value)} placeholder="Jump to #" min="1" className="w-24 px-2 py-1 border border-gray-300 rounded text-sm" />
+            <button type="submit" className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm">Go</button>
+          </form>
+          <Link href={`/c/${token}`} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm">New Comment</Link>
+        </ClientNav>
+      </div>
 
-          {/* Filters */}
+      {/* Filters */}
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex gap-3 flex-wrap items-center">
             <div className="flex gap-1">
               {(['all', 'open', 'resolved'] as const).map((f) => (
@@ -289,12 +305,8 @@ export default function ClientCommentsPage() {
             </select>
             <select value={selectedAssignee} onChange={(e) => setSelectedAssignee(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded">
               <option value="all">All Assignees</option>
-              <option value="dev1">Dev1</option>
-              <option value="dev2">Dev2</option>
-              <option value="dev3">Dev3</option>
-              <option value="Sessions">Sessions</option>
-              <option value="Annie">Annie</option>
-              <option value="Mari">Mari</option>
+              <option value="Unassigned">Unassigned</option>
+              {assignees.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
             </select>
             <div className="flex gap-1 border-l pl-3">
               {(['recent', 'resolved-bottom', 'priority'] as const).map((s) => (
@@ -341,6 +353,7 @@ export default function ClientCommentsPage() {
                       addNoteToDecisions={addNoteToDecisions}
                       decisionsLink={`/c/${token}/decisions`}
                       copyLinkUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/c/${token}/comments?commentId=${comment.id}`}
+                      assignees={assignees}
                       onToggleStatus={toggleStatus}
                       onUpdatePriority={updatePriority}
                       onUpdateAssignee={updateAssignee}

@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       settings: client.widget_settings || {},
       clientName: client.name,
+      widgetKey: client.widget_key || null,
     });
   }
 

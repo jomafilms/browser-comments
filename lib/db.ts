@@ -35,6 +35,13 @@ export interface Project {
   created_at: Date;
 }
 
+export interface Assignee {
+  id: number;
+  client_id: number;
+  name: string;
+  created_at: Date;
+}
+
 export interface Comment {
   id: number;
   project_id: number | null;
@@ -45,7 +52,7 @@ export interface Comment {
   status: 'open' | 'resolved';
   priority: 'high' | 'med' | 'low';
   priority_number: number;
-  assignee: 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari';
+  assignee: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -102,6 +109,21 @@ export async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_projects_client_id ON projects(client_id);
     `);
 
+    // Create assignees table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS assignees (
+        id SERIAL PRIMARY KEY,
+        client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(client_id, name)
+      );
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_assignees_client_id ON assignees(client_id);
+    `);
+
     // Create table with base columns
     await client.query(`
       CREATE TABLE IF NOT EXISTS comments (
@@ -128,20 +150,14 @@ export async function initDB() {
           ALTER TABLE comments ADD COLUMN priority_number INTEGER DEFAULT 0;
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='assignee') THEN
-          ALTER TABLE comments ADD COLUMN assignee TEXT DEFAULT 'dev1';
-          ALTER TABLE comments ADD CONSTRAINT comments_assignee_check CHECK (assignee IN ('dev1', 'dev2', 'dev3', 'Sessions', 'Annie', 'Mari'));
+          ALTER TABLE comments ADD COLUMN assignee TEXT DEFAULT 'Unassigned';
         ELSE
-          -- Drop old constraint first (allows us to update dev4 values)
+          -- Drop old constraint to allow any assignee value
           ALTER TABLE comments DROP CONSTRAINT IF EXISTS comments_assignee_check;
-          -- Migrate dev4 to Sessions
-          UPDATE comments SET assignee = 'Sessions' WHERE assignee = 'dev4';
-          -- Update any NULL values to dev1
-          UPDATE comments SET assignee = 'dev1' WHERE assignee IS NULL;
-          -- Recreate constraint with new values
-          ALTER TABLE comments ADD CONSTRAINT comments_assignee_check CHECK (assignee IN ('dev1', 'dev2', 'dev3', 'Sessions', 'Annie', 'Mari'));
-          -- Make column NOT NULL
-          ALTER TABLE comments ALTER COLUMN assignee SET DEFAULT 'dev1';
-          ALTER TABLE comments ALTER COLUMN assignee SET NOT NULL;
+          -- Update any NULL values
+          UPDATE comments SET assignee = 'Unassigned' WHERE assignee IS NULL OR assignee = '';
+          -- Set default
+          ALTER TABLE comments ALTER COLUMN assignee SET DEFAULT 'Unassigned';
         END IF;
         -- Add project_id column to comments
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='project_id') THEN
@@ -203,7 +219,7 @@ export async function saveComment(data: {
   textAnnotations: TextAnnotation[];
   priority?: 'high' | 'med' | 'low';
   priorityNumber?: number;
-  assignee?: 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari';
+  assignee?: string;
   projectId?: number;
 }): Promise<Comment> {
   const client = await pool.connect();
@@ -219,7 +235,7 @@ export async function saveComment(data: {
         JSON.stringify(data.textAnnotations),
         data.priority || 'med',
         data.priorityNumber || 0,
-        data.assignee || 'dev1',
+        data.assignee || 'Unassigned',
         data.projectId || null
       ]
     );
@@ -233,7 +249,7 @@ export async function getComments(filters?: {
   projectName?: string;
   status?: 'open' | 'resolved';
   priority?: 'high' | 'med' | 'low';
-  assignee?: 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari';
+  assignee?: string;
   excludeImages?: boolean;
 }): Promise<Comment[]> {
   const client = await pool.connect();
@@ -378,7 +394,7 @@ export async function updateCommentPriority(
 
 export async function updateCommentAssignee(
   id: number,
-  assignee: 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari'
+  assignee: string
 ): Promise<void> {
   const client = await pool.connect();
   try {
@@ -728,6 +744,55 @@ export async function getDecisionItemsByClientId(clientId: number): Promise<Deci
       [clientId]
     );
     return result.rows;
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Assignee CRUD functions
+export async function createAssignee(clientId: number, name: string): Promise<Assignee> {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `INSERT INTO assignees (client_id, name) VALUES ($1, $2) RETURNING *`,
+      [clientId, name]
+    );
+    return result.rows[0];
+  } finally {
+    dbClient.release();
+  }
+}
+
+export async function getAssigneesByClientId(clientId: number): Promise<Assignee[]> {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `SELECT * FROM assignees WHERE client_id = $1 ORDER BY name`,
+      [clientId]
+    );
+    return result.rows;
+  } finally {
+    dbClient.release();
+  }
+}
+
+export async function deleteAssignee(id: number): Promise<void> {
+  const dbClient = await pool.connect();
+  try {
+    await dbClient.query(`DELETE FROM assignees WHERE id = $1`, [id]);
+  } finally {
+    dbClient.release();
+  }
+}
+
+export async function updateAssignee(id: number, name: string): Promise<Assignee> {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `UPDATE assignees SET name = $1 WHERE id = $2 RETURNING *`,
+      [name, id]
+    );
+    return result.rows[0];
   } finally {
     dbClient.release();
   }

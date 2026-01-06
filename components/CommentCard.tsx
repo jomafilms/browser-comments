@@ -19,9 +19,14 @@ export interface Comment {
   status: 'open' | 'resolved';
   priority: 'high' | 'med' | 'low';
   priority_number: number;
-  assignee: 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari';
+  assignee: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface Assignee {
+  id: number;
+  name: string;
 }
 
 interface CommentCardProps {
@@ -33,6 +38,7 @@ interface CommentCardProps {
   addNoteToDecisions: boolean;
   decisionsLink: string;
   copyLinkUrl: string;
+  assignees: Assignee[];
   onToggleStatus: (id: number, status: 'open' | 'resolved') => void;
   onUpdatePriority: (id: number, priority: 'high' | 'med' | 'low', priorityNumber: number) => void;
   onUpdateAssignee: (id: number, assignee: string) => void;
@@ -53,6 +59,7 @@ export default function CommentCard({
   addNoteToDecisions,
   decisionsLink,
   copyLinkUrl,
+  assignees,
   onToggleStatus,
   onUpdatePriority,
   onUpdateAssignee,
@@ -155,12 +162,8 @@ export default function CommentCard({
               onChange={(e) => onUpdateAssignee(comment.id, e.target.value)}
               className="text-xs px-2 py-1 border border-gray-300 rounded"
             >
-              <option value="dev1">Dev1</option>
-              <option value="dev2">Dev2</option>
-              <option value="dev3">Dev3</option>
-              <option value="Sessions">Sessions</option>
-              <option value="Annie">Annie</option>
-              <option value="Mari">Mari</option>
+              <option value="Unassigned">Unassigned</option>
+              {assignees.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
             </select>
           </div>
 

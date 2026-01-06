@@ -18,7 +18,7 @@ interface Comment {
   status: 'open' | 'resolved';
   priority: 'high' | 'med' | 'low';
   priority_number: number;
-  assignee: 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari';
+  assignee: string;
   created_at: string;
   updated_at: string;
 }
@@ -26,7 +26,7 @@ interface Comment {
 interface CommentsTableViewProps {
   comments: Comment[];
   onUpdatePriority: (id: number, priority: 'high' | 'med' | 'low', priorityNumber: number) => Promise<void>;
-  onUpdateAssignee: (id: number, assignee: 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari') => Promise<void>;
+  onUpdateAssignee: (id: number, assignee: string) => Promise<void>;
   onToggleStatus: (id: number, currentStatus: 'open' | 'resolved') => Promise<void>;
   onDeleteComment: (id: number) => Promise<void>;
   onSwitchToCardView: () => void;
