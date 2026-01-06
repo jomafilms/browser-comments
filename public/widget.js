@@ -46,8 +46,6 @@
           modalSubtitle: inlineSubtitle || serverSettings.modalSubtitle || config.modalSubtitle,
           successMessage: serverSettings.successMessage || config.successMessage,
         };
-        // Re-render button with new settings
-        updateButton();
       }
     } catch (err) {
       console.warn('Feedback Widget: Could not load settings', err);
@@ -669,8 +667,11 @@
     };
   }
 
-  // Initialize
-  injectStyles();
-  updateButton();
-  loadSettings();
+  // Initialize - wait for settings before showing button
+  async function init() {
+    await loadSettings();
+    injectStyles();
+    updateButton();
+  }
+  init();
 })();
