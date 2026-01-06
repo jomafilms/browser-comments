@@ -12,6 +12,7 @@ interface TextAnnotation {
 export interface Comment {
   id: number;
   project_id?: number;
+  display_number: number;
   url: string;
   project_name: string;
   image_data: string;
@@ -97,7 +98,7 @@ export default function CommentCard({
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="px-2 py-1 rounded bg-gray-200 text-gray-700 text-xs font-mono">
-                #{comment.id}
+                #{comment.display_number || comment.id}
               </span>
               <button
                 onClick={() => {

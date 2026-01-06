@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initDB, getClientByWidgetKey, getProjectByOrigin, getProjectsByClientId, saveComment } from '@/lib/db';
 
+// Increase body size limit for screenshot uploads
+export const maxDuration = 60;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -87,7 +90,7 @@ export async function POST(request: NextRequest) {
       textAnnotations: textAnnotations || [],
       priority: 'med',
       priorityNumber: 0,
-      assignee: 'dev1',
+      assignee: 'Unassigned',
       projectId: project.id,
     });
 

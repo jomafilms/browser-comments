@@ -502,7 +502,8 @@
     renderModal();
 
     try {
-      const imageData = canvas.toDataURL('image/png');
+      // Use JPEG with 0.8 quality to reduce payload size (PNG can exceed Vercel's 4.5MB limit)
+      const imageData = canvas.toDataURL('image/jpeg', 0.8);
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

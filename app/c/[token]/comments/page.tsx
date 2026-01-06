@@ -272,11 +272,11 @@ export default function ClientCommentsPage() {
         <ClientNav token={token}>
           {highlightedCommentId && (
             <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
-              <span className="text-sm text-blue-700">#{highlightedCommentId}</span>
+              <span className="text-sm text-blue-700">#{comments.find(c => c.id === highlightedCommentId)?.display_number || highlightedCommentId}</span>
               <button onClick={() => { setHighlightedCommentId(null); setSearchCommentId(''); const urlParams = new URLSearchParams(window.location.search); urlParams.delete('commentId'); window.history.replaceState({}, '', urlParams.toString() ? `/c/${token}/comments?${urlParams.toString()}` : `/c/${token}/comments`); }} className="text-blue-700 hover:text-blue-900 font-bold">✕</button>
             </div>
           )}
-          <form onSubmit={(e) => { e.preventDefault(); const id = parseInt(searchCommentId); if (!isNaN(id) && id > 0) { setHighlightedCommentId(id); const urlParams = new URLSearchParams(window.location.search); urlParams.set('commentId', id.toString()); window.history.replaceState({}, '', `/c/${token}/comments?${urlParams.toString()}`); }}} className="flex items-center gap-2">
+          <form onSubmit={(e) => { e.preventDefault(); const displayNum = parseInt(searchCommentId); if (!isNaN(displayNum) && displayNum > 0) { const foundComment = comments.find(c => c.display_number === displayNum); if (foundComment) { setHighlightedCommentId(foundComment.id); const urlParams = new URLSearchParams(window.location.search); urlParams.set('commentId', foundComment.id.toString()); window.history.replaceState({}, '', `/c/${token}/comments?${urlParams.toString()}`); } else { alert(`Comment #${displayNum} not found`); } }}} className="flex items-center gap-2">
             <input type="number" value={searchCommentId} onChange={(e) => setSearchCommentId(e.target.value)} placeholder="Jump to #" min="1" className="w-24 px-2 py-1 border border-gray-300 rounded text-sm" />
             <button type="submit" className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm">Go</button>
           </form>

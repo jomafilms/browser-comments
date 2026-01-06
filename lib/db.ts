@@ -45,6 +45,7 @@ export interface Assignee {
 export interface Comment {
   id: number;
   project_id: number | null;
+  display_number: number; // Per-client sequential number (1, 2, 3...)
   url: string;
   project_name: string;
   image_data: string; // base64 encoded image
@@ -163,7 +164,37 @@ export async function initDB() {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='project_id') THEN
           ALTER TABLE comments ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
         END IF;
+        -- Add client_id column for per-client numbering
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='client_id') THEN
+          ALTER TABLE comments ADD COLUMN client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
+        END IF;
+        -- Add display_number for per-client sequential numbering
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='display_number') THEN
+          ALTER TABLE comments ADD COLUMN display_number INTEGER DEFAULT 0;
+        END IF;
       END $$;
+    `);
+
+    // Backfill client_id from project_id for existing comments
+    await client.query(`
+      UPDATE comments c
+      SET client_id = p.client_id
+      FROM projects p
+      WHERE c.project_id = p.id
+        AND c.client_id IS NULL;
+    `);
+
+    // Backfill display_number for existing comments (per client, ordered by created_at)
+    await client.query(`
+      WITH numbered AS (
+        SELECT id, ROW_NUMBER() OVER (PARTITION BY client_id ORDER BY created_at) as rn
+        FROM comments
+        WHERE display_number = 0 OR display_number IS NULL
+      )
+      UPDATE comments c
+      SET display_number = n.rn
+      FROM numbered n
+      WHERE c.id = n.id;
     `);
 
     // Create indexes after columns exist
@@ -222,11 +253,33 @@ export async function saveComment(data: {
   assignee?: string;
   projectId?: number;
 }): Promise<Comment> {
-  const client = await pool.connect();
+  const dbClient = await pool.connect();
   try {
-    const result = await client.query(
-      `INSERT INTO comments (url, project_name, image_data, text_annotations, priority, priority_number, assignee, project_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    // Get client_id from project if projectId is provided
+    let clientId: number | null = null;
+    if (data.projectId) {
+      const projectResult = await dbClient.query(
+        'SELECT client_id FROM projects WHERE id = $1',
+        [data.projectId]
+      );
+      if (projectResult.rows.length > 0) {
+        clientId = projectResult.rows[0].client_id;
+      }
+    }
+
+    // Calculate next display_number for this client
+    let displayNumber = 1;
+    if (clientId) {
+      const maxResult = await dbClient.query(
+        'SELECT COALESCE(MAX(display_number), 0) as max_num FROM comments WHERE client_id = $1',
+        [clientId]
+      );
+      displayNumber = maxResult.rows[0].max_num + 1;
+    }
+
+    const result = await dbClient.query(
+      `INSERT INTO comments (url, project_name, image_data, text_annotations, priority, priority_number, assignee, project_id, client_id, display_number)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         data.url,
@@ -236,12 +289,14 @@ export async function saveComment(data: {
         data.priority || 'med',
         data.priorityNumber || 0,
         data.assignee || 'Unassigned',
-        data.projectId || null
+        data.projectId || null,
+        clientId,
+        displayNumber
       ]
     );
     return result.rows[0];
   } finally {
-    client.release();
+    dbClient.release();
   }
 }
 

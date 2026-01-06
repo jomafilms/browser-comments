@@ -11,6 +11,7 @@ interface TextAnnotation {
 
 interface Comment {
   id: number;
+  display_number: number;
   url: string;
   project_name: string;
   image_data: string;
@@ -244,7 +245,7 @@ export default function CommentsTableView({
 
                       {/* Comment # */}
                       <td className="px-2 py-2 align-top text-sm font-mono text-gray-700">
-                        #{comment.id}
+                        #{comment.display_number || comment.id}
                       </td>
 
                       {/* Priority toggle buttons */}
