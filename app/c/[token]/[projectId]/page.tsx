@@ -67,12 +67,12 @@ export default function ReviewInterface() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url: project.url,
-          projectName: project.name,
+          // pageSection is auto-extracted from URL path
           imageData,
           textAnnotations,
           priority: 'med',
           priorityNumber: 0,
-          assignee: 'dev1',
+          assignee: 'Unassigned',
           projectId: project.id,
         }),
       });

@@ -245,14 +245,14 @@ export default function ClientCommentsPage() {
     } catch (err) { console.error('Error batch updating priorities:', err); }
   };
 
-  // Group and sort comments by project
+  // Group and sort comments by page section
   const groupedComments = displayComments.reduce((acc, comment) => {
-    const projectName = comment.project_name || 'Unknown Project';
-    if (!acc[projectName]) acc[projectName] = [];
-    acc[projectName].push(comment);
+    const pageSection = comment.page_section || 'Unknown';
+    if (!acc[pageSection]) acc[pageSection] = [];
+    acc[pageSection].push(comment);
     return acc;
   }, {} as Record<string, Comment[]>);
-  Object.keys(groupedComments).forEach(projectName => { groupedComments[projectName] = sortComments(groupedComments[projectName]); });
+  Object.keys(groupedComments).forEach(pageSection => { groupedComments[pageSection] = sortComments(groupedComments[pageSection]); });
 
   if (error) {
     return (
@@ -332,17 +332,17 @@ export default function ClientCommentsPage() {
           <CommentsTableView comments={displayComments} onUpdatePriority={updatePriority} onUpdateAssignee={updateAssignee} onToggleStatus={toggleStatus} onDeleteComment={deleteComment} onSwitchToCardView={() => setViewMode('card')} onBatchUpdatePriority={batchUpdatePriority} />
         ) : (
           <div className="space-y-8">
-            {Object.entries(groupedComments).map(([projectName, projectComments]) => (
-              <div key={projectName} className="bg-white rounded-lg shadow-sm p-6">
+            {Object.entries(groupedComments).map(([pageSection, sectionComments]) => (
+              <div key={pageSection} className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-800">{projectName}</h2>
+                  <h2 className="text-xl font-bold text-gray-800">{pageSection}</h2>
                   <button onClick={() => setViewMode('table')} className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded flex items-center gap-2" title="Switch to table view">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                     Table
                   </button>
                 </div>
                 <div className="space-y-4">
-                  {projectComments.map((comment) => (
+                  {sectionComments.map((comment) => (
                     <CommentCard
                       key={comment.id}
                       comment={comment}

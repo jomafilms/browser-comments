@@ -47,7 +47,7 @@ export interface Comment {
   project_id: number | null;
   display_number: number; // Per-client sequential number (1, 2, 3...)
   url: string;
-  project_name: string;
+  page_section: string; // Auto-populated from URL path, can be manually overridden
   image_data: string; // base64 encoded image
   text_annotations: TextAnnotation[];
   status: 'open' | 'resolved';
@@ -197,9 +197,27 @@ export async function initDB() {
       WHERE c.id = n.id;
     `);
 
+    // Rename project_name to page_section (for sub-grouping comments within a project)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='project_name')
+           AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='page_section') THEN
+          ALTER TABLE comments RENAME COLUMN project_name TO page_section;
+        END IF;
+      END $$;
+    `);
+
+    // One-time fix: Normalize project 2 comments to "LWF App UI"
+    await client.query(`
+      UPDATE comments
+      SET page_section = 'LWF App UI'
+      WHERE project_id = 2 AND page_section IN ('Living with Fire App', 'LWF App UI')
+    `);
+
     // Create indexes after columns exist
     await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_project_name ON comments(project_name);
+      CREATE INDEX IF NOT EXISTS idx_page_section ON comments(page_section);
       CREATE INDEX IF NOT EXISTS idx_status ON comments(status);
       CREATE INDEX IF NOT EXISTS idx_created_at ON comments(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_priority ON comments(priority);
@@ -243,9 +261,38 @@ export async function initDB() {
   }
 }
 
+// Helper to extract a readable page section from URL path
+function extractPageSection(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname;
+
+    // Clean up the path
+    if (!path || path === '/') {
+      return 'Home';
+    }
+
+    // Remove leading/trailing slashes and split
+    const segments = path.replace(/^\/|\/$/g, '').split('/');
+
+    // Take the last meaningful segment(s) and format nicely
+    const lastSegment = segments[segments.length - 1] || 'Home';
+
+    // Convert slug-style to Title Case (e.g., "about-us" -> "About Us")
+    return lastSegment
+      .replace(/[-_]/g, ' ')
+      .replace(/\.[^.]+$/, '') // Remove file extension if any
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ') || 'Home';
+  } catch {
+    return 'Unknown';
+  }
+}
+
 export async function saveComment(data: {
   url: string;
-  projectName: string;
+  pageSection?: string; // Optional - if not provided, auto-extracted from URL path
   imageData: string;
   textAnnotations: TextAnnotation[];
   priority?: 'high' | 'med' | 'low';
@@ -277,13 +324,16 @@ export async function saveComment(data: {
       displayNumber = maxResult.rows[0].max_num + 1;
     }
 
+    // Auto-extract page section from URL if not provided
+    const pageSection = data.pageSection || extractPageSection(data.url);
+
     const result = await dbClient.query(
-      `INSERT INTO comments (url, project_name, image_data, text_annotations, priority, priority_number, assignee, project_id, client_id, display_number)
+      `INSERT INTO comments (url, page_section, image_data, text_annotations, priority, priority_number, assignee, project_id, client_id, display_number)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         data.url,
-        data.projectName,
+        pageSection,
         data.imageData,
         JSON.stringify(data.textAnnotations),
         data.priority || 'med',
@@ -301,7 +351,7 @@ export async function saveComment(data: {
 }
 
 export async function getComments(filters?: {
-  projectName?: string;
+  pageSection?: string;
   status?: 'open' | 'resolved';
   priority?: 'high' | 'med' | 'low';
   assignee?: string;
@@ -311,15 +361,15 @@ export async function getComments(filters?: {
   try {
     // If excludeImages is true, select all fields except image_data
     const selectClause = filters?.excludeImages
-      ? 'id, url, project_name, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, created_at, updated_at'
+      ? 'id, url, page_section, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, created_at, updated_at'
       : '*';
 
     let query = `SELECT ${selectClause} FROM comments WHERE 1=1`;
     const params: any[] = [];
 
-    if (filters?.projectName) {
-      params.push(filters.projectName);
-      query += ` AND project_name = $${params.length}`;
+    if (filters?.pageSection) {
+      params.push(filters.pageSection);
+      query += ` AND page_section = $${params.length}`;
     }
 
     if (filters?.status) {
@@ -395,26 +445,26 @@ export async function addNoteToComment(
   }
 }
 
-export async function getProjects(): Promise<string[]> {
+export async function getPageSections(): Promise<string[]> {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `SELECT DISTINCT project_name FROM comments ORDER BY project_name`
+      `SELECT DISTINCT page_section FROM comments ORDER BY page_section`
     );
-    return result.rows.map(row => row.project_name);
+    return result.rows.map(row => row.page_section);
   } finally {
     client.release();
   }
 }
 
-export async function updateProjectName(
+export async function updatePageSection(
   oldName: string,
   newName: string
 ): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query(
-      `UPDATE comments SET project_name = $1 WHERE project_name = $2`,
+      `UPDATE comments SET page_section = $1 WHERE page_section = $2`,
       [newName, oldName]
     );
   } finally {
@@ -732,7 +782,7 @@ export async function getCommentsByProjectId(projectId: number, excludeImages?: 
   const dbClient = await pool.connect();
   try {
     const selectClause = excludeImages
-      ? 'id, project_id, url, project_name, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, created_at, updated_at'
+      ? 'id, project_id, url, page_section, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, created_at, updated_at'
       : '*';
 
     const result = await dbClient.query(
@@ -754,7 +804,7 @@ export async function getCommentsByClientId(clientId: number, excludeImages?: bo
   const dbClient = await pool.connect();
   try {
     const selectClause = excludeImages
-      ? 'c.id, c.project_id, c.url, c.project_name, \'\' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.created_at, c.updated_at'
+      ? 'c.id, c.project_id, c.url, c.page_section, \'\' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.created_at, c.updated_at'
       : 'c.*';
 
     const result = await dbClient.query(

@@ -83,9 +83,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Save the comment with the actual page URL (not just domain)
+    // pageSection is auto-extracted from URL path
     const comment = await saveComment({
       url: pageUrl, // Full page URL including path
-      projectName: project.name,
       imageData,
       textAnnotations: textAnnotations || [],
       priority: 'med',
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       {
         success: true,
         commentId: comment.id,
-        projectName: project.name
+        pageSection: comment.page_section
       },
       { headers: corsHeaders }
     );

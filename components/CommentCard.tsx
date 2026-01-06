@@ -14,7 +14,7 @@ export interface Comment {
   project_id?: number;
   display_number: number;
   url: string;
-  project_name: string;
+  page_section: string;
   image_data: string;
   text_annotations: TextAnnotation[];
   status: 'open' | 'resolved';

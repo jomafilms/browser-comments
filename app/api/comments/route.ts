@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     const comment = await saveComment({
       url: body.url,
-      projectName: body.projectName,
+      pageSection: body.pageSection, // Optional - auto-extracted from URL if not provided
       imageData: body.imageData,
       textAnnotations: body.textAnnotations || [],
       priority: body.priority || 'med',
@@ -55,10 +55,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
     const token = searchParams.get('token');
-    const projectName = searchParams.get('projectName') || undefined;
+    const pageSection = searchParams.get('pageSection') || undefined;
     const status = searchParams.get('status') as 'open' | 'resolved' | undefined;
     const priority = searchParams.get('priority') as 'high' | 'med' | 'low' | undefined;
-    const assignee = searchParams.get('assignee') as 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari' | undefined;
+    const assignee = searchParams.get('assignee') || undefined;
     const excludeImages = searchParams.get('excludeImages') === 'true';
 
     // If token provided, get comments for that client
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fall back to old behavior (for backwards compatibility)
-    const comments = await getComments({ projectName, status, priority, assignee, excludeImages });
+    const comments = await getComments({ pageSection, status, priority, assignee, excludeImages });
     return NextResponse.json(comments);
   } catch (error) {
     console.error('Error fetching comments:', error);

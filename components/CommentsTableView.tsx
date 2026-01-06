@@ -13,7 +13,7 @@ interface Comment {
   id: number;
   display_number: number;
   url: string;
-  project_name: string;
+  page_section: string;
   image_data: string;
   text_annotations: TextAnnotation[];
   status: 'open' | 'resolved';
@@ -45,24 +45,24 @@ export default function CommentsTableView({
 }: CommentsTableViewProps) {
   const [draggedItem, setDraggedItem] = useState<{comment: Comment; priority: string} | null>(null);
 
-  // Group comments by project and then by priority - memoized to recalculate when comments change
+  // Group comments by page section and then by priority - memoized to recalculate when comments change
   const groupedComments = useMemo(() => {
     const grouped = comments.reduce((acc, comment) => {
-      if (!acc[comment.project_name]) {
-        acc[comment.project_name] = {
+      if (!acc[comment.page_section]) {
+        acc[comment.page_section] = {
           high: [],
           med: [],
           low: [],
         };
       }
-      acc[comment.project_name][comment.priority].push(comment);
+      acc[comment.page_section][comment.priority].push(comment);
       return acc;
     }, {} as Record<string, Record<'high' | 'med' | 'low', Comment[]>>);
 
     // Sort comments within each priority group by priority_number ASC (1, 2, 3, 4...), then created_at DESC
-    Object.keys(grouped).forEach(projectName => {
+    Object.keys(grouped).forEach(pageSection => {
       ['high', 'med', 'low'].forEach(priority => {
-        grouped[projectName][priority as 'high' | 'med' | 'low'].sort((a, b) => {
+        grouped[pageSection][priority as 'high' | 'med' | 'low'].sort((a, b) => {
           if (a.priority_number !== b.priority_number) {
             return a.priority_number - b.priority_number;
           }
@@ -88,8 +88,8 @@ export default function CommentsTableView({
       return;
     }
 
-    // Get all comments in this priority level for this project
-    const priorityComments = groupedComments[targetComment.project_name][targetPriority as 'high' | 'med' | 'low'];
+    // Get all comments in this priority level for this page section
+    const priorityComments = groupedComments[targetComment.page_section][targetPriority as 'high' | 'med' | 'low'];
 
     // Find the positions
     const draggedIndex = priorityComments.findIndex(c => c.id === draggedItem.comment.id);
@@ -159,10 +159,10 @@ export default function CommentsTableView({
 
   return (
     <div className="space-y-8">
-      {Object.entries(groupedComments).map(([projectName, priorityGroups]) => (
-        <div key={projectName} className="bg-white rounded-lg shadow-sm overflow-hidden">
+      {Object.entries(groupedComments).map(([pageSection, priorityGroups]) => (
+        <div key={pageSection} className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="px-6 py-4 bg-gray-50 border-b flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-800">{projectName}</h2>
+            <h2 className="text-xl font-bold text-gray-800">{pageSection}</h2>
             <button
               onClick={onSwitchToCardView}
               className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded flex items-center gap-2"
