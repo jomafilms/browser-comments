@@ -130,7 +130,7 @@ export async function initDB() {
       CREATE TABLE IF NOT EXISTS comments (
         id SERIAL PRIMARY KEY,
         url TEXT NOT NULL,
-        project_name TEXT NOT NULL,
+        page_section TEXT NOT NULL,
         image_data TEXT NOT NULL,
         text_annotations JSONB DEFAULT '[]',
         status TEXT DEFAULT 'open' CHECK (status IN ('open', 'resolved')),
@@ -197,7 +197,7 @@ export async function initDB() {
       WHERE c.id = n.id;
     `);
 
-    // Rename project_name to page_section (for sub-grouping comments within a project)
+    // Rename project_name to page_section (for existing databases with old column name)
     await client.query(`
       DO $$
       BEGIN
@@ -208,16 +208,10 @@ export async function initDB() {
       END $$;
     `);
 
-    // One-time fix: Normalize project 2 comments to "LWF App UI"
+    // Create indexes
     await client.query(`
-      UPDATE comments
-      SET page_section = 'LWF App UI'
-      WHERE project_id = 2 AND page_section IN ('Living with Fire App', 'LWF App UI')
-    `);
-
-    // Create indexes after columns exist
+      CREATE INDEX IF NOT EXISTS idx_page_section ON comments(page_section);`);
     await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_page_section ON comments(page_section);
       CREATE INDEX IF NOT EXISTS idx_status ON comments(status);
       CREATE INDEX IF NOT EXISTS idx_created_at ON comments(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_priority ON comments(priority);
