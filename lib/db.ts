@@ -11,6 +11,7 @@ const pool = new Pool({
 export interface Client {
   id: number;
   token: string;
+  widget_key: string;
   name: string;
   created_at: Date;
 }
@@ -54,9 +55,20 @@ export async function initDB() {
       CREATE TABLE IF NOT EXISTS clients (
         id SERIAL PRIMARY KEY,
         token VARCHAR(32) UNIQUE NOT NULL,
+        widget_key VARCHAR(32) UNIQUE,
         name VARCHAR(255) NOT NULL,
         created_at TIMESTAMP DEFAULT NOW()
       );
+    `);
+
+    // Add widget_key column if it doesn't exist (for existing databases)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='clients' AND column_name='widget_key') THEN
+          ALTER TABLE clients ADD COLUMN widget_key VARCHAR(32) UNIQUE;
+        END IF;
+      END $$;
     `);
 
     // Create projects table
@@ -461,9 +473,10 @@ export async function createClient(name: string): Promise<Client> {
   const dbClient = await pool.connect();
   try {
     const token = generateToken();
+    const widgetKey = generateToken();
     const result = await dbClient.query(
-      `INSERT INTO clients (token, name) VALUES ($1, $2) RETURNING *`,
-      [token, name]
+      `INSERT INTO clients (token, widget_key, name) VALUES ($1, $2, $3) RETURNING *`,
+      [token, widgetKey, name]
     );
     return result.rows[0];
   } finally {
@@ -479,6 +492,53 @@ export async function getClientByToken(token: string): Promise<Client | null> {
       [token]
     );
     return result.rows[0] || null;
+  } finally {
+    dbClient.release();
+  }
+}
+
+export async function getClientByWidgetKey(widgetKey: string): Promise<Client | null> {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `SELECT * FROM clients WHERE widget_key = $1`,
+      [widgetKey]
+    );
+    return result.rows[0] || null;
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Get project by matching origin URL
+export async function getProjectByOrigin(clientId: number, origin: string): Promise<Project | null> {
+  const dbClient = await pool.connect();
+  try {
+    // Match project URL that starts with or contains the origin
+    const result = await dbClient.query(
+      `SELECT * FROM projects WHERE client_id = $1 AND (
+        url LIKE $2 || '%' OR
+        url LIKE '%://' || $3 || '%' OR
+        $2 LIKE url || '%'
+      ) LIMIT 1`,
+      [clientId, origin, origin.replace(/^https?:\/\//, '')]
+    );
+    return result.rows[0] || null;
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Generate widget key for existing clients that don't have one
+export async function generateWidgetKeyForClient(clientId: number): Promise<string> {
+  const dbClient = await pool.connect();
+  try {
+    const widgetKey = generateToken();
+    await dbClient.query(
+      `UPDATE clients SET widget_key = $1 WHERE id = $2 AND widget_key IS NULL`,
+      [widgetKey, clientId]
+    );
+    return widgetKey;
   } finally {
     dbClient.release();
   }

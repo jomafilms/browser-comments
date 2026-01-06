@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 interface Client {
   id: number;
   token: string;
+  widget_key: string | null;
   name: string;
   created_at: string;
 }
@@ -35,6 +36,7 @@ function HomeContent() {
   const [newProjectUrl, setNewProjectUrl] = useState('');
   const [showClientForm, setShowClientForm] = useState(false);
   const [showProjectForm, setShowProjectForm] = useState(false);
+  const [expandedClientId, setExpandedClientId] = useState<number | null>(null);
 
   useEffect(() => {
     if (adminSecret) {
@@ -142,6 +144,27 @@ function HomeContent() {
     alert('Link copied to clipboard!');
   };
 
+  const copyWidgetCode = (widgetKey: string) => {
+    const code = `<script src="${window.location.origin}/widget.js" data-key="${widgetKey}"></script>`;
+    navigator.clipboard.writeText(code);
+    alert('Widget embed code copied to clipboard!');
+  };
+
+  const generateWidgetKey = async (clientId: number) => {
+    try {
+      const response = await fetch(`/api/clients/${clientId}/widget-key?admin=${adminSecret}`, {
+        method: 'POST'
+      });
+      if (response.ok) {
+        const { widget_key } = await response.json();
+        setClients(prev => prev.map(c => c.id === clientId ? { ...c, widget_key } : c));
+      }
+    } catch (err) {
+      console.error('Error generating widget key:', err);
+      alert('Failed to generate widget key');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
@@ -202,26 +225,74 @@ function HomeContent() {
                 {clients.map((client) => (
                   <div
                     key={client.id}
-                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    className="border border-gray-200 rounded-lg hover:bg-gray-50"
                   >
-                    <div>
-                      <h3 className="font-semibold text-gray-800">{client.name}</h3>
-                      <p className="text-sm text-gray-500 font-mono">/c/{client.token}</p>
+                    <div className="flex items-center justify-between p-4">
+                      <div>
+                        <h3 className="font-semibold text-gray-800">{client.name}</h3>
+                        <p className="text-sm text-gray-500 font-mono">/c/{client.token}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setExpandedClientId(expandedClientId === client.id ? null : client.id)}
+                          className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 text-sm"
+                        >
+                          {expandedClientId === client.id ? 'Hide Widget' : 'Widget Code'}
+                        </button>
+                        <button
+                          onClick={() => copyLink(client.token)}
+                          className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+                        >
+                          Copy Link
+                        </button>
+                        <button
+                          onClick={() => window.open(`/c/${client.token}`, '_blank')}
+                          className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
+                        >
+                          Open
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => copyLink(client.token)}
-                        className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
-                      >
-                        Copy Link
-                      </button>
-                      <button
-                        onClick={() => window.open(`/c/${client.token}`, '_blank')}
-                        className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
-                      >
-                        Open
-                      </button>
-                    </div>
+
+                    {/* Widget Embed Code Section */}
+                    {expandedClientId === client.id && (
+                      <div className="px-4 pb-4 border-t border-gray-200 pt-4 bg-gray-50">
+                        <h4 className="font-medium text-gray-700 mb-2">Embeddable Feedback Widget</h4>
+                        {client.widget_key ? (
+                          <div>
+                            <p className="text-sm text-gray-600 mb-2">
+                              Add this script tag to any website to enable the feedback button:
+                            </p>
+                            <div className="bg-gray-800 text-green-400 p-3 rounded font-mono text-sm overflow-x-auto">
+                              {`<script src="${window.location.origin}/widget.js" data-key="${client.widget_key}"></script>`}
+                            </div>
+                            <div className="mt-3 flex gap-2">
+                              <button
+                                onClick={() => copyWidgetCode(client.widget_key!)}
+                                className="px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
+                              >
+                                Copy Code
+                              </button>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-3">
+                              <strong>Note:</strong> Feedback will only work from domains that match your project URLs.
+                            </p>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="text-sm text-gray-600 mb-2">
+                              Generate a widget key to enable the embeddable feedback widget for this client.
+                            </p>
+                            <button
+                              onClick={() => generateWidgetKey(client.id)}
+                              className="px-3 py-1.5 bg-purple-500 text-white rounded hover:bg-purple-600 text-sm"
+                            >
+                              Generate Widget Key
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
