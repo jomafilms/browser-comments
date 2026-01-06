@@ -7,12 +7,23 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+// Widget settings interface
+export interface WidgetSettings {
+  buttonText?: string;
+  buttonPosition?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+  primaryColor?: string;
+  modalTitle?: string;
+  modalSubtitle?: string;
+  successMessage?: string;
+}
+
 // Client and Project interfaces
 export interface Client {
   id: number;
   token: string;
   widget_key: string;
   name: string;
+  widget_settings: WidgetSettings | null;
   created_at: Date;
 }
 
@@ -61,12 +72,15 @@ export async function initDB() {
       );
     `);
 
-    // Add widget_key column if it doesn't exist (for existing databases)
+    // Add widget_key and widget_settings columns if they don't exist (for existing databases)
     await client.query(`
       DO $$
       BEGIN
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='clients' AND column_name='widget_key') THEN
           ALTER TABLE clients ADD COLUMN widget_key VARCHAR(32) UNIQUE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='clients' AND column_name='widget_settings') THEN
+          ALTER TABLE clients ADD COLUMN widget_settings JSONB DEFAULT '{}';
         END IF;
       END $$;
     `);
@@ -539,6 +553,34 @@ export async function generateWidgetKeyForClient(clientId: number): Promise<stri
       [widgetKey, clientId]
     );
     return widgetKey;
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Update widget settings for a client
+export async function updateWidgetSettings(clientId: number, settings: WidgetSettings): Promise<Client> {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `UPDATE clients SET widget_settings = $1 WHERE id = $2 RETURNING *`,
+      [JSON.stringify(settings), clientId]
+    );
+    return result.rows[0];
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Get widget settings by widget key (for widget.js to fetch)
+export async function getWidgetSettingsByKey(widgetKey: string): Promise<WidgetSettings | null> {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `SELECT widget_settings FROM clients WHERE widget_key = $1`,
+      [widgetKey]
+    );
+    return result.rows[0]?.widget_settings || null;
   } finally {
     dbClient.release();
   }
