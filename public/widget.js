@@ -92,6 +92,17 @@
         width: 18px;
         height: 18px;
       }
+      .bc-widget-btn .bc-minimize-btn {
+        margin-left: 4px;
+        padding: 0 4px;
+        font-size: 16px;
+        line-height: 1;
+        opacity: 0.7;
+        cursor: pointer;
+      }
+      .bc-widget-btn .bc-minimize-btn:hover {
+        opacity: 1;
+      }
       .bc-modal-overlay {
         position: fixed;
         inset: 0;
@@ -296,6 +307,14 @@
   let currentAnnotation = null;
   let comment = '';
   let button = null;
+  let isMinimized = false;
+
+  // Toggle minimized state
+  function toggleMinimize(e) {
+    e.stopPropagation();
+    isMinimized = !isMinimized;
+    updateButton();
+  }
 
   // Create/update button
   function updateButton() {
@@ -304,16 +323,36 @@
     if (!button) {
       button = document.createElement('button');
       button.className = 'bc-widget-btn';
-      button.onclick = openModal;
       document.body.appendChild(button);
     }
 
-    button.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-      </svg>
-      ${config.buttonText}
-    `;
+    if (isMinimized) {
+      // Minimized: just icon, click to expand
+      button.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+      `;
+      button.onclick = toggleMinimize;
+      button.style.padding = '10px';
+    } else {
+      // Expanded: icon + text + minimize button
+      button.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="bc-main-icon">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span class="bc-btn-text">${config.buttonText}</span>
+        <span class="bc-minimize-btn" title="Minimize">−</span>
+      `;
+      button.onclick = openModal;
+      button.style.padding = '10px 16px';
+
+      // Add click handler to minimize button
+      const minimizeBtn = button.querySelector('.bc-minimize-btn');
+      if (minimizeBtn) {
+        minimizeBtn.onclick = toggleMinimize;
+      }
+    }
   }
 
   // Load html2canvas dynamically
