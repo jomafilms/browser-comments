@@ -307,12 +307,13 @@
   let currentAnnotation = null;
   let comment = '';
   let button = null;
-  let isMinimized = false;
+  let isMinimized = localStorage.getItem('bc-widget-minimized') === 'true';
 
   // Toggle minimized state
   function toggleMinimize(e) {
     e.stopPropagation();
     isMinimized = !isMinimized;
+    localStorage.setItem('bc-widget-minimized', isMinimized ? 'true' : 'false');
     updateButton();
   }
 
