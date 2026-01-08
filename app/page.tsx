@@ -92,7 +92,7 @@ function HomeContent() {
         setShowClientForm(false);
 
         // Show the access link
-        const url = `${window.location.origin}/c/${client.token}`;
+        const url = `${window.location.origin}/c/${client.token}/comments?status=open&sort=priority`;
         alert(`Client created!\n\nAccess link:\n${url}\n\nThis link has been copied to your clipboard.`);
         navigator.clipboard.writeText(url);
       }
@@ -139,7 +139,7 @@ function HomeContent() {
   };
 
   const copyLink = (token: string) => {
-    const url = `${window.location.origin}/c/${token}`;
+    const url = `${window.location.origin}/c/${token}/comments?status=open&sort=priority`;
     navigator.clipboard.writeText(url);
     alert('Link copied to clipboard!');
   };
@@ -246,7 +246,7 @@ function HomeContent() {
                           Copy Link
                         </button>
                         <button
-                          onClick={() => window.open(`/c/${client.token}`, '_blank')}
+                          onClick={() => window.open(`/c/${client.token}/comments?status=open&sort=priority`, '_blank')}
                           className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
                         >
                           Open

@@ -359,17 +359,28 @@
   // Load html2canvas-pro dynamically (supports modern CSS color functions like oklch)
   function loadHtml2Canvas() {
     return new Promise((resolve, reject) => {
+      // Check if already loaded (handle both direct function and .default export)
       if (window.html2canvas) {
-        resolve(window.html2canvas);
-        return;
+        const fn = typeof window.html2canvas === 'function'
+          ? window.html2canvas
+          : window.html2canvas.default || window.html2canvas.html2canvas;
+        if (typeof fn === 'function') {
+          resolve(fn);
+          return;
+        }
       }
       const script = document.createElement('script');
       script.src = 'https://cdn.jsdelivr.net/npm/html2canvas-pro@1.6.4/dist/html2canvas-pro.min.js';
       script.onload = () => {
-        if (window.html2canvas) {
-          resolve(window.html2canvas);
+        // html2canvas-pro exports to .default or .html2canvas on the global object
+        const h2c = window.html2canvas;
+        const fn = typeof h2c === 'function'
+          ? h2c
+          : (h2c && (h2c.default || h2c.html2canvas));
+        if (typeof fn === 'function') {
+          resolve(fn);
         } else {
-          reject(new Error('html2canvas-pro loaded but not available'));
+          reject(new Error('html2canvas-pro loaded but function not found'));
         }
       };
       script.onerror = () => reject(new Error('Failed to load html2canvas-pro library. Check if cdn.jsdelivr.net is blocked by CSP.'));
@@ -555,11 +566,23 @@
     };
   }
 
+  // Update toolbar button states without re-rendering
+  function updateToolbarState(overlay) {
+    const undoBtn = overlay.querySelector('#bc-undo');
+    const clearBtn = overlay.querySelector('#bc-clear');
+    if (undoBtn) undoBtn.disabled = annotations.length === 0;
+    if (clearBtn) clearBtn.disabled = annotations.length === 0;
+  }
+
   // Submit feedback
   async function submitFeedback() {
     if (!canvas) return;
     isSubmitting = true;
-    renderModal();
+    const submitBtn = document.querySelector('.bc-submit-btn');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+    }
 
     try {
       // Use JPEG with 0.8 quality to reduce payload size (PNG can exceed Vercel's 4.5MB limit)
@@ -586,6 +609,12 @@
     } catch (err) {
       console.error('Failed to submit feedback:', err);
       alert(err.message || 'Failed to submit feedback. Please try again.');
+      // Restore button state on error
+      const submitBtn = document.querySelector('.bc-submit-btn');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Feedback';
+      }
     } finally {
       isSubmitting = false;
     }
@@ -678,20 +707,23 @@
     overlay.querySelectorAll('.bc-tool-btn').forEach(btn => {
       btn.onclick = () => {
         activeTool = btn.dataset.tool;
-        renderModal();
+        // Update active class without re-rendering
+        overlay.querySelectorAll('.bc-tool-btn').forEach(b => {
+          b.classList.toggle('active', b.dataset.tool === activeTool);
+        });
       };
     });
 
     overlay.querySelector('#bc-undo').onclick = () => {
       annotations.pop();
       redrawCanvas();
-      renderModal();
+      updateToolbarState(overlay);
     };
 
     overlay.querySelector('#bc-clear').onclick = () => {
       annotations = [];
       redrawCanvas();
-      renderModal();
+      updateToolbarState(overlay);
     };
 
     overlay.querySelector('#bc-comment').oninput = (e) => {
@@ -725,7 +757,7 @@
       currentAnnotation = null;
       isDrawing = false;
       redrawCanvas();
-      renderModal();
+      updateToolbarState(overlay);
     };
   }
 
