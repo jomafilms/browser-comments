@@ -356,34 +356,23 @@
     }
   }
 
-  // Load html2canvas-pro dynamically (supports modern CSS color functions like oklch)
+  // Load html2canvas dynamically
   function loadHtml2Canvas() {
     return new Promise((resolve, reject) => {
-      // Check if already loaded (handle both direct function and .default export)
       if (window.html2canvas) {
-        const fn = typeof window.html2canvas === 'function'
-          ? window.html2canvas
-          : window.html2canvas.default || window.html2canvas.html2canvas;
-        if (typeof fn === 'function') {
-          resolve(fn);
-          return;
-        }
+        resolve(window.html2canvas);
+        return;
       }
       const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/html2canvas-pro@1.6.4/dist/html2canvas-pro.min.js';
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
       script.onload = () => {
-        // html2canvas-pro exports to .default or .html2canvas on the global object
-        const h2c = window.html2canvas;
-        const fn = typeof h2c === 'function'
-          ? h2c
-          : (h2c && (h2c.default || h2c.html2canvas));
-        if (typeof fn === 'function') {
-          resolve(fn);
+        if (window.html2canvas) {
+          resolve(window.html2canvas);
         } else {
-          reject(new Error('html2canvas-pro loaded but function not found'));
+          reject(new Error('html2canvas loaded but not available'));
         }
       };
-      script.onerror = () => reject(new Error('Failed to load html2canvas-pro library. Check if cdn.jsdelivr.net is blocked by CSP.'));
+      script.onerror = () => reject(new Error('Failed to load html2canvas library. Check if cdnjs.cloudflare.com is blocked by CSP.'));
       document.head.appendChild(script);
     });
   }
@@ -404,8 +393,31 @@
       height: window.innerHeight,
       windowWidth: window.innerWidth,
       windowHeight: window.innerHeight,
-      // Handle iframes and fonts
+      // Handle unsupported CSS, iframes and fonts
       onclone: (clonedDoc) => {
+        // Fix unsupported color functions (lab, lch, oklch, oklab) in stylesheets
+        const colorFuncRegex = /(lab|lch|oklch|oklab|color)\([^)]+\)/gi;
+
+        // Process all style tags
+        const styleTags = clonedDoc.querySelectorAll('style');
+        styleTags.forEach((styleTag) => {
+          if (styleTag.textContent && colorFuncRegex.test(styleTag.textContent)) {
+            styleTag.textContent = styleTag.textContent.replace(colorFuncRegex, '#888888');
+          }
+        });
+
+        // Process all elements with inline styles
+        const allElements = clonedDoc.querySelectorAll('*');
+        allElements.forEach((el) => {
+          if (el.style && el.style.cssText && colorFuncRegex.test(el.style.cssText)) {
+            el.style.cssText = el.style.cssText.replace(colorFuncRegex, '#888888');
+          }
+          const styleAttr = el.getAttribute('style');
+          if (styleAttr && colorFuncRegex.test(styleAttr)) {
+            el.setAttribute('style', styleAttr.replace(colorFuncRegex, '#888888'));
+          }
+        });
+
         // Add font-display fix
         const fontStyle = clonedDoc.createElement('style');
         fontStyle.textContent = '* { font-display: block !important; }';
