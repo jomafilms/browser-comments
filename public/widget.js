@@ -392,12 +392,28 @@
       height: window.innerHeight,
       windowWidth: window.innerWidth,
       windowHeight: window.innerHeight,
-      // Handle iframes (can't be captured)
+      // Handle iframes and unsupported CSS
       onclone: (clonedDoc) => {
-        // Improve font rendering
+        // Fix unsupported color functions (lab, lch, oklch, oklab) by replacing with fallbacks
         const style = clonedDoc.createElement('style');
-        style.textContent = '* { font-display: block !important; }';
+        style.textContent = `
+          * { font-display: block !important; }
+        `;
         clonedDoc.head.appendChild(style);
+
+        // Remove or fix elements with unsupported color functions
+        const allElements = clonedDoc.querySelectorAll('*');
+        allElements.forEach((el) => {
+          const computed = window.getComputedStyle(el);
+          const propsToCheck = ['color', 'background-color', 'border-color', 'outline-color'];
+          propsToCheck.forEach((prop) => {
+            const value = computed.getPropertyValue(prop);
+            if (value && (value.includes('lab(') || value.includes('lch(') || value.includes('oklch(') || value.includes('oklab('))) {
+              // Replace with a safe fallback
+              el.style.setProperty(prop, prop === 'background-color' ? '#ffffff' : '#000000', 'important');
+            }
+          });
+        });
 
         // Find all iframes and overlay with message
         const iframes = clonedDoc.querySelectorAll('iframe');
