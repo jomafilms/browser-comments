@@ -487,6 +487,7 @@
     submitted = false;
     const overlay = document.querySelector('.bc-modal-overlay');
     if (overlay) overlay.remove();
+    updateButton(); // Restore button to normal state
   }
 
   // Drawing helpers
