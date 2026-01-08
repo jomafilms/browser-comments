@@ -365,8 +365,14 @@
       }
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-      script.onload = () => resolve(window.html2canvas);
-      script.onerror = reject;
+      script.onload = () => {
+        if (window.html2canvas) {
+          resolve(window.html2canvas);
+        } else {
+          reject(new Error('html2canvas loaded but not available'));
+        }
+      };
+      script.onerror = () => reject(new Error('Failed to load html2canvas library. Check if cdnjs.cloudflare.com is blocked by CSP.'));
       document.head.appendChild(script);
     });
   }
@@ -448,7 +454,13 @@
       renderModal();
     } catch (err) {
       console.error('Failed to capture screenshot:', err);
-      alert('Failed to capture screenshot. Please try again.');
+      // Show more helpful error message
+      const errorMsg = err.message || 'Unknown error';
+      if (errorMsg.includes('CSP')) {
+        alert('Screenshot failed: The page\'s security policy may be blocking the capture library. Please contact the site administrator.');
+      } else {
+        alert('Failed to capture screenshot: ' + errorMsg + '\n\nCheck browser console for details.');
+      }
     } finally {
       isCapturing = false;
       button.disabled = false;
