@@ -377,37 +377,11 @@
     });
   }
 
-  // Fix unsupported CSS color functions before capture
-  function fixUnsupportedColors() {
-    const colorFuncRegex = /(lab|lch|oklch|oklab)\([^)]+\)/g;
-    const styleTags = document.querySelectorAll('style');
-    const originalStyles = [];
-
-    // Store and fix style tags
-    styleTags.forEach((styleTag, index) => {
-      originalStyles.push({ element: styleTag, content: styleTag.textContent });
-      if (styleTag.textContent && colorFuncRegex.test(styleTag.textContent)) {
-        styleTag.textContent = styleTag.textContent.replace(/(lab|lch|oklch|oklab)\([^)]+\)/g, '#888888');
-      }
-    });
-
-    return () => {
-      // Restore original styles
-      originalStyles.forEach(({ element, content }) => {
-        element.textContent = content;
-      });
-    };
-  }
-
   // Capture screenshot
   async function captureScreenshot() {
     const html2canvas = await loadHtml2Canvas();
 
-    // Fix colors before capture, get restore function
-    const restoreColors = fixUnsupportedColors();
-
-    try {
-      const captureCanvas = await html2canvas(document.body, {
+    const captureCanvas = await html2canvas(document.body, {
       useCORS: true,
       allowTaint: true,
       scale: window.devicePixelRatio || 1,
@@ -489,11 +463,7 @@
         });
       },
     });
-      return captureCanvas.toDataURL('image/png');
-    } finally {
-      // Restore original styles
-      restoreColors();
-    }
+    return captureCanvas.toDataURL('image/png');
   }
 
   // Open modal
@@ -505,22 +475,30 @@
 
     try {
       screenshot = await captureScreenshot();
-      isOpen = true;
-      renderModal();
     } catch (err) {
       console.error('Failed to capture screenshot:', err);
-      // Show more helpful error message
-      const errorMsg = err.message || 'Unknown error';
-      if (errorMsg.includes('CSP')) {
-        alert('Screenshot failed: The page\'s security policy may be blocking the capture library. Please contact the site administrator.');
-      } else {
-        alert('Failed to capture screenshot: ' + errorMsg + '\n\nCheck browser console for details.');
-      }
-    } finally {
-      isCapturing = false;
-      button.disabled = false;
-      updateButton();
+      // Create a placeholder image instead of failing
+      const canvas = document.createElement('canvas');
+      canvas.width = 800;
+      canvas.height = 400;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#f3f4f6';
+      ctx.fillRect(0, 0, 800, 400);
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '16px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Screenshot could not be captured', 400, 180);
+      ctx.fillText('Please describe the issue in your comment', 400, 210);
+      ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.fillStyle = '#9ca3af';
+      ctx.fillText('(' + (err.message || 'Unknown error') + ')', 400, 250);
+      screenshot = canvas.toDataURL('image/png');
     }
+
+    isOpen = true;
+    renderModal();
+    isCapturing = false;
+    button.disabled = false;
   }
 
   // Close modal
