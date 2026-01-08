@@ -377,10 +377,37 @@
     });
   }
 
+  // Fix unsupported CSS color functions before capture
+  function fixUnsupportedColors() {
+    const colorFuncRegex = /(lab|lch|oklch|oklab)\([^)]+\)/g;
+    const styleTags = document.querySelectorAll('style');
+    const originalStyles = [];
+
+    // Store and fix style tags
+    styleTags.forEach((styleTag, index) => {
+      originalStyles.push({ element: styleTag, content: styleTag.textContent });
+      if (styleTag.textContent && colorFuncRegex.test(styleTag.textContent)) {
+        styleTag.textContent = styleTag.textContent.replace(/(lab|lch|oklch|oklab)\([^)]+\)/g, '#888888');
+      }
+    });
+
+    return () => {
+      // Restore original styles
+      originalStyles.forEach(({ element, content }) => {
+        element.textContent = content;
+      });
+    };
+  }
+
   // Capture screenshot
   async function captureScreenshot() {
     const html2canvas = await loadHtml2Canvas();
-    const captureCanvas = await html2canvas(document.body, {
+
+    // Fix colors before capture, get restore function
+    const restoreColors = fixUnsupportedColors();
+
+    try {
+      const captureCanvas = await html2canvas(document.body, {
       useCORS: true,
       allowTaint: true,
       scale: window.devicePixelRatio || 1,
@@ -394,26 +421,34 @@
       windowHeight: window.innerHeight,
       // Handle iframes and unsupported CSS
       onclone: (clonedDoc) => {
-        // Fix unsupported color functions (lab, lch, oklch, oklab) by replacing with fallbacks
-        const style = clonedDoc.createElement('style');
-        style.textContent = `
-          * { font-display: block !important; }
-        `;
-        clonedDoc.head.appendChild(style);
+        // Fix unsupported color functions (lab, lch, oklch, oklab) in stylesheets
+        const colorFuncRegex = /(lab|lch|oklch|oklab)\([^)]+\)/gi;
 
-        // Remove or fix elements with unsupported color functions
+        // Process all style tags
+        const styleTags = clonedDoc.querySelectorAll('style');
+        styleTags.forEach((styleTag) => {
+          if (styleTag.textContent && colorFuncRegex.test(styleTag.textContent)) {
+            styleTag.textContent = styleTag.textContent.replace(colorFuncRegex, '#888888');
+          }
+        });
+
+        // Process all elements with inline styles
         const allElements = clonedDoc.querySelectorAll('*');
         allElements.forEach((el) => {
-          const computed = window.getComputedStyle(el);
-          const propsToCheck = ['color', 'background-color', 'border-color', 'outline-color'];
-          propsToCheck.forEach((prop) => {
-            const value = computed.getPropertyValue(prop);
-            if (value && (value.includes('lab(') || value.includes('lch(') || value.includes('oklch(') || value.includes('oklab('))) {
-              // Replace with a safe fallback
-              el.style.setProperty(prop, prop === 'background-color' ? '#ffffff' : '#000000', 'important');
-            }
-          });
+          if (el.style && el.style.cssText && colorFuncRegex.test(el.style.cssText)) {
+            el.style.cssText = el.style.cssText.replace(colorFuncRegex, '#888888');
+          }
+          // Also check style attribute directly
+          const styleAttr = el.getAttribute('style');
+          if (styleAttr && colorFuncRegex.test(styleAttr)) {
+            el.setAttribute('style', styleAttr.replace(colorFuncRegex, '#888888'));
+          }
         });
+
+        // Add font-display fix
+        const fontStyle = clonedDoc.createElement('style');
+        fontStyle.textContent = '* { font-display: block !important; }';
+        clonedDoc.head.appendChild(fontStyle);
 
         // Find all iframes and overlay with message
         const iframes = clonedDoc.querySelectorAll('iframe');
@@ -454,7 +489,11 @@
         });
       },
     });
-    return captureCanvas.toDataURL('image/png');
+      return captureCanvas.toDataURL('image/png');
+    } finally {
+      // Restore original styles
+      restoreColors();
+    }
   }
 
   // Open modal
