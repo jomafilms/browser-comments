@@ -356,23 +356,43 @@
     }
   }
 
-  // Load html2canvas dynamically
+  // Load html2canvas-pro dynamically (supports oklch, lab, lch, oklab colors)
   function loadHtml2Canvas() {
     return new Promise((resolve, reject) => {
-      if (window.html2canvas) {
+      // Check if already loaded
+      if (window.html2canvas && typeof window.html2canvas === 'function') {
         resolve(window.html2canvas);
         return;
       }
+
       const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      script.src = 'https://cdn.jsdelivr.net/npm/html2canvas-pro@1.6.4/dist/html2canvas-pro.min.js';
+
       script.onload = () => {
-        if (window.html2canvas) {
-          resolve(window.html2canvas);
+        // html2canvas-pro may export as object with default property
+        let fn = window.html2canvas;
+
+        // If it's an object with default, use that
+        if (fn && typeof fn !== 'function' && fn.default) {
+          fn = fn.default;
+        }
+
+        // Also check for html2canvas property on the object
+        if (fn && typeof fn !== 'function' && fn.html2canvas) {
+          fn = fn.html2canvas;
+        }
+
+        if (typeof fn === 'function') {
+          // Store the resolved function back for future calls
+          window.html2canvas = fn;
+          resolve(fn);
         } else {
-          reject(new Error('html2canvas loaded but not available'));
+          console.error('html2canvas-pro loaded but not a function:', window.html2canvas);
+          reject(new Error('html2canvas-pro loaded but function not found'));
         }
       };
-      script.onerror = () => reject(new Error('Failed to load html2canvas library. Check if cdnjs.cloudflare.com is blocked by CSP.'));
+
+      script.onerror = () => reject(new Error('Failed to load html2canvas-pro. Check if cdn.jsdelivr.net is blocked.'));
       document.head.appendChild(script);
     });
   }
@@ -380,6 +400,9 @@
   // Capture screenshot
   async function captureScreenshot() {
     const html2canvas = await loadHtml2Canvas();
+
+    console.log('html2canvas function:', html2canvas);
+    console.log('typeof html2canvas:', typeof html2canvas);
 
     const captureCanvas = await html2canvas(document.body, {
       useCORS: true,
@@ -393,31 +416,8 @@
       height: window.innerHeight,
       windowWidth: window.innerWidth,
       windowHeight: window.innerHeight,
-      // Handle unsupported CSS, iframes and fonts
+      // Handle iframes and fonts
       onclone: (clonedDoc) => {
-        // Fix unsupported color functions (lab, lch, oklch, oklab) in stylesheets
-        const colorFuncRegex = /(lab|lch|oklch|oklab|color)\([^)]+\)/gi;
-
-        // Process all style tags
-        const styleTags = clonedDoc.querySelectorAll('style');
-        styleTags.forEach((styleTag) => {
-          if (styleTag.textContent && colorFuncRegex.test(styleTag.textContent)) {
-            styleTag.textContent = styleTag.textContent.replace(colorFuncRegex, '#888888');
-          }
-        });
-
-        // Process all elements with inline styles
-        const allElements = clonedDoc.querySelectorAll('*');
-        allElements.forEach((el) => {
-          if (el.style && el.style.cssText && colorFuncRegex.test(el.style.cssText)) {
-            el.style.cssText = el.style.cssText.replace(colorFuncRegex, '#888888');
-          }
-          const styleAttr = el.getAttribute('style');
-          if (styleAttr && colorFuncRegex.test(styleAttr)) {
-            el.setAttribute('style', styleAttr.replace(colorFuncRegex, '#888888'));
-          }
-        });
-
         // Add font-display fix
         const fontStyle = clonedDoc.createElement('style');
         fontStyle.textContent = '* { font-display: block !important; }';
@@ -462,6 +462,10 @@
         });
       },
     });
+
+    console.log('captureCanvas:', captureCanvas);
+    console.log('canvas dimensions:', captureCanvas.width, 'x', captureCanvas.height);
+
     return captureCanvas.toDataURL('image/png');
   }
 
