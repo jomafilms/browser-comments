@@ -401,13 +401,10 @@
   async function captureScreenshot() {
     const html2canvas = await loadHtml2Canvas();
 
-    console.log('html2canvas function:', html2canvas);
-    console.log('typeof html2canvas:', typeof html2canvas);
-
     const captureCanvas = await html2canvas(document.body, {
       useCORS: true,
       allowTaint: true,
-      scale: window.devicePixelRatio || 1,
+      scale: 1, // Use 1x scale to keep image size manageable
       logging: false,
       backgroundColor: '#ffffff',
       x: window.scrollX,
@@ -462,9 +459,6 @@
         });
       },
     });
-
-    console.log('captureCanvas:', captureCanvas);
-    console.log('canvas dimensions:', captureCanvas.width, 'x', captureCanvas.height);
 
     return captureCanvas.toDataURL('image/png');
   }
