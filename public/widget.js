@@ -356,7 +356,7 @@
     }
   }
 
-  // Load html2canvas dynamically
+  // Load html2canvas-pro dynamically (supports modern CSS color functions like oklch)
   function loadHtml2Canvas() {
     return new Promise((resolve, reject) => {
       if (window.html2canvas) {
@@ -364,15 +364,15 @@
         return;
       }
       const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      script.src = 'https://cdn.jsdelivr.net/npm/html2canvas-pro@1.6.4/dist/html2canvas-pro.min.js';
       script.onload = () => {
         if (window.html2canvas) {
           resolve(window.html2canvas);
         } else {
-          reject(new Error('html2canvas loaded but not available'));
+          reject(new Error('html2canvas-pro loaded but not available'));
         }
       };
-      script.onerror = () => reject(new Error('Failed to load html2canvas library. Check if cdnjs.cloudflare.com is blocked by CSP.'));
+      script.onerror = () => reject(new Error('Failed to load html2canvas-pro library. Check if cdn.jsdelivr.net is blocked by CSP.'));
       document.head.appendChild(script);
     });
   }
@@ -393,32 +393,8 @@
       height: window.innerHeight,
       windowWidth: window.innerWidth,
       windowHeight: window.innerHeight,
-      // Handle iframes and unsupported CSS
+      // Handle iframes and fonts
       onclone: (clonedDoc) => {
-        // Fix unsupported color functions (lab, lch, oklch, oklab) in stylesheets
-        const colorFuncRegex = /(lab|lch|oklch|oklab)\([^)]+\)/gi;
-
-        // Process all style tags
-        const styleTags = clonedDoc.querySelectorAll('style');
-        styleTags.forEach((styleTag) => {
-          if (styleTag.textContent && colorFuncRegex.test(styleTag.textContent)) {
-            styleTag.textContent = styleTag.textContent.replace(colorFuncRegex, '#888888');
-          }
-        });
-
-        // Process all elements with inline styles
-        const allElements = clonedDoc.querySelectorAll('*');
-        allElements.forEach((el) => {
-          if (el.style && el.style.cssText && colorFuncRegex.test(el.style.cssText)) {
-            el.style.cssText = el.style.cssText.replace(colorFuncRegex, '#888888');
-          }
-          // Also check style attribute directly
-          const styleAttr = el.getAttribute('style');
-          if (styleAttr && colorFuncRegex.test(styleAttr)) {
-            el.setAttribute('style', styleAttr.replace(colorFuncRegex, '#888888'));
-          }
-        });
-
         // Add font-display fix
         const fontStyle = clonedDoc.createElement('style');
         fontStyle.textContent = '* { font-display: block !important; }';
