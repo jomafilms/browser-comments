@@ -260,30 +260,19 @@ export async function initDB() {
   }
 }
 
-// Helper to extract a readable page section from URL path
+// Helper to extract page section from URL path (returns raw path)
 function extractPageSection(url: string): string {
   try {
     const parsed = new URL(url);
     const path = parsed.pathname;
 
-    // Clean up the path
+    // Return 'Home' for root path
     if (!path || path === '/') {
       return 'Home';
     }
 
-    // Remove leading/trailing slashes and split
-    const segments = path.replace(/^\/|\/$/g, '').split('/');
-
-    // Take the last meaningful segment(s) and format nicely
-    const lastSegment = segments[segments.length - 1] || 'Home';
-
-    // Convert slug-style to Title Case (e.g., "about-us" -> "About Us")
-    return lastSegment
-      .replace(/[-_]/g, ' ')
-      .replace(/\.[^.]+$/, '') // Remove file extension if any
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ') || 'Home';
+    // Remove trailing slash and return the path as-is
+    return path.replace(/\/$/, '');
   } catch {
     return 'Unknown';
   }
