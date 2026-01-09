@@ -179,23 +179,31 @@ export default function ClientCommentsPage() {
   // Load images progressively
   useEffect(() => {
     if (comments.length === 0 || loading) return;
+
+    let aborted = false;
     const sortedCommentIds = sortComments(displayComments).map(c => c.id);
+
     const loadImagesSequentially = async () => {
       for (const commentId of sortedCommentIds) {
+        if (aborted) break;
         if (loadedImages.has(commentId)) continue;
         try {
           const response = await fetch(`/api/comments/${commentId}`);
+          if (aborted) break;
           const { image_data } = await response.json();
+          if (aborted) break;
           setComments(prev => prev.map(c => c.id === commentId ? { ...c, image_data } : c));
           setLoadedImages(prev => new Set([...prev, commentId]));
-          await new Promise(resolve => setTimeout(resolve, 50));
         } catch (error) {
           console.error(`Error loading image for comment ${commentId}:`, error);
         }
       }
     };
+
     loadImagesSequentially();
-  }, [displayComments.length, loading, sortMode, highlightedCommentId]);
+
+    return () => { aborted = true; };
+  }, [comments.length, loading, sortMode, highlightedCommentId]);
 
   const toggleStatus = async (id: number, currentStatus: 'open' | 'resolved') => {
     const newStatus = currentStatus === 'open' ? 'resolved' : 'open';
