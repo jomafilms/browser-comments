@@ -32,7 +32,7 @@ export default function ClientCommentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
-  const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [expandedImage, setExpandedImage] = useState<{ imageData: string; commentId: number; displayNumber: number } | null>(null);
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [sortMode, setSortMode] = useState<'recent' | 'resolved-bottom' | 'priority'>('priority');
   const [isInitialized, setIsInitialized] = useState(false);
@@ -390,7 +390,7 @@ export default function ClientCommentsPage() {
                       onUpdatePriority={updatePriority}
                       onUpdateAssignee={updateAssignee}
                       onDeleteComment={deleteComment}
-                      onExpandImage={setExpandedImage}
+                      onExpandImage={(imageData, commentId, displayNumber) => setExpandedImage({ imageData, commentId, displayNumber })}
                       onSetExpandedComment={setExpandedComment}
                       onSetNewNote={setNewNote}
                       onSetAddNoteToDecisions={setAddNoteToDecisions}
@@ -404,7 +404,14 @@ export default function ClientCommentsPage() {
         )}
       </div>
 
-      {expandedImage && <ImageModal imageData={expandedImage} onClose={() => setExpandedImage(null)} />}
+      {expandedImage && (
+        <ImageModal
+          imageData={expandedImage.imageData}
+          commentId={expandedImage.commentId}
+          displayNumber={expandedImage.displayNumber}
+          onClose={() => setExpandedImage(null)}
+        />
+      )}
     </div>
   );
 }

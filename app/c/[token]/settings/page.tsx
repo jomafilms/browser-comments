@@ -455,6 +455,23 @@ export default function SettingsPage() {
                           </div>
                         </div>
 
+                        <div className="bg-white rounded-xl shadow-sm p-6">
+                          <h3 className="text-lg font-semibold text-gray-800 mb-4">Pre-fill User Name (Optional)</h3>
+                          <p className="text-sm text-gray-600 mb-3">
+                            If your site has authentication, you can pre-fill the user&apos;s name in the feedback form:
+                          </p>
+                          <div className="bg-gray-50 border rounded-lg p-4 font-mono text-sm overflow-x-auto">
+                            <pre className="text-gray-700">{`<script
+  src="https://browser-comments.vercel.app/widget.js"
+  data-key="${widgetKey}"
+  data-user-name="{{user.name}}"
+></script>`}</pre>
+                          </div>
+                          <p className="text-sm text-gray-500 mt-3">
+                            Replace <code className="bg-gray-100 px-1 py-0.5 rounded">{`{{user.name}}`}</code> with your template variable for the logged-in user&apos;s name.
+                          </p>
+                        </div>
+
                         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                           <h4 className="font-medium text-amber-800 mb-2">Domain Security</h4>
                           <p className="text-sm text-amber-700">

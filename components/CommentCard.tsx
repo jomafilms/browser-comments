@@ -45,7 +45,7 @@ interface CommentCardProps {
   onUpdatePriority: (id: number, priority: 'high' | 'med' | 'low', priorityNumber: number) => void;
   onUpdateAssignee: (id: number, assignee: string) => void;
   onDeleteComment: (id: number) => void;
-  onExpandImage: (imageData: string) => void;
+  onExpandImage: (imageData: string, commentId: number, displayNumber: number) => void;
   onSetExpandedComment: (id: number | null) => void;
   onSetNewNote: (note: string) => void;
   onSetAddNoteToDecisions: (value: boolean) => void;
@@ -87,7 +87,7 @@ export default function CommentCard({
               src={comment.image_data}
               alt="Screenshot"
               className="max-w-full max-h-[60vh] object-contain cursor-pointer hover:opacity-90 transition-opacity"
-              onClick={() => onExpandImage(comment.image_data)}
+              onClick={() => onExpandImage(comment.image_data, comment.id, comment.display_number)}
             />
           ) : (
             <div className="text-gray-400 text-sm">Loading image...</div>
@@ -172,7 +172,7 @@ export default function CommentCard({
           {comment.image_data && (
             <div className="text-sm text-gray-600 mb-3">
               <button
-                onClick={() => onExpandImage(comment.image_data)}
+                onClick={() => onExpandImage(comment.image_data, comment.id, comment.display_number)}
                 className="text-blue-500 hover:underline text-left"
               >
                 View full size →
