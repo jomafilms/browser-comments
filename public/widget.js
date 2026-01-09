@@ -536,22 +536,42 @@
 
   // Drawing helpers
   function drawArrow(ctx, from, to) {
-    const headLength = 15;
+    const headLength = 16;
+    const headWidth = 10;
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const angle = Math.atan2(dy, dx);
 
+    // Calculate the point where the line meets the arrowhead base
+    const arrowBase = {
+      x: to.x - headLength * Math.cos(angle),
+      y: to.y - headLength * Math.sin(angle)
+    };
+
+    // Draw the line (stopping at arrowhead base for clean connection)
     ctx.beginPath();
     ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
+    ctx.lineTo(arrowBase.x, arrowBase.y);
     ctx.stroke();
+
+    // Draw filled triangle arrowhead
+    const perpAngle = angle + Math.PI / 2;
+    const point1 = {
+      x: arrowBase.x + headWidth * Math.cos(perpAngle),
+      y: arrowBase.y + headWidth * Math.sin(perpAngle)
+    };
+    const point2 = {
+      x: arrowBase.x - headWidth * Math.cos(perpAngle),
+      y: arrowBase.y - headWidth * Math.sin(perpAngle)
+    };
 
     ctx.beginPath();
     ctx.moveTo(to.x, to.y);
-    ctx.lineTo(to.x - headLength * Math.cos(angle - Math.PI / 6), to.y - headLength * Math.sin(angle - Math.PI / 6));
-    ctx.moveTo(to.x, to.y);
-    ctx.lineTo(to.x - headLength * Math.cos(angle + Math.PI / 6), to.y + headLength * Math.sin(angle + Math.PI / 6));
-    ctx.stroke();
+    ctx.lineTo(point1.x, point1.y);
+    ctx.lineTo(point2.x, point2.y);
+    ctx.closePath();
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fill();
   }
 
   function drawAnnotation(ctx, ann) {
