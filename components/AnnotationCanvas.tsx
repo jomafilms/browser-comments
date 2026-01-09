@@ -707,6 +707,12 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
 
       {/* Annotation Container */}
       <div id="annotation-container" className="relative w-full h-full">
+        {/* Auth/blank page help banner */}
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-40 bg-amber-100 border border-amber-300 text-amber-800 px-4 py-2 rounded-lg shadow-lg text-sm flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity">
+          <span>Page blank or showing login?</span>
+          <span className="font-semibold">Use the embedded widget on the actual site for authenticated pages.</span>
+        </div>
+
         {/* iframe */}
         <iframe
           ref={iframeRef}
