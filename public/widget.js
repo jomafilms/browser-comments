@@ -11,6 +11,8 @@
   const inlineColor = currentScript?.getAttribute('data-color');
   const inlineTitle = currentScript?.getAttribute('data-title');
   const inlineSubtitle = currentScript?.getAttribute('data-subtitle');
+  const inlineUserName = currentScript?.getAttribute('data-user-name');
+  const inlineUserEmail = currentScript?.getAttribute('data-user-email');
 
   const API_BASE = 'https://browser-comments.vercel.app';
   const API_URL = API_BASE + '/api/widget';
@@ -225,6 +227,25 @@
         opacity: 0.5;
         cursor: not-allowed;
       }
+      .bc-name-input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 14px;
+        margin-bottom: 8px;
+        box-sizing: border-box;
+      }
+      .bc-name-input:focus {
+        outline: none;
+        border-color: ${config.primaryColor};
+        box-shadow: 0 0 0 2px ${config.primaryColor}33;
+      }
+      .bc-name-input[readonly] {
+        background: #f3f4f6;
+        color: #6b7280;
+      }
       .bc-textarea {
         width: 100%;
         padding: 8px 12px;
@@ -234,6 +255,7 @@
         font-size: 14px;
         resize: none;
         margin-bottom: 12px;
+        box-sizing: border-box;
       }
       .bc-textarea:focus {
         outline: none;
@@ -306,6 +328,7 @@
   let annotations = [];
   let currentAnnotation = null;
   let comment = '';
+  let submitterName = inlineUserName || inlineUserEmail || '';
   let button = null;
   let isMinimized = localStorage.getItem('bc-widget-minimized') === 'true';
 
@@ -587,6 +610,15 @@
   // Submit feedback
   async function submitFeedback() {
     if (!canvas) return;
+
+    // Validate name is provided
+    if (!submitterName.trim()) {
+      alert('Please enter your name');
+      const nameInput = document.querySelector('#bc-name');
+      if (nameInput) nameInput.focus();
+      return;
+    }
+
     isSubmitting = true;
     const submitBtn = document.querySelector('.bc-submit-btn');
     if (submitBtn) {
@@ -605,6 +637,7 @@
           url: window.location.href,
           imageData,
           textAnnotations: comment ? [{ text: comment, x: 0, y: 0, color: '#000000' }] : [],
+          submitterName: submitterName.trim(),
         }),
       });
 
@@ -695,6 +728,7 @@
             <button class="bc-action-btn" id="bc-undo" ${annotations.length === 0 ? 'disabled' : ''}>Undo</button>
             <button class="bc-action-btn" id="bc-clear" ${annotations.length === 0 ? 'disabled' : ''}>Clear</button>
           </div>
+          <input type="text" class="bc-name-input" placeholder="Your name *" id="bc-name" value="${submitterName}" ${inlineUserName || inlineUserEmail ? 'readonly' : ''} required />
           <textarea class="bc-textarea" placeholder="Add a comment (optional)..." rows="2" id="bc-comment">${comment}</textarea>
           <div class="bc-btn-row">
             <button class="bc-cancel-btn">Cancel</button>
@@ -734,6 +768,10 @@
       annotations = [];
       redrawCanvas();
       updateToolbarState(overlay);
+    };
+
+    overlay.querySelector('#bc-name').oninput = (e) => {
+      submitterName = e.target.value;
     };
 
     overlay.querySelector('#bc-comment').oninput = (e) => {

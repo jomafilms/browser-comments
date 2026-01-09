@@ -21,6 +21,7 @@ export interface Comment {
   priority: 'high' | 'med' | 'low';
   priority_number: number;
   assignee: string;
+  submitter_name: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -179,17 +180,24 @@ export default function CommentCard({
             </div>
           )}
 
-          <div className="text-sm text-gray-500 mb-3 pb-3 border-b border-gray-200 flex justify-between items-center">
-            <span>
-              {new Date(comment.created_at).toLocaleDateString()} at{' '}
-              {new Date(comment.created_at).toLocaleTimeString()}
-            </span>
-            <button
-              onClick={() => onDeleteComment(comment.id)}
-              className="text-xs text-red-500 hover:text-red-700 hover:underline"
-            >
-              delete
-            </button>
+          <div className="text-sm text-gray-500 mb-3 pb-3 border-b border-gray-200">
+            {comment.submitter_name && (
+              <div className="font-medium text-gray-700 mb-1">
+                Submitted by {comment.submitter_name}
+              </div>
+            )}
+            <div className="flex justify-between items-center">
+              <span>
+                {new Date(comment.created_at).toLocaleDateString()} at{' '}
+                {new Date(comment.created_at).toLocaleTimeString()}
+              </span>
+              <button
+                onClick={() => onDeleteComment(comment.id)}
+                className="text-xs text-red-500 hover:text-red-700 hover:underline"
+              >
+                delete
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto">

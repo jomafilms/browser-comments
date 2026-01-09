@@ -54,6 +54,7 @@ export interface Comment {
   priority: 'high' | 'med' | 'low';
   priority_number: number;
   assignee: string;
+  submitter_name: string | null; // Name of the person who submitted the feedback
   created_at: Date;
   updated_at: Date;
 }
@@ -171,6 +172,10 @@ export async function initDB() {
         -- Add display_number for per-client sequential numbering
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='display_number') THEN
           ALTER TABLE comments ADD COLUMN display_number INTEGER DEFAULT 0;
+        END IF;
+        -- Add submitter_name column for feedback author
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='submitter_name') THEN
+          ALTER TABLE comments ADD COLUMN submitter_name TEXT;
         END IF;
       END $$;
     `);
@@ -293,6 +298,7 @@ export async function saveComment(data: {
   priorityNumber?: number;
   assignee?: string;
   projectId?: number;
+  submitterName?: string;
 }): Promise<Comment> {
   const dbClient = await pool.connect();
   try {
@@ -322,8 +328,8 @@ export async function saveComment(data: {
     const pageSection = data.pageSection || extractPageSection(data.url);
 
     const result = await dbClient.query(
-      `INSERT INTO comments (url, page_section, image_data, text_annotations, priority, priority_number, assignee, project_id, client_id, display_number)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO comments (url, page_section, image_data, text_annotations, priority, priority_number, assignee, project_id, client_id, display_number, submitter_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         data.url,
@@ -335,7 +341,8 @@ export async function saveComment(data: {
         data.assignee || 'Unassigned',
         data.projectId || null,
         clientId,
-        displayNumber
+        displayNumber,
+        data.submitterName || null
       ]
     );
     return result.rows[0];
@@ -355,7 +362,7 @@ export async function getComments(filters?: {
   try {
     // If excludeImages is true, select all fields except image_data
     const selectClause = filters?.excludeImages
-      ? 'id, project_id, client_id, display_number, url, page_section, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, created_at, updated_at'
+      ? 'id, project_id, client_id, display_number, url, page_section, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, submitter_name, created_at, updated_at'
       : '*';
 
     let query = `SELECT ${selectClause} FROM comments WHERE 1=1`;
@@ -776,7 +783,7 @@ export async function getCommentsByProjectId(projectId: number, excludeImages?: 
   const dbClient = await pool.connect();
   try {
     const selectClause = excludeImages
-      ? 'id, project_id, client_id, display_number, url, page_section, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, created_at, updated_at'
+      ? 'id, project_id, client_id, display_number, url, page_section, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, submitter_name, created_at, updated_at'
       : '*';
 
     const result = await dbClient.query(
@@ -798,7 +805,7 @@ export async function getCommentsByClientId(clientId: number, excludeImages?: bo
   const dbClient = await pool.connect();
   try {
     const selectClause = excludeImages
-      ? 'c.id, c.project_id, c.client_id, c.display_number, c.url, c.page_section, \'\' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.created_at, c.updated_at'
+      ? 'c.id, c.project_id, c.client_id, c.display_number, c.url, c.page_section, \'\' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.created_at, c.updated_at'
       : 'c.*';
 
     const result = await dbClient.query(

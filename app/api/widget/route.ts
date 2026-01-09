@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { widgetKey, url, imageData, textAnnotations } = body;
+    const { widgetKey, url, imageData, textAnnotations, submitterName } = body;
 
     // Validate required fields
     if (!widgetKey) {
@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
       priorityNumber: 0,
       assignee: 'Unassigned',
       projectId: project.id,
+      submitterName: submitterName || null,
     });
 
     return NextResponse.json(
