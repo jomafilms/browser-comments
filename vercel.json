@@ -4,5 +4,11 @@
     "app/api/widget/route.ts": {
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/ping",
+      "schedule": "*/4 * * * *"
+    }
+  ]
 }
