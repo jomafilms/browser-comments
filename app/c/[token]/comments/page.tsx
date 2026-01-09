@@ -176,31 +176,51 @@ export default function ClientCommentsPage() {
     }
   };
 
-  // Load images progressively
+  // Load images in bulk batches
   useEffect(() => {
     if (comments.length === 0 || loading) return;
 
     let aborted = false;
-    const sortedCommentIds = sortComments(displayComments).map(c => c.id);
+    const idsToLoad = displayComments
+      .map(c => c.id)
+      .filter(id => !loadedImages.has(id));
 
-    const loadImagesSequentially = async () => {
-      for (const commentId of sortedCommentIds) {
-        if (aborted) break;
-        if (loadedImages.has(commentId)) continue;
-        try {
-          const response = await fetch(`/api/comments/${commentId}`);
-          if (aborted) break;
-          const { image_data } = await response.json();
-          if (aborted) break;
-          setComments(prev => prev.map(c => c.id === commentId ? { ...c, image_data } : c));
-          setLoadedImages(prev => new Set([...prev, commentId]));
-        } catch (error) {
-          console.error(`Error loading image for comment ${commentId}:`, error);
-        }
+    if (idsToLoad.length === 0) return;
+
+    const loadImageBatch = async (ids: number[]) => {
+      try {
+        const response = await fetch('/api/comments/images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids }),
+        });
+
+        if (aborted) return;
+
+        const { images } = await response.json();
+
+        if (aborted || !images) return;
+
+        setComments(prev => prev.map(c => {
+          const imageData = images[c.id];
+          return imageData ? { ...c, image_data: imageData } : c;
+        }));
+        setLoadedImages(prev => new Set([...prev, ...Object.keys(images).map(Number)]));
+      } catch (error) {
+        console.error('Error loading images:', error);
       }
     };
 
-    loadImagesSequentially();
+    // Load in batches of 10 (single request per batch)
+    const loadAllBatches = async () => {
+      for (let i = 0; i < idsToLoad.length; i += 10) {
+        if (aborted) break;
+        const batch = idsToLoad.slice(i, i + 10);
+        await loadImageBatch(batch);
+      }
+    };
+
+    loadAllBatches();
 
     return () => { aborted = true; };
   }, [comments.length, loading, sortMode, highlightedCommentId]);
