@@ -81,13 +81,16 @@ export default function ClientCommentsPage() {
     window.history.replaceState({}, '', newUrl);
   }, [filter, selectedProject, selectedPriority, selectedAssignee, viewMode, sortMode, isInitialized, token]);
 
+  // Initial data load
   useEffect(() => {
     if (isInitialized) fetchData();
   }, [token, isInitialized]);
 
+  // Refetch comments when filters change (but not on initial load - fetchData handles that)
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
   useEffect(() => {
-    if (isInitialized) fetchComments();
-  }, [filter, selectedProject, selectedPriority, selectedAssignee, isInitialized]);
+    if (isInitialized && initialLoadDone) fetchComments();
+  }, [filter, selectedProject, selectedPriority, selectedAssignee]);
 
   const fetchDecisionItems = async () => {
     try {
@@ -122,6 +125,7 @@ export default function ClientCommentsPage() {
       await fetchComments();
       fetchDecisionItems();
       fetchAssignees();
+      setInitialLoadDone(true);
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to load data');
