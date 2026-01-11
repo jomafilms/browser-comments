@@ -14,7 +14,11 @@
   const inlineUserName = currentScript?.getAttribute('data-user-name');
   const inlineUserEmail = currentScript?.getAttribute('data-user-email');
 
-  const API_BASE = 'https://browser-comments.vercel.app';
+  // Auto-detect API base - use current origin for local testing
+  const scriptSrc = currentScript?.src || '';
+  const API_BASE = scriptSrc.includes('localhost') || scriptSrc.startsWith('/')
+    ? window.location.origin
+    : 'https://browser-comments.vercel.app';
   const API_URL = API_BASE + '/api/widget';
   const SETTINGS_URL = API_BASE + '/api/settings';
 
@@ -162,6 +166,7 @@
         overflow: auto;
         padding: 16px;
         background: #f3f4f6;
+        position: relative;
       }
       .bc-canvas {
         max-width: 100%;
@@ -311,6 +316,129 @@
         font-size: 16px;
         color: #6b7280;
       }
+      .bc-color-picker {
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+      .bc-color-dot {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 0 0 1px #d1d5db;
+        transition: transform 0.15s;
+      }
+      .bc-color-dot:hover {
+        transform: scale(1.1);
+      }
+      .bc-color-options {
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: white;
+        border-radius: 8px;
+        padding: 6px;
+        display: flex;
+        gap: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        margin-bottom: 8px;
+      }
+      .bc-color-options::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 6px solid transparent;
+        border-top-color: white;
+      }
+      .bc-color-option {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: transform 0.15s;
+      }
+      .bc-color-option:hover {
+        transform: scale(1.15);
+      }
+      .bc-color-option.active {
+        border-color: #1f2937;
+      }
+      .bc-text-wrapper {
+        position: absolute;
+        cursor: move;
+        padding: 10px;
+        border-radius: 8px;
+        margin: -10px;
+      }
+      .bc-text-wrapper:hover {
+        background: rgba(0,0,0,0.05);
+      }
+      .bc-text-annotation {
+        min-width: 100px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 2px solid;
+        border-radius: 4px;
+        padding: 6px 10px 12px 10px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 14px;
+        resize: none;
+        outline: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        box-sizing: border-box;
+        cursor: text;
+        display: block;
+      }
+      .bc-text-annotation:focus {
+        box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+      }
+      .bc-text-delete {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        width: 18px;
+        height: 18px;
+        background: #ef4444;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        font-size: 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.15s;
+        z-index: 10;
+      }
+      .bc-text-wrapper:hover .bc-text-delete {
+        opacity: 1;
+      }
+      .bc-text-resize {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 14px;
+        height: 14px;
+        background: #9ca3af;
+        border-radius: 2px;
+        cursor: nwse-resize;
+        opacity: 0;
+        transition: opacity 0.15s;
+        z-index: 10;
+      }
+      .bc-text-wrapper:hover .bc-text-resize {
+        opacity: 0.8;
+      }
+      .bc-text-resize:hover {
+        background: #6b7280;
+        opacity: 1 !important;
+      }
     `;
     document.head.appendChild(styles);
   }
@@ -327,6 +455,9 @@
   let isDrawing = false;
   let annotations = [];
   let currentAnnotation = null;
+  let textAnnotations = []; // { x, y, text, color }
+  let activeColor = '#f97316'; // Default orange
+  let colorPickerOpen = false;
   let comment = '';
   let submitterName = inlineUserName || inlineUserEmail || '';
   let button = null;
@@ -527,6 +658,8 @@
     screenshot = null;
     annotations = [];
     currentAnnotation = null;
+    textAnnotations = [];
+    colorPickerOpen = false;
     comment = '';
     submitted = false;
     const overlay = document.querySelector('.bc-modal-overlay');
@@ -597,14 +730,68 @@
       canvas.width = img.width;
       canvas.height = img.height;
       ctx.drawImage(img, 0, 0);
-      ctx.strokeStyle = '#ff0000';
       ctx.lineWidth = 3;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      annotations.forEach(ann => drawAnnotation(ctx, ann));
-      if (currentAnnotation) drawAnnotation(ctx, currentAnnotation);
+      annotations.forEach(ann => {
+        ctx.strokeStyle = ann.color || '#f97316';
+        drawAnnotation(ctx, ann);
+      });
+      if (currentAnnotation) {
+        ctx.strokeStyle = currentAnnotation.color || activeColor;
+        drawAnnotation(ctx, currentAnnotation);
+      }
+      // Text annotations are shown as HTML elements, not drawn on canvas
+      // They get drawn on the final image during submit
     };
     img.src = screenshot;
+  }
+
+  function drawTextOnCanvas(ctx, ta) {
+    const padding = 8;
+    const lineHeight = 18;
+    ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
+
+    // Use stored dimensions or calculate from text
+    const boxWidth = ta.width || 120;
+    const boxHeight = ta.height || 50;
+
+    // Background
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.fillRect(ta.x, ta.y, boxWidth, boxHeight);
+
+    // Border
+    ctx.strokeStyle = ta.color;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(ta.x, ta.y, boxWidth, boxHeight);
+
+    // Draw text with word wrap
+    ctx.fillStyle = ta.color;
+    const maxWidth = boxWidth - padding * 2;
+    const lines = ta.text.split('\n');
+    let y = ta.y + padding + 12;
+
+    lines.forEach(line => {
+      const words = line.split(' ');
+      let currentLine = '';
+
+      words.forEach(word => {
+        const testLine = currentLine + (currentLine ? ' ' : '') + word;
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && currentLine) {
+          ctx.fillText(currentLine, ta.x + padding, y);
+          currentLine = word;
+          y += lineHeight;
+        } else {
+          currentLine = testLine;
+        }
+      });
+
+      if (currentLine) {
+        ctx.fillText(currentLine, ta.x + padding, y);
+        y += lineHeight;
+      }
+    });
   }
 
   function getCanvasPoint(e, canvasEl) {
@@ -623,8 +810,9 @@
   function updateToolbarState(overlay) {
     const undoBtn = overlay.querySelector('#bc-undo');
     const clearBtn = overlay.querySelector('#bc-clear');
-    if (undoBtn) undoBtn.disabled = annotations.length === 0;
-    if (clearBtn) clearBtn.disabled = annotations.length === 0;
+    const hasContent = annotations.length > 0 || textAnnotations.length > 0;
+    if (undoBtn) undoBtn.disabled = !hasContent;
+    if (clearBtn) clearBtn.disabled = !hasContent;
   }
 
   // Submit feedback
@@ -647,8 +835,31 @@
     }
 
     try {
+      // Draw text annotations on canvas before saving
+      textAnnotations.forEach(ta => {
+        if (ta.text && ta.text.trim()) {
+          drawTextOnCanvas(ctx, ta);
+        }
+      });
+
       // Use JPEG with 0.8 quality to reduce payload size (PNG can exceed Vercel's 4.5MB limit)
       const imageData = canvas.toDataURL('image/jpeg', 0.8);
+
+      // Combine canvas text annotations with comment
+      const allTextAnnotations = [];
+
+      // Add canvas text annotations (from text tool)
+      textAnnotations.forEach(ta => {
+        if (ta.text && ta.text.trim()) {
+          allTextAnnotations.push({ text: ta.text, x: ta.x, y: ta.y, color: ta.color });
+        }
+      });
+
+      // Add comment as a text annotation (at position 0,0 to indicate it's the main comment)
+      if (comment && comment.trim()) {
+        allTextAnnotations.push({ text: comment, x: 0, y: 0, color: '#000000' });
+      }
+
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -656,7 +867,7 @@
           widgetKey,
           url: window.location.href,
           imageData,
-          textAnnotations: comment ? [{ text: comment, x: 0, y: 0, color: '#000000' }] : [],
+          textAnnotations: allTextAnnotations,
           submitterName: submitterName.trim(),
         }),
       });
@@ -743,10 +954,29 @@
                   <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                 </svg>
               </button>
+              <button class="bc-tool-btn ${activeTool === 'text' ? 'active' : ''}" data-tool="text" title="Text">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="4 7 4 4 20 4 20 7"></polyline>
+                  <line x1="9" y1="20" x2="15" y2="20"></line>
+                  <line x1="12" y1="4" x2="12" y2="20"></line>
+                </svg>
+              </button>
             </div>
             <div class="bc-divider"></div>
-            <button class="bc-action-btn" id="bc-undo" ${annotations.length === 0 ? 'disabled' : ''}>Undo</button>
-            <button class="bc-action-btn" id="bc-clear" ${annotations.length === 0 ? 'disabled' : ''}>Clear</button>
+            <div class="bc-color-picker" id="bc-color-picker">
+              <div class="bc-color-dot" style="background: ${activeColor};" title="Color"></div>
+              ${colorPickerOpen ? `
+                <div class="bc-color-options">
+                  <div class="bc-color-option ${activeColor === '#3b82f6' ? 'active' : ''}" style="background: #3b82f6;" data-color="#3b82f6"></div>
+                  <div class="bc-color-option ${activeColor === '#f97316' ? 'active' : ''}" style="background: #f97316;" data-color="#f97316"></div>
+                  <div class="bc-color-option ${activeColor === '#ec4899' ? 'active' : ''}" style="background: #ec4899;" data-color="#ec4899"></div>
+                  <div class="bc-color-option ${activeColor === '#000000' ? 'active' : ''}" style="background: #000000;" data-color="#000000"></div>
+                </div>
+              ` : ''}
+            </div>
+            <div class="bc-divider"></div>
+            <button class="bc-action-btn" id="bc-undo" ${annotations.length === 0 && textAnnotations.length === 0 ? 'disabled' : ''}>Undo</button>
+            <button class="bc-action-btn" id="bc-clear" ${annotations.length === 0 && textAnnotations.length === 0 ? 'disabled' : ''}>Clear</button>
           </div>
           <input type="text" class="bc-name-input" placeholder="Your name *" id="bc-name" value="${submitterName}" ${inlineUserName || inlineUserEmail ? 'readonly' : ''} required />
           <textarea class="bc-textarea" placeholder="Add a comment (optional)..." rows="2" id="bc-comment">${comment}</textarea>
@@ -775,17 +1005,79 @@
         overlay.querySelectorAll('.bc-tool-btn').forEach(b => {
           b.classList.toggle('active', b.dataset.tool === activeTool);
         });
+        // Update cursor for text tool
+        if (canvas) {
+          canvas.style.cursor = activeTool === 'text' ? 'text' : 'crosshair';
+        }
       };
     });
 
+    // Color picker
+    const colorPicker = overlay.querySelector('#bc-color-picker');
+    const colorDot = colorPicker.querySelector('.bc-color-dot');
+    colorDot.onclick = (e) => {
+      e.stopPropagation();
+      colorPickerOpen = !colorPickerOpen;
+      renderColorPicker(colorPicker);
+    };
+
+    function renderColorPicker(container) {
+      const existingOptions = container.querySelector('.bc-color-options');
+      if (existingOptions) existingOptions.remove();
+
+      if (colorPickerOpen) {
+        const optionsHtml = `
+          <div class="bc-color-options">
+            <div class="bc-color-option ${activeColor === '#3b82f6' ? 'active' : ''}" style="background: #3b82f6;" data-color="#3b82f6"></div>
+            <div class="bc-color-option ${activeColor === '#f97316' ? 'active' : ''}" style="background: #f97316;" data-color="#f97316"></div>
+            <div class="bc-color-option ${activeColor === '#ec4899' ? 'active' : ''}" style="background: #ec4899;" data-color="#ec4899"></div>
+            <div class="bc-color-option ${activeColor === '#000000' ? 'active' : ''}" style="background: #000000;" data-color="#000000"></div>
+          </div>
+        `;
+        container.insertAdjacentHTML('beforeend', optionsHtml);
+
+        container.querySelectorAll('.bc-color-option').forEach(opt => {
+          opt.onclick = (e) => {
+            e.stopPropagation();
+            activeColor = opt.dataset.color;
+            colorPickerOpen = false;
+            colorDot.style.background = activeColor;
+            renderColorPicker(container);
+          };
+        });
+      }
+    }
+
+    // Close color picker when clicking elsewhere
+    overlay.addEventListener('click', () => {
+      if (colorPickerOpen) {
+        colorPickerOpen = false;
+        renderColorPicker(colorPicker);
+      }
+    });
+
     overlay.querySelector('#bc-undo').onclick = () => {
-      annotations.pop();
+      // Undo last action (text or drawing annotation) based on timestamp
+      const lastText = textAnnotations.length > 0 ? textAnnotations[textAnnotations.length - 1] : null;
+      const lastDraw = annotations.length > 0 ? annotations[annotations.length - 1] : null;
+
+      if (lastText && (!lastDraw || lastText.timestamp > lastDraw.timestamp)) {
+        const removed = textAnnotations.pop();
+        if (removed && removed.element) removed.element.remove();
+      } else if (lastDraw) {
+        annotations.pop();
+      }
       redrawCanvas();
       updateToolbarState(overlay);
     };
 
     overlay.querySelector('#bc-clear').onclick = () => {
+      // Remove all text annotation elements from DOM
+      textAnnotations.forEach(ta => {
+        if (ta.element) ta.element.remove();
+      });
       annotations = [];
+      textAnnotations = [];
       redrawCanvas();
       updateToolbarState(overlay);
     };
@@ -801,9 +1093,143 @@
     // Canvas drawing events
     canvas.onmousedown = canvas.ontouchstart = (e) => {
       e.preventDefault();
-      isDrawing = true;
       const point = getCanvasPoint(e, canvas);
-      currentAnnotation = { type: activeTool, points: [point] };
+
+      if (activeTool === 'text') {
+        // Create text annotation with drag/drop and resize
+        const container = overlay.querySelector('.bc-canvas-container');
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = rect.width / canvas.width;
+        const scaleY = rect.height / canvas.height;
+
+        const screenX = point.x * scaleX;
+        const screenY = point.y * scaleY;
+
+        // Create wrapper for drag
+        const wrapper = document.createElement('div');
+        wrapper.className = 'bc-text-wrapper';
+        wrapper.style.left = screenX + 'px';
+        wrapper.style.top = screenY + 'px';
+
+        // Create textarea
+        const input = document.createElement('textarea');
+        input.className = 'bc-text-annotation';
+        input.style.borderColor = activeColor;
+        input.style.color = activeColor;
+        input.rows = 2;
+        input.placeholder = 'Type here...';
+
+        // Create delete button
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'bc-text-delete';
+        deleteBtn.innerHTML = '×';
+
+        // Create resize handle
+        const resizeHandle = document.createElement('div');
+        resizeHandle.className = 'bc-text-resize';
+
+        wrapper.appendChild(input);
+        wrapper.appendChild(deleteBtn);
+        wrapper.appendChild(resizeHandle);
+        container.appendChild(wrapper);
+
+        input.focus();
+
+        // Store reference
+        const textAnn = { x: point.x, y: point.y, text: '', color: activeColor, timestamp: Date.now(), element: wrapper, width: 100, height: 50 };
+        textAnnotations.push(textAnn);
+
+        // Update text on input
+        input.oninput = () => {
+          textAnn.text = input.value;
+        };
+
+        // Remove if empty on blur
+        input.onblur = () => {
+          if (!textAnn.text.trim()) {
+            wrapper.remove();
+            const idx = textAnnotations.indexOf(textAnn);
+            if (idx > -1) textAnnotations.splice(idx, 1);
+          }
+          redrawCanvas();
+          updateToolbarState(overlay);
+        };
+
+        // Delete button
+        deleteBtn.onclick = (e) => {
+          e.stopPropagation();
+          wrapper.remove();
+          const idx = textAnnotations.indexOf(textAnn);
+          if (idx > -1) textAnnotations.splice(idx, 1);
+          redrawCanvas();
+          updateToolbarState(overlay);
+        };
+
+        // Drag functionality
+        let isDragging = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        wrapper.onmousedown = (e) => {
+          if (e.target === input || e.target === deleteBtn || e.target === resizeHandle) return;
+          isDragging = true;
+          dragOffsetX = e.clientX - wrapper.offsetLeft;
+          dragOffsetY = e.clientY - wrapper.offsetTop;
+          e.preventDefault();
+        };
+
+        document.addEventListener('mousemove', (e) => {
+          if (!isDragging) return;
+          const newX = e.clientX - dragOffsetX;
+          const newY = e.clientY - dragOffsetY;
+          wrapper.style.left = newX + 'px';
+          wrapper.style.top = newY + 'px';
+          // Update canvas coordinates
+          textAnn.x = newX / scaleX;
+          textAnn.y = newY / scaleY;
+        });
+
+        document.addEventListener('mouseup', () => {
+          isDragging = false;
+        });
+
+        // Resize functionality
+        let isResizing = false;
+        let startWidth = 0;
+        let startHeight = 0;
+        let startX = 0;
+        let startY = 0;
+
+        resizeHandle.onmousedown = (e) => {
+          isResizing = true;
+          startWidth = input.offsetWidth;
+          startHeight = input.offsetHeight;
+          startX = e.clientX;
+          startY = e.clientY;
+          e.preventDefault();
+          e.stopPropagation();
+        };
+
+        document.addEventListener('mousemove', (e) => {
+          if (!isResizing) return;
+          const newWidth = Math.max(100, startWidth + (e.clientX - startX));
+          const newHeight = Math.max(40, startHeight + (e.clientY - startY));
+          input.style.width = newWidth + 'px';
+          input.style.height = newHeight + 'px';
+          // Store dimensions for canvas drawing
+          textAnn.width = newWidth / scaleX;
+          textAnn.height = newHeight / scaleY;
+        });
+
+        document.addEventListener('mouseup', () => {
+          isResizing = false;
+        });
+
+        return;
+      }
+
+      isDrawing = true;
+      currentAnnotation = { type: activeTool, points: [point], color: activeColor, timestamp: Date.now() };
     };
 
     canvas.onmousemove = canvas.ontouchmove = (e) => {
