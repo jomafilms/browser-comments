@@ -24,8 +24,14 @@ interface Comment {
   updated_at: string;
 }
 
+interface Assignee {
+  id: number;
+  name: string;
+}
+
 interface CommentsTableViewProps {
   comments: Comment[];
+  assignees: Assignee[];
   onUpdatePriority: (id: number, priority: 'high' | 'med' | 'low', priorityNumber: number) => Promise<void>;
   onUpdateAssignee: (id: number, assignee: string) => Promise<void>;
   onToggleStatus: (id: number, currentStatus: 'open' | 'resolved') => Promise<void>;
@@ -36,6 +42,7 @@ interface CommentsTableViewProps {
 
 export default function CommentsTableView({
   comments,
+  assignees,
   onUpdatePriority,
   onUpdateAssignee,
   onToggleStatus,
@@ -316,16 +323,12 @@ export default function CommentsTableView({
                       <td className="px-2 py-2 align-top">
                         <select
                           value={comment.assignee}
-                          onChange={(e) => onUpdateAssignee(comment.id, e.target.value as 'dev1' | 'dev2' | 'dev3' | 'Sessions' | 'Annie' | 'Mari')}
+                          onChange={(e) => onUpdateAssignee(comment.id, e.target.value)}
                           className="text-xs px-2 py-1 border border-gray-300 rounded w-full"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <option value="dev1">Dev1</option>
-                          <option value="dev2">Dev2</option>
-                          <option value="dev3">Dev3</option>
-                          <option value="Sessions">Sessions</option>
-                          <option value="Annie">Annie</option>
-                          <option value="Mari">Mari</option>
+                          <option value="Unassigned">Unassigned</option>
+                          {assignees.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
                         </select>
                       </td>
 

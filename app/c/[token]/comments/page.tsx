@@ -374,7 +374,7 @@ export default function ClientCommentsPage() {
             <Link href={`/c/${token}`} className="mt-4 inline-block px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600">Create First Comment</Link>
           </div>
         ) : viewMode === 'table' ? (
-          <CommentsTableView comments={displayComments} onUpdatePriority={updatePriority} onUpdateAssignee={updateAssignee} onToggleStatus={toggleStatus} onDeleteComment={deleteComment} onSwitchToCardView={() => setViewMode('card')} onBatchUpdatePriority={batchUpdatePriority} />
+          <CommentsTableView comments={displayComments} assignees={assignees} onUpdatePriority={updatePriority} onUpdateAssignee={updateAssignee} onToggleStatus={toggleStatus} onDeleteComment={deleteComment} onSwitchToCardView={() => setViewMode('card')} onBatchUpdatePriority={batchUpdatePriority} />
         ) : (
           <div className="space-y-8">
             {Object.entries(groupedComments).map(([pageSection, sectionComments]) => (
