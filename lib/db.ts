@@ -66,10 +66,44 @@ export interface TextAnnotation {
   color: string;
 }
 
-// Initialize database schema
-export async function initDB() {
+// Current schema version - increment this when adding migrations
+const SCHEMA_VERSION = 1;
+
+// Check if schema is up to date (fast check that doesn't run migrations)
+async function isSchemaUpToDate(): Promise<boolean> {
   const client = await pool.connect();
   try {
+    // Check if schema_version table exists and has current version
+    const result = await client.query(`
+      SELECT version FROM schema_version WHERE id = 1
+    `);
+    return result.rows.length > 0 && result.rows[0].version >= SCHEMA_VERSION;
+  } catch {
+    // Table doesn't exist yet, needs initialization
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+// Initialize database schema (only runs if needed)
+export async function initDB() {
+  // Quick check - skip everything if already initialized
+  if (await isSchemaUpToDate()) {
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    // Create schema version tracking table first
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS schema_version (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        version INTEGER NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
     // Create clients table
     await client.query(`
       CREATE TABLE IF NOT EXISTS clients (
@@ -255,6 +289,12 @@ export async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_decision_project_id ON decision_items(project_id);
       CREATE INDEX IF NOT EXISTS idx_comments_project_id ON comments(project_id);
     `);
+
+    // Mark schema as up to date (upsert)
+    await client.query(`
+      INSERT INTO schema_version (id, version, updated_at) VALUES (1, $1, NOW())
+      ON CONFLICT (id) DO UPDATE SET version = $1, updated_at = NOW()
+    `, [SCHEMA_VERSION]);
   } finally {
     client.release();
   }

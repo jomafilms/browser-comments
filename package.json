@@ -14,7 +14,6 @@
   "description": "",
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
-    "@sparticuz/chromium": "^141.0.0",
     "@tailwindcss/postcss": "^4.1.14",
     "@types/node": "^24.7.1",
     "@types/pg": "^8.15.5",
@@ -25,8 +24,6 @@
     "next": "15.5.9",
     "pg": "^8.16.3",
     "postcss": "^8.5.6",
-    "puppeteer": "^24.24.0",
-    "puppeteer-core": "^24.24.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwindcss": "^4.1.14",
