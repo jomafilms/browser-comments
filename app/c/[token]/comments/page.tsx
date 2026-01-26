@@ -24,9 +24,11 @@ export default function ClientCommentsPage() {
 
   const [comments, setComments] = useState<Comment[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [pageSections, setPageSections] = useState<string[]>([]);
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('open');
   const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [selectedPage, setSelectedPage] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -50,6 +52,8 @@ export default function ClientCommentsPage() {
     if (statusParam === 'open' || statusParam === 'resolved') setFilter(statusParam);
     const projectParam = urlParams.get('project');
     if (projectParam) setSelectedProject(projectParam);
+    const pageParam = urlParams.get('page');
+    if (pageParam) setSelectedPage(pageParam);
     const priorityParam = urlParams.get('priority');
     if (priorityParam) setSelectedPriority(priorityParam.toLowerCase());
     const assigneeParam = urlParams.get('assignee');
@@ -72,6 +76,7 @@ export default function ClientCommentsPage() {
     const urlParams = new URLSearchParams();
     if (filter !== 'all') urlParams.set('status', filter);
     if (selectedProject !== 'all') urlParams.set('project', selectedProject);
+    if (selectedPage !== 'all') urlParams.set('page', selectedPage);
     if (selectedPriority !== 'all') urlParams.set('priority', selectedPriority);
     if (selectedAssignee !== 'all') urlParams.set('assignee', selectedAssignee);
     if (viewMode !== 'card') urlParams.set('view', viewMode);
@@ -79,7 +84,7 @@ export default function ClientCommentsPage() {
     const queryString = urlParams.toString();
     const newUrl = queryString ? `/c/${token}/comments?${queryString}` : `/c/${token}/comments`;
     window.history.replaceState({}, '', newUrl);
-  }, [filter, selectedProject, selectedPriority, selectedAssignee, viewMode, sortMode, isInitialized, token]);
+  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee, viewMode, sortMode, isInitialized, token]);
 
   // Initial data load
   useEffect(() => {
@@ -90,7 +95,7 @@ export default function ClientCommentsPage() {
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   useEffect(() => {
     if (isInitialized && initialLoadDone) fetchComments();
-  }, [filter, selectedProject, selectedPriority, selectedAssignee]);
+  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee]);
 
   const fetchDecisionItems = async () => {
     try {
@@ -143,8 +148,12 @@ export default function ClientCommentsPage() {
       const response = await fetch(`/api/comments?${urlParams}`);
       if (!response.ok) { setLoading(false); return; }
       let data = await response.json();
+      // Extract unique page sections before filtering
+      const uniquePages = [...new Set(data.map((c: Comment) => c.page_section).filter(Boolean))] as string[];
+      setPageSections(uniquePages.sort());
       if (filter !== 'all') data = data.filter((c: Comment) => c.status === filter);
       if (selectedProject !== 'all') data = data.filter((c: Comment) => c.project_id === parseInt(selectedProject));
+      if (selectedPage !== 'all') data = data.filter((c: Comment) => c.page_section === selectedPage);
       if (selectedPriority !== 'all') data = data.filter((c: Comment) => c.priority === selectedPriority);
       if (selectedAssignee !== 'all') data = data.filter((c: Comment) => c.assignee === selectedAssignee);
       setComments(data);
@@ -328,6 +337,10 @@ export default function ClientCommentsPage() {
             <select value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded max-w-[200px] truncate">
               <option value="all">All Projects</option>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <select value={selectedPage} onChange={(e) => setSelectedPage(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded max-w-[200px] truncate">
+              <option value="all">All Pages</option>
+              {pageSections.map((page) => <option key={page} value={page}>{page.split('/').pop() || page}</option>)}
             </select>
             <select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded">
               <option value="all">All Priorities</option>
