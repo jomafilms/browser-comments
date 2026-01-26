@@ -10,6 +10,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+// Cache headers for widget validation (1 hour cache)
+const cacheHeaders = {
+  ...corsHeaders,
+  'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+};
+
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
@@ -152,6 +158,6 @@ export async function GET(request: NextRequest) {
       domainMatched: !!matchedProject,
       matchedProject: matchedProject ? { id: matchedProject.id, name: matchedProject.name } : null,
     },
-    { headers: corsHeaders }
+    { headers: cacheHeaders }
   );
 }

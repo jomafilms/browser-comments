@@ -7,6 +7,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+// Cache headers for widget settings (1 hour browser cache, CDN can serve stale while revalidating)
+const cacheHeaders = {
+  ...corsHeaders,
+  'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+};
+
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
@@ -19,10 +25,10 @@ export async function GET(request: NextRequest) {
   const widgetKey = searchParams.get('key');
   const token = searchParams.get('token');
 
-  // For widget.js - fetch by widget key
+  // For widget.js - fetch by widget key (with caching)
   if (widgetKey) {
     const settings = await getWidgetSettingsByKey(widgetKey);
-    return NextResponse.json(settings || {}, { headers: corsHeaders });
+    return NextResponse.json(settings || {}, { headers: cacheHeaders });
   }
 
   // For settings page - fetch by token
