@@ -273,6 +273,16 @@ function HomeContent() {
                               >
                                 Copy Code
                               </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm('Regenerate widget key? The old key will stop working immediately.')) {
+                                    generateWidgetKey(client.id);
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-red-100 text-red-700 rounded hover:bg-red-200 text-sm"
+                              >
+                                Regenerate Key
+                              </button>
                             </div>
                             <p className="text-xs text-gray-500 mt-3">
                               <strong>Note:</strong> Feedback will only work from domains that match your project URLs.
