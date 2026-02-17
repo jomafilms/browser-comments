@@ -150,6 +150,24 @@ function HomeContent() {
     alert('Widget embed code copied to clipboard!');
   };
 
+  const regenerateToken = async (clientId: number) => {
+    try {
+      const response = await fetch(`/api/clients/${clientId}/regenerate-token?admin=${adminSecret}`, {
+        method: 'POST'
+      });
+      if (response.ok) {
+        const { token } = await response.json();
+        setClients(prev => prev.map(c => c.id === clientId ? { ...c, token } : c));
+        const url = `${window.location.origin}/c/${token}/comments?status=open&sort=priority`;
+        navigator.clipboard.writeText(url);
+        alert('Token regenerated! New access link copied to clipboard.');
+      }
+    } catch (err) {
+      console.error('Error regenerating token:', err);
+      alert('Failed to regenerate token');
+    }
+  };
+
   const generateWidgetKey = async (clientId: number) => {
     try {
       const response = await fetch(`/api/clients/${clientId}/widget-key?admin=${adminSecret}`, {
@@ -244,6 +262,16 @@ function HomeContent() {
                           className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
                         >
                           Copy Link
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm('Regenerate access token? The old link will stop working immediately.')) {
+                              regenerateToken(client.id);
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-red-100 text-red-700 rounded hover:bg-red-200 text-sm"
+                        >
+                          Regenerate Token
                         </button>
                         <button
                           onClick={() => window.open(`/c/${client.token}/comments?status=open&sort=priority`, '_blank')}

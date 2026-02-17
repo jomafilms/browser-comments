@@ -694,6 +694,21 @@ export async function getProjectByOrigin(clientId: number, origin: string): Prom
   }
 }
 
+// Regenerate client access token
+export async function regenerateClientToken(clientId: number): Promise<string> {
+  const dbClient = await pool.connect();
+  try {
+    const token = generateToken();
+    await dbClient.query(
+      `UPDATE clients SET token = $1 WHERE id = $2`,
+      [token, clientId]
+    );
+    return token;
+  } finally {
+    dbClient.release();
+  }
+}
+
 // Generate or regenerate widget key for a client
 export async function generateWidgetKeyForClient(clientId: number): Promise<string> {
   const dbClient = await pool.connect();
