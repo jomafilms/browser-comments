@@ -694,13 +694,13 @@ export async function getProjectByOrigin(clientId: number, origin: string): Prom
   }
 }
 
-// Generate widget key for existing clients that don't have one
+// Generate or regenerate widget key for a client
 export async function generateWidgetKeyForClient(clientId: number): Promise<string> {
   const dbClient = await pool.connect();
   try {
     const widgetKey = generateToken();
     await dbClient.query(
-      `UPDATE clients SET widget_key = $1 WHERE id = $2 AND widget_key IS NULL`,
+      `UPDATE clients SET widget_key = $1 WHERE id = $2`,
       [widgetKey, clientId]
     );
     return widgetKey;
