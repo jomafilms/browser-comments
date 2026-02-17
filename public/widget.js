@@ -14,11 +14,11 @@
   const inlineUserName = currentScript?.getAttribute('data-user-name');
   const inlineUserEmail = currentScript?.getAttribute('data-user-email');
 
-  // Auto-detect API base - use current origin for local testing
+  // Auto-detect API base from the script's own URL
   const scriptSrc = currentScript?.src || '';
-  const API_BASE = scriptSrc.includes('localhost') || scriptSrc.startsWith('/')
-    ? window.location.origin
-    : 'https://browser-comments.vercel.app';
+  const API_BASE = scriptSrc
+    ? new URL(scriptSrc).origin
+    : window.location.origin;
   const API_URL = API_BASE + '/api/widget';
   const SETTINGS_URL = API_BASE + '/api/settings';
 

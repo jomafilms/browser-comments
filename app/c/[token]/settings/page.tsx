@@ -43,6 +43,7 @@ export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState<'widget' | 'assignees'>('widget');
   const [widgetTab, setWidgetTab] = useState<'appearance' | 'embed'>('appearance');
   const [copied, setCopied] = useState(false);
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
   // Assignees state
   const [assignees, setAssignees] = useState<Assignee[]>([]);
@@ -171,7 +172,6 @@ export default function SettingsPage() {
 
   const getEmbedCode = () => {
     if (!widgetKey) return '';
-    const baseUrl = 'https://browser-comments.vercel.app';
     return `<script src="${baseUrl}/widget.js" data-key="${widgetKey}"></script>`;
   };
 
@@ -462,7 +462,7 @@ export default function SettingsPage() {
                           </p>
                           <div className="bg-gray-50 border rounded-lg p-4 font-mono text-sm overflow-x-auto">
                             <pre className="text-gray-700">{`<script
-  src="https://browser-comments.vercel.app/widget.js"
+  src="${baseUrl}/widget.js"
   data-key="${widgetKey}"
   data-user-name="{{user.name}}"
 ></script>`}</pre>

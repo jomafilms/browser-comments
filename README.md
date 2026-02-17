@@ -34,16 +34,13 @@ createdb browser_comments
 
 ### 3. Configure Environment Variables
 
-Update `.env.local` with your database connection:
+Copy the example env file and fill in your values:
 
-```
-DATABASE_URL=postgresql://localhost:5432/browser_comments
+```bash
+cp .env.example .env.local
 ```
 
-For production with Neon:
-```
-DATABASE_URL=postgresql://user:password@host.neon.tech/dbname?sslmode=require
-```
+Edit `.env.local` with your database connection and admin secret. See `.env.example` for all available variables.
 
 ### 4. Run Development Server
 

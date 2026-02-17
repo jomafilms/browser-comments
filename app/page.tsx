@@ -145,7 +145,7 @@ function HomeContent() {
   };
 
   const copyWidgetCode = (widgetKey: string) => {
-    const code = `<script src="https://browser-comments.vercel.app/widget.js" data-key="${widgetKey}"></script>`;
+    const code = `<script src="${window.location.origin}/widget.js" data-key="${widgetKey}"></script>`;
     navigator.clipboard.writeText(code);
     alert('Widget embed code copied to clipboard!');
   };
@@ -264,7 +264,7 @@ function HomeContent() {
                               Add this script tag to any website to enable the feedback button:
                             </p>
                             <div className="bg-gray-800 text-green-400 p-3 rounded font-mono text-sm overflow-x-auto">
-                              {`<script src="https://browser-comments.vercel.app/widget.js" data-key="${client.widget_key}"></script>`}
+                              {`<script src="${window.location.origin}/widget.js" data-key="${client.widget_key}"></script>`}
                             </div>
                             <div className="mt-3 flex gap-2">
                               <button
