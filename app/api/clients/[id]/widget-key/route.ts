@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initDB, generateWidgetKeyForClient } from '@/lib/db';
 
-const ADMIN_SECRET = process.env.ADMIN_SECRET || 'browser-comments-admin-2024';
+const ADMIN_SECRET = process.env.ADMIN_SECRET;
 
 export async function POST(
   request: NextRequest,
