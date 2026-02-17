@@ -13,8 +13,7 @@ export default function TestWidgetPage() {
     notFound();
   }
 
-  // Pre-fill with emo-clients widget key from summary
-  const [widgetKey, setWidgetKey] = useState<string>('8e2ce40039fbfd92e22b66613a993335');
+  const [widgetKey, setWidgetKey] = useState<string>('');
   const [userName, setUserName] = useState<string>('Test User');
   const [loadWidget, setLoadWidget] = useState(false);
 
