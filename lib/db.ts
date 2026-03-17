@@ -845,22 +845,47 @@ export async function getCommentsByProjectId(projectId: number, excludeImages?: 
 }
 
 // Get comments by client ID (all projects for a client)
-export async function getCommentsByClientId(clientId: number, excludeImages?: boolean): Promise<Comment[]> {
+export async function getCommentsByClientId(
+  clientId: number,
+  excludeImages?: boolean,
+  filters?: { status?: string; priority?: string; assignee?: string; pageSection?: string }
+): Promise<Comment[]> {
   const dbClient = await pool.connect();
   try {
     const selectClause = excludeImages
       ? 'c.id, c.project_id, c.client_id, c.display_number, c.url, c.page_section, \'\' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.created_at, c.updated_at'
       : 'c.*';
 
+    const conditions: string[] = ['p.client_id = $1'];
+    const params: (string | number)[] = [clientId];
+    let paramIdx = 2;
+
+    if (filters?.status) {
+      conditions.push(`c.status = $${paramIdx++}`);
+      params.push(filters.status);
+    }
+    if (filters?.priority) {
+      conditions.push(`c.priority = $${paramIdx++}`);
+      params.push(filters.priority);
+    }
+    if (filters?.assignee) {
+      conditions.push(`c.assignee = $${paramIdx++}`);
+      params.push(filters.assignee);
+    }
+    if (filters?.pageSection) {
+      conditions.push(`c.page_section ILIKE $${paramIdx++}`);
+      params.push(`%${filters.pageSection}%`);
+    }
+
     const result = await dbClient.query(
       `SELECT ${selectClause} FROM comments c
        JOIN projects p ON c.project_id = p.id
-       WHERE p.client_id = $1
+       WHERE ${conditions.join(' AND ')}
        ORDER BY
          CASE c.priority WHEN 'high' THEN 1 WHEN 'med' THEN 2 WHEN 'low' THEN 3 END,
          c.priority_number DESC,
          c.created_at DESC`,
-      [clientId]
+      params
     );
     return result.rows;
   } finally {

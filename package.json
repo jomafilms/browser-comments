@@ -2,11 +2,16 @@
   "name": "browser-comments",
   "version": "1.0.0",
   "main": "index.js",
+  "bin": {
+    "browser-comments": "./cli/dist/bin.js"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "tickets": "npx tsx cli/bin.ts",
+    "cli:build": "tsc -p cli/tsconfig.json"
   },
   "keywords": [],
   "author": "",

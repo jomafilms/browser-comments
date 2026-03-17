@@ -35,3 +35,6 @@ logs_result.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cli build output
+cli/dist/

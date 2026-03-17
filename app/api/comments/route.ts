@@ -67,7 +67,12 @@ export async function GET(request: NextRequest) {
       if (!client) {
         return NextResponse.json({ error: 'Invalid token' }, { status: 404 });
       }
-      const comments = await getCommentsByClientId(client.id, excludeImages);
+      const comments = await getCommentsByClientId(client.id, excludeImages, {
+        status: status || undefined,
+        priority: priority || undefined,
+        assignee: assignee || undefined,
+        pageSection: pageSection || undefined,
+      });
       return NextResponse.json(comments);
     }
 
