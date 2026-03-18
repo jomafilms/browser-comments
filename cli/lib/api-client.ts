@@ -66,13 +66,14 @@ export async function fetchTicketById(
 
 export async function patchTicket(
   apiUrl: string,
+  token: string,
   ticketId: number,
   body: Record<string, unknown>
 ): Promise<void> {
   const url = new URL(`/api/comments/${ticketId}`, apiUrl);
   const res = await fetch(url.toString(), {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
     body: JSON.stringify(body),
   });
   if (!res.ok) {

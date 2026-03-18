@@ -26,7 +26,7 @@ BROWSER_COMMENTS_TOKEN=your-client-token
 BROWSER_COMMENTS_DB=postgresql://user:pass@host/dbname
 
 # Option B: HTTP API access (works everywhere, supports writes)
-BROWSER_COMMENTS_API=https://your-app.vercel.app
+BROWSER_COMMENTS_API=https://your-deployment.vercel.app
 ```
 
 **If both are set:** DB is used for reads, API for writes.

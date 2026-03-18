@@ -1,6 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateCommentStatus, addNoteToComment, deleteComment, updateCommentPriority, updateCommentAssignee } from '@/lib/db';
+import { updateCommentStatus, addNoteToComment, deleteComment, updateCommentPriority, updateCommentAssignee, getClientByToken } from '@/lib/db';
 import pool from '@/lib/db';
+
+function extractToken(request: NextRequest): string | null {
+  const auth = request.headers.get('authorization');
+  if (auth?.startsWith('Bearer ')) return auth.slice(7);
+  return new URL(request.url).searchParams.get('token');
+}
+
+async function verifyCommentOwnership(token: string, commentId: number): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
+  const client = await getClientByToken(token);
+  if (!client) {
+    return { ok: false, response: NextResponse.json({ error: 'Invalid token' }, { status: 401 }) };
+  }
+
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      'SELECT c.id FROM comments c JOIN projects p ON c.project_id = p.id WHERE c.id = $1 AND p.client_id = $2',
+      [commentId, client.id]
+    );
+    if (result.rows.length === 0) {
+      return { ok: false, response: NextResponse.json({ error: 'Comment not found or access denied' }, { status: 404 }) };
+    }
+    return { ok: true };
+  } finally {
+    dbClient.release();
+  }
+}
 
 export async function GET(
   request: NextRequest,
@@ -10,9 +37,9 @@ export async function GET(
     const { id: idString } = await context.params;
     const id = parseInt(idString);
 
-    const client = await pool.connect();
+    const dbClient = await pool.connect();
     try {
-      const result = await client.query(
+      const result = await dbClient.query(
         'SELECT image_data FROM comments WHERE id = $1',
         [id]
       );
@@ -26,7 +53,7 @@ export async function GET(
 
       return NextResponse.json({ image_data: result.rows[0].image_data });
     } finally {
-      client.release();
+      dbClient.release();
     }
   } catch (error) {
     console.error('Error fetching comment image:', error);
@@ -45,6 +72,14 @@ export async function PATCH(
     const body = await request.json();
     const { id: idString } = await context.params;
     const id = parseInt(idString);
+
+    const token = extractToken(request);
+    if (!token) {
+      return NextResponse.json({ error: 'Token required' }, { status: 401 });
+    }
+
+    const ownership = await verifyCommentOwnership(token, id);
+    if (!ownership.ok) return ownership.response;
 
     if (body.status) {
       await updateCommentStatus(id, body.status);
@@ -79,6 +114,14 @@ export async function DELETE(
   try {
     const { id: idString } = await context.params;
     const id = parseInt(idString);
+
+    const token = extractToken(request);
+    if (!token) {
+      return NextResponse.json({ error: 'Token required' }, { status: 401 });
+    }
+
+    const ownership = await verifyCommentOwnership(token, id);
+    if (!ownership.ok) return ownership.response;
 
     await deleteComment(id);
 

@@ -237,21 +237,21 @@ export default function ClientCommentsPage() {
   const toggleStatus = async (id: number, currentStatus: 'open' | 'resolved') => {
     const newStatus = currentStatus === 'open' ? 'resolved' : 'open';
     try {
-      await fetch(`/api/comments/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) });
+      await fetch(`/api/comments/${id}?token=${token}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) });
       setComments(prev => prev.map(c => c.id === id ? { ...c, status: newStatus, priority_number: newStatus === 'resolved' ? 0 : c.priority_number } : c));
     } catch (err) { console.error('Error updating status:', err); }
   };
 
   const updatePriority = async (id: number, priority: 'high' | 'med' | 'low', priorityNumber: number) => {
     try {
-      await fetch(`/api/comments/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority, priorityNumber }) });
+      await fetch(`/api/comments/${id}?token=${token}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority, priorityNumber }) });
       setComments(prev => prev.map(c => c.id === id ? { ...c, priority, priority_number: priorityNumber } : c));
     } catch (err) { console.error('Error updating priority:', err); }
   };
 
   const updateAssignee = async (id: number, assignee: string) => {
     try {
-      await fetch(`/api/comments/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignee }) });
+      await fetch(`/api/comments/${id}?token=${token}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignee }) });
       setComments(prev => prev.map(c => c.id === id ? { ...c, assignee: assignee as Comment['assignee'] } : c));
     } catch (err) { console.error('Error updating assignee:', err); }
   };
@@ -259,7 +259,7 @@ export default function ClientCommentsPage() {
   const addNote = async (id: number) => {
     if (!newNote.trim()) return;
     try {
-      await fetch(`/api/comments/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: newNote }) });
+      await fetch(`/api/comments/${id}?token=${token}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: newNote }) });
       setComments(prev => prev.map(c => c.id === id ? { ...c, text_annotations: [...c.text_annotations, { text: newNote, x: 0, y: 0, color: '#000000' }] } : c));
       if (addNoteToDecisions) {
         const comment = comments.find(c => c.id === id);
@@ -274,7 +274,7 @@ export default function ClientCommentsPage() {
   const deleteComment = async (id: number) => {
     if (!confirm('Are you sure you want to delete this comment? This action cannot be undone.')) return;
     try {
-      await fetch(`/api/comments/${id}`, { method: 'DELETE' });
+      await fetch(`/api/comments/${id}?token=${token}`, { method: 'DELETE' });
       setComments(prev => prev.filter(c => c.id !== id));
     } catch (err) { console.error('Error deleting comment:', err); }
   };

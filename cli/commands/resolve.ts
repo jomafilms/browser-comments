@@ -29,7 +29,7 @@ export async function resolveCommand(
   const body: Record<string, unknown> = { status: 'resolved' };
   if (note) body.note = note;
 
-  await patchTicket(config.apiUrl, dbId, body);
+  await patchTicket(config.apiUrl, config.token, dbId, body);
 
   return {
     ok: true,

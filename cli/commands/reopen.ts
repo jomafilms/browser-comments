@@ -23,7 +23,7 @@ export async function reopenCommand(
     dbId = ticket.id;
   }
 
-  await patchTicket(config.apiUrl, dbId, { status: 'open' });
+  await patchTicket(config.apiUrl, config.token, dbId, { status: 'open' });
 
   return {
     ok: true,

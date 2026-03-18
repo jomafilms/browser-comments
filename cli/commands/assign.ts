@@ -24,7 +24,7 @@ export async function assignCommand(
     dbId = ticket.id;
   }
 
-  await patchTicket(config.apiUrl, dbId, { assignee });
+  await patchTicket(config.apiUrl, config.token, dbId, { assignee });
 
   return {
     ok: true,
