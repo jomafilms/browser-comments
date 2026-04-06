@@ -39,5 +39,9 @@ next-env.d.ts
 # cli build output
 cli/dist/
 
+# mcp build output
+mcp/dist/
+mcp/node_modules/
+
 .codemonkey/
 memory/

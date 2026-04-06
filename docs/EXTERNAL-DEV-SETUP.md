@@ -26,7 +26,7 @@ Add to your Claude Code MCP config (`~/.claude/settings.json` or project-level `
   "mcpServers": {
     "browser-comments": {
       "command": "npx",
-      "args": ["-y", "browser-comments-mcp"],
+      "args": ["-y", "@jomafilms/browser-comments-mcp"],
       "env": {
         "BROWSER_COMMENTS_TOKEN": "your_project_token_here",
         "BROWSER_COMMENTS_API": "https://your-instance.vercel.app"
@@ -36,9 +36,17 @@ Add to your Claude Code MCP config (`~/.claude/settings.json` or project-level `
 }
 ```
 
-This gives your Claude Code instance tools like `list_tickets`, `show_ticket`, `resolve_ticket`, and `assign_ticket`.
+This gives your Claude Code instance tools: `list_tickets`, `show_ticket`, `resolve_ticket`, `reopen_ticket`, and `assign_ticket`.
 
-> **Note:** The MCP package is not yet published. Until then, use Option B.
+Available tools:
+
+| Tool | Description |
+|------|-------------|
+| `list_tickets` | List tickets with optional filters (status, priority, assignee, section) |
+| `show_ticket` | Show details for a single ticket by number |
+| `resolve_ticket` | Mark a ticket as resolved, optionally with a note |
+| `reopen_ticket` | Reopen a previously resolved ticket |
+| `assign_ticket` | Assign a ticket to a team member |
 
 ### Option B: CLI tool
 

@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "next lint",
     "tickets": "npx tsx cli/bin.ts",
-    "cli:build": "tsc -p cli/tsconfig.json"
+    "cli:build": "tsc -p cli/tsconfig.json",
+    "mcp:build": "cd mcp && npm run build"
   },
   "keywords": [],
   "author": "",
