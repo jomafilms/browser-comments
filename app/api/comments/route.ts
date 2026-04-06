@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveComment, getComments, getCommentsByProjectId, getCommentsByClientId, getClientByToken, initDB } from '@/lib/db';
+import { saveComment, getComments, getCommentsByProjectId, getCommentsByTokenContext, resolveToken, initDB } from '@/lib/db';
 
 // Initialize DB on first request
 let dbInitialized = false;
@@ -61,13 +61,13 @@ export async function GET(request: NextRequest) {
     const assignee = searchParams.get('assignee') || undefined;
     const excludeImages = searchParams.get('excludeImages') === 'true';
 
-    // If token provided, get comments for that client
+    // If token provided, resolve to client or project scope
     if (token) {
-      const client = await getClientByToken(token);
-      if (!client) {
+      const ctx = await resolveToken(token);
+      if (!ctx) {
         return NextResponse.json({ error: 'Invalid token' }, { status: 404 });
       }
-      const comments = await getCommentsByClientId(client.id, excludeImages, {
+      const comments = await getCommentsByTokenContext(ctx, excludeImages, {
         status: status || undefined,
         priority: priority || undefined,
         assignee: assignee || undefined,

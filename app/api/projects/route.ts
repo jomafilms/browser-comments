@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initDB, createProject, getProjectsByClientId, getClientByToken, getClients } from '@/lib/db';
+import { initDB, createProject, getProjectsByClientId, resolveToken, getClients, getProjectById } from '@/lib/db';
 
 // Initialize database on first request
 let dbInitialized = false;
@@ -30,13 +30,19 @@ export async function GET(request: NextRequest) {
   const token = searchParams.get('token');
 
   try {
-    // If token provided, get client by token first
+    // If token provided, resolve to client or project scope
     if (token) {
-      const client = await getClientByToken(token);
-      if (!client) {
+      const ctx = await resolveToken(token);
+      if (!ctx) {
         return NextResponse.json({ error: 'Invalid token' }, { status: 404 });
       }
-      const projects = await getProjectsByClientId(client.id);
+      // Project token: return only that project
+      if (ctx.projectId) {
+        const project = await getProjectById(ctx.projectId);
+        return NextResponse.json(project ? [project] : []);
+      }
+      // Client token: return all projects
+      const projects = await getProjectsByClientId(ctx.clientId);
       return NextResponse.json(projects);
     }
 

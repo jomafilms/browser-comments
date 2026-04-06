@@ -32,7 +32,14 @@ export interface Project {
   client_id: number;
   name: string;
   url: string;
+  token: string | null;
   created_at: Date;
+}
+
+// Resolved token context — tells you whether a token is client-level or project-level
+export interface TokenContext {
+  clientId: number;
+  projectId: number | null; // null = client token (all projects), number = project token (scoped)
 }
 
 export interface Assignee {
@@ -67,7 +74,7 @@ export interface TextAnnotation {
 }
 
 // Current schema version - increment this when adding migrations
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 // Check if schema is up to date (fast check that doesn't run migrations)
 async function isSchemaUpToDate(): Promise<boolean> {
@@ -139,10 +146,21 @@ export async function initDB() {
       );
     `);
 
+    // Add token column to projects for project-level access control
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='projects' AND column_name='token') THEN
+          ALTER TABLE projects ADD COLUMN token VARCHAR(32) UNIQUE;
+        END IF;
+      END $$;
+    `);
+
     // Create indexes for clients and projects
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_clients_token ON clients(token);
       CREATE INDEX IF NOT EXISTS idx_projects_client_id ON projects(client_id);
+      CREATE INDEX IF NOT EXISTS idx_projects_token ON projects(token);
     `);
 
     // Create assignees table
@@ -668,6 +686,150 @@ export async function getClientByWidgetKey(widgetKey: string): Promise<Client | 
     const result = await dbClient.query(
       `SELECT * FROM clients WHERE widget_key = $1`,
       [widgetKey]
+    );
+    return result.rows[0] || null;
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Resolve a token to its context — checks project tokens first, then client tokens.
+// Project tokens scope access to a single project; client tokens grant access to all projects.
+export async function resolveToken(token: string): Promise<TokenContext | null> {
+  const dbClient = await pool.connect();
+  try {
+    // Check project tokens first (more specific scope wins)
+    const projectResult = await dbClient.query(
+      `SELECT id, client_id FROM projects WHERE token = $1`,
+      [token]
+    );
+    if (projectResult.rows.length > 0) {
+      return {
+        clientId: projectResult.rows[0].client_id,
+        projectId: projectResult.rows[0].id,
+      };
+    }
+
+    // Fall back to client token
+    const clientResult = await dbClient.query(
+      `SELECT id FROM clients WHERE token = $1`,
+      [token]
+    );
+    if (clientResult.rows.length > 0) {
+      return {
+        clientId: clientResult.rows[0].id,
+        projectId: null,
+      };
+    }
+
+    return null;
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Get comments scoped by token context (project or client level)
+export async function getCommentsByTokenContext(
+  ctx: TokenContext,
+  excludeImages?: boolean,
+  filters?: { status?: string; priority?: string; assignee?: string; pageSection?: string }
+): Promise<Comment[]> {
+  if (ctx.projectId) {
+    // Project-scoped: use project ID directly
+    const dbClient = await pool.connect();
+    try {
+      const selectClause = excludeImages
+        ? "c.id, c.project_id, c.client_id, c.display_number, c.url, c.page_section, '' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.created_at, c.updated_at"
+        : 'c.*';
+
+      const conditions: string[] = ['c.project_id = $1'];
+      const params: (string | number)[] = [ctx.projectId];
+      let paramIdx = 2;
+
+      if (filters?.status) {
+        conditions.push(`c.status = $${paramIdx++}`);
+        params.push(filters.status);
+      }
+      if (filters?.priority) {
+        conditions.push(`c.priority = $${paramIdx++}`);
+        params.push(filters.priority);
+      }
+      if (filters?.assignee) {
+        conditions.push(`c.assignee = $${paramIdx++}`);
+        params.push(filters.assignee);
+      }
+      if (filters?.pageSection) {
+        conditions.push(`c.page_section ILIKE $${paramIdx++}`);
+        params.push(`%${filters.pageSection}%`);
+      }
+
+      const result = await dbClient.query(
+        `SELECT ${selectClause} FROM comments c
+         WHERE ${conditions.join(' AND ')}
+         ORDER BY
+           CASE c.priority WHEN 'high' THEN 1 WHEN 'med' THEN 2 WHEN 'low' THEN 3 END,
+           c.priority_number DESC,
+           c.created_at DESC`,
+        params
+      );
+      return result.rows;
+    } finally {
+      dbClient.release();
+    }
+  }
+
+  // Client-scoped: delegate to existing function
+  return getCommentsByClientId(ctx.clientId, excludeImages, filters);
+}
+
+// Verify comment ownership against a token context
+export async function verifyCommentOwnershipByContext(
+  ctx: TokenContext,
+  commentId: number
+): Promise<boolean> {
+  const dbClient = await pool.connect();
+  try {
+    if (ctx.projectId) {
+      // Project token: comment must belong to this specific project
+      const result = await dbClient.query(
+        'SELECT id FROM comments WHERE id = $1 AND project_id = $2',
+        [commentId, ctx.projectId]
+      );
+      return result.rows.length > 0;
+    }
+    // Client token: comment must belong to any project under this client
+    const result = await dbClient.query(
+      'SELECT c.id FROM comments c JOIN projects p ON c.project_id = p.id WHERE c.id = $1 AND p.client_id = $2',
+      [commentId, ctx.clientId]
+    );
+    return result.rows.length > 0;
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Generate or regenerate a token for a project
+export async function generateProjectToken(projectId: number): Promise<string> {
+  const dbClient = await pool.connect();
+  try {
+    const token = generateToken();
+    await dbClient.query(
+      `UPDATE projects SET token = $1 WHERE id = $2`,
+      [token, projectId]
+    );
+    return token;
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Get project by its token
+export async function getProjectByToken(token: string): Promise<Project | null> {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `SELECT * FROM projects WHERE token = $1`,
+      [token]
     );
     return result.rows[0] || null;
   } finally {

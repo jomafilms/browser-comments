@@ -38,3 +38,5 @@ next-env.d.ts
 
 # cli build output
 cli/dist/
+
+.codemonkey/

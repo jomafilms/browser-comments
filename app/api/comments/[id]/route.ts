@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateCommentStatus, addNoteToComment, deleteComment, updateCommentPriority, updateCommentAssignee, getClientByToken } from '@/lib/db';
+import { updateCommentStatus, addNoteToComment, deleteComment, updateCommentPriority, updateCommentAssignee, resolveToken, verifyCommentOwnershipByContext } from '@/lib/db';
 import pool from '@/lib/db';
 
 function extractToken(request: NextRequest): string | null {
@@ -9,24 +9,16 @@ function extractToken(request: NextRequest): string | null {
 }
 
 async function verifyCommentOwnership(token: string, commentId: number): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
-  const client = await getClientByToken(token);
-  if (!client) {
+  const ctx = await resolveToken(token);
+  if (!ctx) {
     return { ok: false, response: NextResponse.json({ error: 'Invalid token' }, { status: 401 }) };
   }
 
-  const dbClient = await pool.connect();
-  try {
-    const result = await dbClient.query(
-      'SELECT c.id FROM comments c JOIN projects p ON c.project_id = p.id WHERE c.id = $1 AND p.client_id = $2',
-      [commentId, client.id]
-    );
-    if (result.rows.length === 0) {
-      return { ok: false, response: NextResponse.json({ error: 'Comment not found or access denied' }, { status: 404 }) };
-    }
-    return { ok: true };
-  } finally {
-    dbClient.release();
+  const hasAccess = await verifyCommentOwnershipByContext(ctx, commentId);
+  if (!hasAccess) {
+    return { ok: false, response: NextResponse.json({ error: 'Comment not found or access denied' }, { status: 404 }) };
   }
+  return { ok: true };
 }
 
 export async function GET(

@@ -11,15 +11,43 @@ function getPool(dbUrl: string): Pool {
   return pool;
 }
 
-export async function getClientIdByToken(dbUrl: string, token: string): Promise<number | null> {
+interface TokenContext {
+  clientId: number;
+  projectId: number | null;
+}
+
+// Resolve token — checks project tokens first, then client tokens
+export async function resolveTokenContext(dbUrl: string, token: string): Promise<TokenContext | null> {
   const p = getPool(dbUrl);
   const client = await p.connect();
   try {
-    const result = await client.query('SELECT id FROM clients WHERE token = $1', [token]);
-    return result.rows[0]?.id ?? null;
+    // Check project tokens first (more specific scope)
+    const projectResult = await client.query(
+      'SELECT id, client_id FROM projects WHERE token = $1',
+      [token]
+    );
+    if (projectResult.rows.length > 0) {
+      return {
+        clientId: projectResult.rows[0].client_id,
+        projectId: projectResult.rows[0].id,
+      };
+    }
+
+    // Fall back to client token
+    const clientResult = await client.query('SELECT id FROM clients WHERE token = $1', [token]);
+    if (clientResult.rows[0]) {
+      return { clientId: clientResult.rows[0].id, projectId: null };
+    }
+    return null;
   } finally {
     client.release();
   }
+}
+
+// Kept for backwards compat but uses resolveTokenContext internally
+export async function getClientIdByToken(dbUrl: string, token: string): Promise<number | null> {
+  const ctx = await resolveTokenContext(dbUrl, token);
+  return ctx?.clientId ?? null;
 }
 
 export async function queryTickets(
@@ -28,9 +56,9 @@ export async function queryTickets(
   filters: TicketFilters,
   excludeImages: boolean = true
 ): Promise<Ticket[]> {
-  const clientId = await getClientIdByToken(dbUrl, token);
-  if (clientId === null) {
-    throw new Error('Invalid token — no matching client found.');
+  const ctx = await resolveTokenContext(dbUrl, token);
+  if (!ctx) {
+    throw new Error('Invalid token — no matching client or project found.');
   }
 
   const p = getPool(dbUrl);
@@ -40,9 +68,18 @@ export async function queryTickets(
       ? "c.id, c.project_id, c.client_id, c.display_number, c.url, c.page_section, '' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.created_at, c.updated_at"
       : 'c.*';
 
-    const conditions: string[] = ['p.client_id = $1'];
-    const params: (string | number)[] = [clientId];
-    let paramIdx = 2;
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+    let paramIdx = 1;
+
+    // Scope by project token or client token
+    if (ctx.projectId) {
+      conditions.push(`c.project_id = $${paramIdx++}`);
+      params.push(ctx.projectId);
+    } else {
+      conditions.push(`p.client_id = $${paramIdx++}`);
+      params.push(ctx.clientId);
+    }
 
     if (filters.status) {
       conditions.push(`c.status = $${paramIdx++}`);
@@ -60,7 +97,7 @@ export async function queryTickets(
       conditions.push(`c.page_section ILIKE $${paramIdx++}`);
       params.push(`%${filters.section}%`);
     }
-    if (filters.project) {
+    if (filters.project && !ctx.projectId) {
       conditions.push(`c.project_id = $${paramIdx++}`);
       params.push(parseInt(filters.project));
     }
@@ -87,9 +124,9 @@ export async function queryTicketById(
   byDisplayNumber: boolean,
   includeImages: boolean = false
 ): Promise<Ticket | null> {
-  const clientId = await getClientIdByToken(dbUrl, token);
-  if (clientId === null) {
-    throw new Error('Invalid token — no matching client found.');
+  const ctx = await resolveTokenContext(dbUrl, token);
+  if (!ctx) {
+    throw new Error('Invalid token — no matching client or project found.');
   }
 
   const p = getPool(dbUrl);
@@ -100,11 +137,17 @@ export async function queryTicketById(
       ? 'c.*'
       : "c.id, c.project_id, c.client_id, c.display_number, c.url, c.page_section, '' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.created_at, c.updated_at";
 
+    // Scope by project or client
+    const scopeCondition = ctx.projectId
+      ? 'c.project_id = $1'
+      : 'p.client_id = $1';
+    const scopeValue = ctx.projectId ?? ctx.clientId;
+
     const result = await client.query(
       `SELECT ${selectClause} FROM comments c
        JOIN projects p ON c.project_id = p.id
-       WHERE p.client_id = $1 AND ${idColumn} = $2`,
-      [clientId, ticketId]
+       WHERE ${scopeCondition} AND ${idColumn} = $2`,
+      [scopeValue, ticketId]
     );
     return result.rows[0] ? mapRow(result.rows[0]) : null;
   } finally {

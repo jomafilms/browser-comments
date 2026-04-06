@@ -16,6 +16,7 @@ interface Project {
   client_id: number;
   name: string;
   url: string;
+  token: string | null;
   client_name?: string;
 }
 
@@ -180,6 +181,23 @@ function HomeContent() {
     } catch (err) {
       console.error('Error generating widget key:', err);
       alert('Failed to generate widget key');
+    }
+  };
+
+  const generateProjectToken = async (projectId: number) => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/regenerate-token?admin=${adminSecret}`, {
+        method: 'POST'
+      });
+      if (response.ok) {
+        const { token } = await response.json();
+        setProjects(prev => prev.map(p => p.id === projectId ? { ...p, token } : p));
+        navigator.clipboard.writeText(token);
+        alert('Project token generated and copied to clipboard! External devs use this token in BROWSER_COMMENTS_TOKEN for project-scoped access.');
+      }
+    } catch (err) {
+      console.error('Error generating project token:', err);
+      alert('Failed to generate project token');
     }
   };
 
@@ -402,6 +420,7 @@ function HomeContent() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">URL</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project Token</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -410,6 +429,39 @@ function HomeContent() {
                         <td className="px-4 py-3 text-sm text-gray-700">{project.client_name}</td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">{project.name}</td>
                         <td className="px-4 py-3 text-sm text-gray-500 truncate max-w-xs">{project.url}</td>
+                        <td className="px-4 py-3 text-sm">
+                          {project.token ? (
+                            <div className="flex items-center gap-2">
+                              <code className="text-xs text-gray-500 font-mono">{project.token.slice(0, 8)}...</code>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(project.token!);
+                                  alert('Project token copied!');
+                                }}
+                                className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-xs"
+                              >
+                                Copy
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm('Regenerate project token? The old token will stop working.')) {
+                                    generateProjectToken(project.id);
+                                  }
+                                }}
+                                className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs"
+                              >
+                                Regen
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => generateProjectToken(project.id)}
+                              className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-xs"
+                            >
+                              Generate Token
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
