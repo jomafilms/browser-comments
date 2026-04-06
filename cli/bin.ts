@@ -54,7 +54,7 @@ function extractFilters(flags: Record<string, string>): TicketFilters {
 const USAGE = `browser-comments <command> [options]
 
 Commands:
-  list    [--status=open|resolved] [--priority=high|med|low] [--assignee=X] [--section=X] [--project=ID]
+  list    [--status=open|resolved] [--priority=high|med|low] [--assignee=X] [--section=X] [--project=ID] [--include-images]
   show    <id|#display_number> [--include-images]
   resolve <id|#display_number> [--note="reason"]
   reopen  <id|#display_number>
@@ -80,7 +80,8 @@ async function main() {
     switch (command) {
       case 'list': {
         const filters = extractFilters(flags);
-        const result = await listCommand(config, filters);
+        const includeImages = flags['include-images'] === 'true';
+        const result = await listCommand(config, filters, includeImages);
         output(result, format);
         break;
       }

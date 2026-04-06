@@ -35,40 +35,70 @@ function formatTicket(t: Ticket): string {
   ].filter(Boolean).join('\n');
 }
 
+// Parse a data URL (data:image/jpeg;base64,...) into MCP image content
+function parseImageContent(imageData: string): { type: 'image'; data: string; mimeType: string } | null {
+  if (!imageData) return null;
+  const match = imageData.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+  if (!match) return null;
+  return { type: 'image', data: match[2], mimeType: match[1] };
+}
+
 // --- Tools ---
 
 server.tool(
   'list_tickets',
-  'List feedback tickets with optional filters',
+  'List feedback tickets with optional filters. Use include_images to see annotated screenshots.',
   {
     status: z.enum(['open', 'resolved']).optional().describe('Filter by status'),
     priority: z.enum(['high', 'med', 'low']).optional().describe('Filter by priority'),
     assignee: z.string().optional().describe('Filter by assignee name'),
     section: z.string().optional().describe('Filter by page section (partial match)'),
+    include_images: z.boolean().default(false).describe('Include annotated screenshot images'),
   },
-  async (filters) => {
-    const tickets = await fetchTickets(apiUrl, token, filters);
+  async ({ include_images, ...filters }) => {
+    const tickets = await fetchTickets(apiUrl, token, filters, include_images);
     if (tickets.length === 0) {
-      return { content: [{ type: 'text', text: 'No tickets found matching filters.' }] };
+      return { content: [{ type: 'text' as const, text: 'No tickets found matching filters.' }] };
     }
-    const text = `${tickets.length} ticket(s):\n\n${tickets.map(formatTicket).join('\n\n')}`;
-    return { content: [{ type: 'text', text }] };
+
+    const content: ({ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string })[] = [];
+
+    for (const ticket of tickets) {
+      content.push({ type: 'text' as const, text: formatTicket(ticket) });
+      if (include_images && ticket.image_data) {
+        const img = parseImageContent(ticket.image_data);
+        if (img) content.push(img);
+      }
+    }
+
+    return { content };
   }
 );
 
 server.tool(
   'show_ticket',
-  'Show details for a single ticket by number (e.g. #3) or internal ID',
+  'Show details for a single ticket by number (e.g. #3) or internal ID. Includes screenshot by default.',
   {
     ref: z.number().describe('Ticket display number or internal ID'),
     by_display_number: z.boolean().default(true).describe('If true, ref is the display number (#N). If false, ref is the internal ID.'),
+    include_image: z.boolean().default(true).describe('Include the annotated screenshot image'),
   },
-  async ({ ref, by_display_number }) => {
-    const ticket = await fetchTicketById(apiUrl, token, ref, by_display_number);
+  async ({ ref, by_display_number, include_image }) => {
+    const ticket = await fetchTicketById(apiUrl, token, ref, by_display_number, include_image);
     if (!ticket) {
-      return { content: [{ type: 'text', text: `Ticket ${by_display_number ? '#' : 'id:'}${ref} not found.` }] };
+      return { content: [{ type: 'text' as const, text: `Ticket ${by_display_number ? '#' : 'id:'}${ref} not found.` }] };
     }
-    return { content: [{ type: 'text', text: formatTicket(ticket) }] };
+
+    const content: ({ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string })[] = [
+      { type: 'text' as const, text: formatTicket(ticket) },
+    ];
+
+    if (include_image && ticket.image_data) {
+      const img = parseImageContent(ticket.image_data);
+      if (img) content.push(img);
+    }
+
+    return { content };
   }
 );
 
@@ -82,10 +112,10 @@ server.tool(
   async ({ ref, note }) => {
     const ticket = await fetchTicketById(apiUrl, token, ref, true);
     if (!ticket) {
-      return { content: [{ type: 'text', text: `Ticket #${ref} not found.` }] };
+      return { content: [{ type: 'text' as const, text: `Ticket #${ref} not found.` }] };
     }
     await patchTicket(apiUrl, token, ticket.id, { status: 'resolved', ...(note ? { note } : {}) });
-    return { content: [{ type: 'text', text: `Ticket #${ref} resolved.${note ? ` Note: ${note}` : ''}` }] };
+    return { content: [{ type: 'text' as const, text: `Ticket #${ref} resolved.${note ? ` Note: ${note}` : ''}` }] };
   }
 );
 
@@ -98,10 +128,10 @@ server.tool(
   async ({ ref }) => {
     const ticket = await fetchTicketById(apiUrl, token, ref, true);
     if (!ticket) {
-      return { content: [{ type: 'text', text: `Ticket #${ref} not found.` }] };
+      return { content: [{ type: 'text' as const, text: `Ticket #${ref} not found.` }] };
     }
     await patchTicket(apiUrl, token, ticket.id, { status: 'open' });
-    return { content: [{ type: 'text', text: `Ticket #${ref} reopened.` }] };
+    return { content: [{ type: 'text' as const, text: `Ticket #${ref} reopened.` }] };
   }
 );
 
@@ -115,10 +145,10 @@ server.tool(
   async ({ ref, assignee }) => {
     const ticket = await fetchTicketById(apiUrl, token, ref, true);
     if (!ticket) {
-      return { content: [{ type: 'text', text: `Ticket #${ref} not found.` }] };
+      return { content: [{ type: 'text' as const, text: `Ticket #${ref} not found.` }] };
     }
     await patchTicket(apiUrl, token, ticket.id, { assignee });
-    return { content: [{ type: 'text', text: `Ticket #${ref} assigned to ${assignee}.` }] };
+    return { content: [{ type: 'text' as const, text: `Ticket #${ref} assigned to ${assignee}.` }] };
   }
 );
 

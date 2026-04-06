@@ -11,6 +11,7 @@ export interface Ticket {
   text_annotations: { text: string; x: number; y: number; color: string }[];
   created_at: string;
   updated_at: string;
+  image_data?: string;
 }
 
 export interface TicketFilters {
@@ -23,11 +24,12 @@ export interface TicketFilters {
 export async function fetchTickets(
   apiUrl: string,
   token: string,
-  filters: TicketFilters
+  filters: TicketFilters,
+  includeImages: boolean = false
 ): Promise<Ticket[]> {
   const url = new URL('/api/comments', apiUrl);
   url.searchParams.set('token', token);
-  url.searchParams.set('excludeImages', 'true');
+  if (!includeImages) url.searchParams.set('excludeImages', 'true');
 
   const res = await fetch(url.toString());
   if (!res.ok) {
@@ -58,11 +60,12 @@ export async function fetchTicketById(
   apiUrl: string,
   token: string,
   ref: number,
-  byDisplayNumber: boolean
+  byDisplayNumber: boolean,
+  includeImage: boolean = false
 ): Promise<Ticket | null> {
   const url = new URL('/api/comments', apiUrl);
   url.searchParams.set('token', token);
-  url.searchParams.set('excludeImages', 'true');
+  if (!includeImage) url.searchParams.set('excludeImages', 'true');
 
   const res = await fetch(url.toString());
   if (!res.ok) {
