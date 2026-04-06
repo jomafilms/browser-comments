@@ -12,7 +12,7 @@ Add to your project's `.env.local`:
 
 ```
 BROWSER_COMMENTS_TOKEN=your_project_token_here
-BROWSER_COMMENTS_API=https://dev-tix.vercel.app
+BROWSER_COMMENTS_API=https://your-instance.vercel.app
 ```
 
 ## 3. Choose your integration
@@ -29,7 +29,7 @@ Add to your Claude Code MCP config (`~/.claude/settings.json` or project-level `
       "args": ["-y", "browser-comments-mcp"],
       "env": {
         "BROWSER_COMMENTS_TOKEN": "your_project_token_here",
-        "BROWSER_COMMENTS_API": "https://dev-tix.vercel.app"
+        "BROWSER_COMMENTS_API": "https://your-instance.vercel.app"
       }
     }
   }
@@ -72,10 +72,10 @@ All endpoints accept your token as a query param or Bearer header:
 
 ```bash
 # List tickets
-curl "https://dev-tix.vercel.app/api/comments?token=YOUR_TOKEN&excludeImages=true"
+curl "https://your-instance.vercel.app/api/comments?token=YOUR_TOKEN&excludeImages=true"
 
 # Update a ticket
-curl -X PATCH "https://dev-tix.vercel.app/api/comments/42" \
+curl -X PATCH "https://your-instance.vercel.app/api/comments/42" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"status": "resolved", "note": "Fixed"}'
@@ -87,7 +87,7 @@ If you want testers to submit visual feedback on your dev/staging site, add this
 
 ```html
 <script
-  src="https://dev-tix.vercel.app/widget.js"
+  src="https://your-instance.vercel.app/widget.js"
   data-key="YOUR_WIDGET_KEY"
 ></script>
 ```
