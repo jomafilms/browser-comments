@@ -37,10 +37,9 @@ export async function POST(request: NextRequest) {
   if (!ctx) {
     return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
   }
-  // Project tokens cannot add client-level assignees
-  if (ctx.projectId) {
-    return NextResponse.json({ error: 'Project tokens cannot add assignees. Use a client token.' }, { status: 403 });
-  }
+  // Note: assignees are client-level, so project tokens add to the shared
+  // pool across all projects under this client. Dev teams need this to
+  // self-manage their assignee list.
 
   try {
     const body = await request.json();
