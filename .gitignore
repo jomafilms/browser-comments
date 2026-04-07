@@ -38,6 +38,7 @@ next-env.d.ts
 
 # cli build output
 cli/dist/
+cli/node_modules/
 
 # mcp build output
 mcp/dist/

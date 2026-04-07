@@ -4,12 +4,10 @@ A CLI tool for pulling and managing dev tickets (feedback comments) from browser
 
 ## Setup
 
-### 1. Install globally from this repo
+### 1. Install from npm
 
 ```bash
-cd browser-comments
-npm run cli:build
-npm link
+npm i -g @jomafilms/browser-comments-cli
 ```
 
 This makes `browser-comments` available as a global command.

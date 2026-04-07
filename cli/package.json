@@ -1,0 +1,37 @@
+{
+  "name": "@jomafilms/browser-comments-cli",
+  "version": "0.1.0",
+  "description": "CLI for browser-comments — query and manage feedback tickets from the terminal or AI agent workflows",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jomafilms/browser-comments.git",
+    "directory": "cli"
+  },
+  "homepage": "https://github.com/jomafilms/browser-comments#readme",
+  "bugs": {
+    "url": "https://github.com/jomafilms/browser-comments/issues"
+  },
+  "keywords": ["cli", "feedback", "tickets", "browser-comments", "ai-agent"],
+  "bin": {
+    "browser-comments": "dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc && chmod +x dist/bin.js",
+    "dev": "tsx bin.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.15.5",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

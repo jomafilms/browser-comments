@@ -40,18 +40,18 @@ Available tools:
 
 | Tool | Description |
 |------|-------------|
-| `list_tickets` | List tickets with optional filters (status, priority, assignee, section) |
-| `show_ticket` | Show details for a single ticket by number |
+| `list_tickets` | List tickets with optional filters (status, priority, assignee, section). Supports `include_images` to see annotated screenshots. |
+| `show_ticket` | Show details for a single ticket by number. Includes the annotated screenshot by default. |
 | `resolve_ticket` | Mark a ticket as resolved, optionally with a note |
 | `reopen_ticket` | Reopen a previously resolved ticket |
 | `assign_ticket` | Assign a ticket to a team member |
 
 ### Option B: CLI tool
 
-Install the CLI globally:
+Install from npm:
 
 ```bash
-npm i -g browser-comments-cli
+npm i -g @jomafilms/browser-comments-cli
 ```
 
 Then from any project directory with `.env.local` containing your token:
@@ -62,6 +62,9 @@ browser-comments list --status open
 
 # Show a specific ticket
 browser-comments show 3
+
+# Show with annotated screenshot
+browser-comments show 3 --include-images
 
 # Resolve a ticket with a note
 browser-comments resolve 3 --note "Fixed in commit abc123"
