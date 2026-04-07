@@ -440,7 +440,23 @@ function HomeContent() {
                                 }}
                                 className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-xs"
                               >
-                                Copy
+                                Copy Token
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const url = `${window.location.origin}/c/${project.token}/comments?status=open&sort=priority`;
+                                  navigator.clipboard.writeText(url);
+                                  alert('Project link copied to clipboard!');
+                                }}
+                                className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-xs"
+                              >
+                                Copy Link
+                              </button>
+                              <button
+                                onClick={() => window.open(`/c/${project.token}/comments?status=open&sort=priority`, '_blank')}
+                                className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-xs"
+                              >
+                                Open
                               </button>
                               <button
                                 onClick={() => {
