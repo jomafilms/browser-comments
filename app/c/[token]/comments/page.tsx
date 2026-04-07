@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
 import ClientNav from '@/components/ClientNav';
 import CommentsTableView from '@/components/CommentsTableView';
 import CommentCard, { Comment } from '@/components/CommentCard';
@@ -321,7 +320,6 @@ export default function ClientCommentsPage() {
             <input type="number" value={searchCommentId} onChange={(e) => setSearchCommentId(e.target.value)} placeholder="Jump to #" min="1" className="w-24 px-2 py-1 border border-gray-300 rounded text-sm" />
             <button type="submit" className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm">Go</button>
           </form>
-          <Link href={`/c/${token}`} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm">New Comment</Link>
         </ClientNav>
       </div>
 
@@ -371,7 +369,6 @@ export default function ClientCommentsPage() {
         ) : comments.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500">No comments found</p>
-            <Link href={`/c/${token}`} className="mt-4 inline-block px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600">Create First Comment</Link>
           </div>
         ) : viewMode === 'table' ? (
           <CommentsTableView comments={displayComments} assignees={assignees} onUpdatePriority={updatePriority} onUpdateAssignee={updateAssignee} onToggleStatus={toggleStatus} onDeleteComment={deleteComment} onSwitchToCardView={() => setViewMode('card')} onBatchUpdatePriority={batchUpdatePriority} />
