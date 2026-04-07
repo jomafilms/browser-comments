@@ -1,6 +1,6 @@
 {
   "name": "@jomafilms/browser-comments-mcp",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "MCP server for browser-comments — pull feedback tickets into Claude Code and other AI agents",
   "license": "MIT",
   "repository": {
@@ -14,7 +14,7 @@
   },
   "keywords": ["mcp", "claude", "claude-code", "feedback", "browser-comments"],
   "bin": {
-    "browser-comments-mcp": "./dist/index.js"
+    "browser-comments-mcp": "dist/index.js"
   },
   "files": [
     "dist",

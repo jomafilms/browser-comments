@@ -19,22 +19,20 @@ BROWSER_COMMENTS_API=https://your-instance.vercel.app
 
 ### Option A: MCP Server (recommended for Claude Code)
 
-Add to your Claude Code MCP config (`~/.claude/settings.json` or project-level `.claude/settings.json`):
+Add once to your global Claude Code config (`~/.claude/settings.json`):
 
 ```json
 {
   "mcpServers": {
     "browser-comments": {
       "command": "npx",
-      "args": ["-y", "@jomafilms/browser-comments-mcp"],
-      "env": {
-        "BROWSER_COMMENTS_TOKEN": "your_project_token_here",
-        "BROWSER_COMMENTS_API": "https://your-instance.vercel.app"
-      }
+      "args": ["-y", "@jomafilms/browser-comments-mcp"]
     }
   }
 }
 ```
+
+The MCP server reads `BROWSER_COMMENTS_TOKEN` and `BROWSER_COMMENTS_API` from each project's `.env.local` (step 2 above). You only configure the MCP server once globally — every project with a token in `.env.local` will work.
 
 This gives your Claude Code instance tools: `list_tickets`, `show_ticket`, `resolve_ticket`, `reopen_ticket`, and `assign_ticket`.
 

@@ -3,13 +3,41 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import * as fs from 'fs';
+import * as path from 'path';
 import { fetchTickets, fetchTicketById, patchTicket, Ticket } from './api-client';
 
-const apiUrl = process.env.BROWSER_COMMENTS_API;
-const token = process.env.BROWSER_COMMENTS_TOKEN;
+// Load .env.local from current working directory (the project Claude Code is running in).
+// This lets users put a global MCP config in ~/.claude/settings.json and store
+// per-project tokens in each project's .env.local file.
+function loadEnvFile(filePath: string): Record<string, string> {
+  const vars: Record<string, string> = {};
+  if (!fs.existsSync(filePath)) return vars;
+  const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    let value = trimmed.slice(eqIdx + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    vars[key] = value;
+  }
+  return vars;
+}
+
+const fileVars = loadEnvFile(path.join(process.cwd(), '.env.local'));
+
+// process.env wins over .env.local so MCP config env can override
+const apiUrl = process.env.BROWSER_COMMENTS_API || fileVars.BROWSER_COMMENTS_API;
+const token = process.env.BROWSER_COMMENTS_TOKEN || fileVars.BROWSER_COMMENTS_TOKEN;
 
 if (!apiUrl || !token) {
-  console.error('BROWSER_COMMENTS_API and BROWSER_COMMENTS_TOKEN env vars are required');
+  console.error('BROWSER_COMMENTS_API and BROWSER_COMMENTS_TOKEN are required.');
+  console.error('Set them in your MCP config env, or in .env.local in your project root.');
   process.exit(1);
 }
 
