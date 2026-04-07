@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initDB, getClientByToken, getWidgetSettingsByKey, updateWidgetSettings } from '@/lib/db';
+import { initDB, getClientByToken, getWidgetSettingsByKey, updateWidgetSettings, resolveToken } from '@/lib/db';
+import pool from '@/lib/db';
+
+async function getClientByContextId(clientId: number) {
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query('SELECT * FROM clients WHERE id = $1', [clientId]);
+    return result.rows[0] || null;
+  } finally {
+    dbClient.release();
+  }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -31,16 +42,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(settings || {}, { headers: cacheHeaders });
   }
 
-  // For settings page - fetch by token
+  // For settings page - fetch by token (project or client)
   if (token) {
-    const client = await getClientByToken(token);
-    if (!client) {
+    const ctx = await resolveToken(token);
+    if (!ctx) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+    const client = await getClientByContextId(ctx.clientId);
+    if (!client) {
+      return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
     return NextResponse.json({
       settings: client.widget_settings || {},
       clientName: client.name,
       widgetKey: client.widget_key || null,
+      readOnly: ctx.projectId !== null, // project tokens can't modify client-level widget settings
     });
   }
 
@@ -58,9 +74,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Token required' }, { status: 400 });
   }
 
-  const client = await getClientByToken(token);
-  if (!client) {
+  const ctx = await resolveToken(token);
+  if (!ctx) {
     return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+  }
+  // Project tokens cannot modify client-level widget settings
+  if (ctx.projectId) {
+    return NextResponse.json({ error: 'Project tokens cannot modify widget settings. Use a client token.' }, { status: 403 });
+  }
+  const client = await getClientByContextId(ctx.clientId);
+  if (!client) {
+    return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 
   try {

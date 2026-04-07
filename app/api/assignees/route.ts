@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initDB, getClientByToken, getAssigneesByClientId, createAssignee } from '@/lib/db';
+import { initDB, resolveToken, getAssigneesByClientId, createAssignee } from '@/lib/db';
 
 // GET - Fetch assignees for a client
 export async function GET(request: NextRequest) {
@@ -12,12 +12,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Token required' }, { status: 400 });
   }
 
-  const client = await getClientByToken(token);
-  if (!client) {
+  const ctx = await resolveToken(token);
+  if (!ctx) {
     return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
   }
 
-  const assignees = await getAssigneesByClientId(client.id);
+  // Assignees are client-level — project tokens read their parent client's assignees
+  const assignees = await getAssigneesByClientId(ctx.clientId);
   return NextResponse.json(assignees);
 }
 
@@ -32,9 +33,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Token required' }, { status: 400 });
   }
 
-  const client = await getClientByToken(token);
-  if (!client) {
+  const ctx = await resolveToken(token);
+  if (!ctx) {
     return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+  }
+  // Project tokens cannot add client-level assignees
+  if (ctx.projectId) {
+    return NextResponse.json({ error: 'Project tokens cannot add assignees. Use a client token.' }, { status: 403 });
   }
 
   try {
@@ -45,7 +50,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
-    const assignee = await createAssignee(client.id, name.trim());
+    const assignee = await createAssignee(ctx.clientId, name.trim());
     return NextResponse.json(assignee);
   } catch (error: any) {
     // Handle unique constraint violation

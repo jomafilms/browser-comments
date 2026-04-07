@@ -14,7 +14,6 @@ export default function ClientNav({ token, clientName, children }: ClientNavProp
   const pathname = usePathname();
 
   const navItems = [
-    { href: `/c/${token}`, label: 'Projects' },
     { href: `/c/${token}/comments`, label: 'Comments' },
     { href: `/c/${token}/decisions`, label: 'Decisions' },
     { href: `/c/${token}/settings`, label: 'Settings' },

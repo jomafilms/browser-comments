@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDecisionItems, addDecisionItem, getDecisionItemsByProjectId, getDecisionItemsByClientId, getClientByToken, initDB } from '@/lib/db';
+import { getDecisionItems, addDecisionItem, getDecisionItemsByProjectId, getDecisionItemsByClientId, resolveToken, initDB } from '@/lib/db';
 
 // Initialize DB on first request
 let dbInitialized = false;
@@ -18,13 +18,19 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get('projectId');
     const token = searchParams.get('token');
 
-    // If token provided, get decisions for that client
+    // If token provided, resolve to project or client scope
     if (token) {
-      const client = await getClientByToken(token);
-      if (!client) {
+      const ctx = await resolveToken(token);
+      if (!ctx) {
         return NextResponse.json({ error: 'Invalid token' }, { status: 404 });
       }
-      const items = await getDecisionItemsByClientId(client.id);
+      // Project token: only that project's decisions
+      if (ctx.projectId) {
+        const items = await getDecisionItemsByProjectId(ctx.projectId);
+        return NextResponse.json(items);
+      }
+      // Client token: all decisions for the client
+      const items = await getDecisionItemsByClientId(ctx.clientId);
       return NextResponse.json(items);
     }
 
