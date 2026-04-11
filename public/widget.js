@@ -100,10 +100,83 @@
     }
   }
 
+  // Detect if the host app is in dark mode
+  function isDarkMode() {
+    const html = document.documentElement;
+    // Check common dark mode indicators on the host app
+    if (html.classList.contains('dark')) return true;
+    if (html.getAttribute('data-theme') === 'dark') return true;
+    if (html.getAttribute('data-mode') === 'dark') return true;
+    if (document.body?.classList.contains('dark')) return true;
+    // Check computed background color of body
+    const bg = window.getComputedStyle(document.body).backgroundColor;
+    if (bg) {
+      const match = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (match) {
+        const luminance = (0.299 * +match[1] + 0.587 * +match[2] + 0.114 * +match[3]) / 255;
+        if (luminance < 0.4) return true;
+      }
+    }
+    // Fall back to OS preference
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches || false;
+  }
+
   // Inject styles
   function injectStyles() {
     const existing = document.getElementById('bc-widget-styles');
     if (existing) existing.remove();
+
+    const dark = isDarkMode();
+    // Theme tokens
+    const t = dark ? {
+      modalBg: '#1f2937',
+      modalBorder: '#374151',
+      canvasBg: '#111827',
+      textPrimary: '#f3f4f6',
+      textSecondary: '#9ca3af',
+      inputBg: '#374151',
+      inputBorder: '#4b5563',
+      toolGroupBg: '#374151',
+      toolBtnHover: '#4b5563',
+      actionBg: '#374151',
+      actionHover: '#4b5563',
+      cancelBg: '#374151',
+      cancelHover: '#4b5563',
+      divider: '#4b5563',
+      colorOptBg: '#374151',
+      colorOptArrow: '#374151',
+      colorOptActiveBorder: '#f3f4f6',
+      textAnnotationBg: 'rgba(31, 41, 55, 0.95)',
+      textWrapperHover: 'rgba(255,255,255,0.05)',
+      canvasBorder: '#4b5563',
+      readonlyBg: '#374151',
+      readonlyColor: '#9ca3af',
+      colorDotBorder: '#374151',
+    } : {
+      modalBg: 'white',
+      modalBorder: '#e5e7eb',
+      canvasBg: '#f3f4f6',
+      textPrimary: '#1f2937',
+      textSecondary: '#6b7280',
+      inputBg: 'white',
+      inputBorder: '#d1d5db',
+      toolGroupBg: '#f3f4f6',
+      toolBtnHover: '#e5e7eb',
+      actionBg: '#e5e7eb',
+      actionHover: '#d1d5db',
+      cancelBg: '#e5e7eb',
+      cancelHover: '#d1d5db',
+      divider: '#d1d5db',
+      colorOptBg: 'white',
+      colorOptArrow: 'white',
+      colorOptActiveBorder: '#1f2937',
+      textAnnotationBg: 'rgba(255, 255, 255, 0.95)',
+      textWrapperHover: 'rgba(0,0,0,0.05)',
+      canvasBorder: '#d1d5db',
+      readonlyBg: '#f3f4f6',
+      readonlyColor: '#6b7280',
+      colorDotBorder: 'white',
+    };
 
     const styles = document.createElement('style');
     styles.id = 'bc-widget-styles';
@@ -162,7 +235,7 @@
         padding: 16px;
       }
       .bc-modal {
-        background: white;
+        background: ${t.modalBg};
         border-radius: 12px;
         max-width: 900px;
         width: 100%;
@@ -173,7 +246,7 @@
       }
       .bc-modal-header {
         padding: 16px;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid ${t.modalBorder};
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
@@ -182,44 +255,44 @@
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 18px;
         font-weight: 600;
-        color: #1f2937;
+        color: ${t.textPrimary};
         margin: 0;
       }
       .bc-modal-subtitle {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 14px;
-        color: #6b7280;
+        color: ${t.textSecondary};
         margin: 4px 0 0 0;
       }
       .bc-close-btn {
         background: none;
         border: none;
         font-size: 24px;
-        color: #6b7280;
+        color: ${t.textSecondary};
         cursor: pointer;
         padding: 0;
         line-height: 1;
       }
       .bc-close-btn:hover {
-        color: #1f2937;
+        color: ${t.textPrimary};
       }
       .bc-canvas-container {
         flex: 1;
         overflow: auto;
         padding: 16px;
-        background: #f3f4f6;
+        background: ${t.canvasBg};
         position: relative;
       }
       .bc-canvas {
         max-width: 100%;
         height: auto;
         cursor: crosshair;
-        border: 1px solid #d1d5db;
+        border: 1px solid ${t.canvasBorder};
         border-radius: 4px;
       }
       .bc-toolbar {
         padding: 16px;
-        border-top: 1px solid #e5e7eb;
+        border-top: 1px solid ${t.modalBorder};
       }
       .bc-tool-row {
         display: flex;
@@ -231,7 +304,7 @@
         display: flex;
         gap: 4px;
         padding: 4px;
-        background: #f3f4f6;
+        background: ${t.toolGroupBg};
         border-radius: 8px;
       }
       .bc-tool-btn {
@@ -240,10 +313,10 @@
         background: transparent;
         border-radius: 4px;
         cursor: pointer;
-        color: #6b7280;
+        color: ${t.textSecondary};
       }
       .bc-tool-btn:hover {
-        background: #e5e7eb;
+        background: ${t.toolBtnHover};
       }
       .bc-tool-btn.active {
         background: ${config.primaryColor}22;
@@ -256,19 +329,20 @@
       .bc-divider {
         width: 1px;
         height: 32px;
-        background: #d1d5db;
+        background: ${t.divider};
       }
       .bc-action-btn {
         padding: 6px 12px;
         border: none;
-        background: #e5e7eb;
+        background: ${t.actionBg};
+        color: ${t.textSecondary};
         border-radius: 4px;
         cursor: pointer;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 14px;
       }
       .bc-action-btn:hover {
-        background: #d1d5db;
+        background: ${t.actionHover};
       }
       .bc-action-btn:disabled {
         opacity: 0.5;
@@ -277,8 +351,10 @@
       .bc-name-input {
         width: 100%;
         padding: 8px 12px;
-        border: 1px solid #d1d5db;
+        border: 1px solid ${t.inputBorder};
         border-radius: 8px;
+        background: ${t.inputBg};
+        color: ${t.textPrimary};
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 14px;
         margin-bottom: 8px;
@@ -290,14 +366,16 @@
         box-shadow: 0 0 0 2px ${config.primaryColor}33;
       }
       .bc-name-input[readonly] {
-        background: #f3f4f6;
-        color: #6b7280;
+        background: ${t.readonlyBg};
+        color: ${t.readonlyColor};
       }
       .bc-textarea {
         width: 100%;
         padding: 8px 12px;
-        border: 1px solid #d1d5db;
+        border: 1px solid ${t.inputBorder};
         border-radius: 8px;
+        background: ${t.inputBg};
+        color: ${t.textPrimary};
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 14px;
         resize: none;
@@ -317,14 +395,15 @@
       .bc-cancel-btn {
         padding: 10px 16px;
         border: none;
-        background: #e5e7eb;
+        background: ${t.cancelBg};
+        color: ${t.textSecondary};
         border-radius: 8px;
         cursor: pointer;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 14px;
       }
       .bc-cancel-btn:hover {
-        background: #d1d5db;
+        background: ${t.cancelHover};
       }
       .bc-submit-btn {
         padding: 10px 16px;
@@ -356,7 +435,7 @@
       .bc-success-text {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 16px;
-        color: #6b7280;
+        color: ${t.textSecondary};
       }
       .bc-color-picker {
         position: relative;
@@ -368,7 +447,7 @@
         height: 24px;
         border-radius: 50%;
         cursor: pointer;
-        border: 2px solid white;
+        border: 2px solid ${t.colorDotBorder};
         box-shadow: 0 0 0 1px #d1d5db;
         transition: transform 0.15s;
       }
@@ -380,7 +459,7 @@
         bottom: 100%;
         left: 50%;
         transform: translateX(-50%);
-        background: white;
+        background: ${t.colorOptBg};
         border-radius: 8px;
         padding: 6px;
         display: flex;
@@ -395,7 +474,7 @@
         left: 50%;
         transform: translateX(-50%);
         border: 6px solid transparent;
-        border-top-color: white;
+        border-top-color: ${t.colorOptArrow};
       }
       .bc-color-option {
         width: 20px;
@@ -409,7 +488,7 @@
         transform: scale(1.15);
       }
       .bc-color-option.active {
-        border-color: #1f2937;
+        border-color: ${t.colorOptActiveBorder};
       }
       .bc-text-wrapper {
         position: absolute;
@@ -419,11 +498,12 @@
         margin: -10px;
       }
       .bc-text-wrapper:hover {
-        background: rgba(0,0,0,0.05);
+        background: ${t.textWrapperHover};
       }
       .bc-text-annotation {
         min-width: 100px;
-        background: rgba(255, 255, 255, 0.95);
+        background: ${t.textAnnotationBg};
+        color: ${t.textPrimary};
         border: 2px solid;
         border-radius: 4px;
         padding: 6px 10px 12px 10px;
@@ -505,6 +585,20 @@
   let button = null;
   let preCapture = null; // screenshot captured on mousedown before click-outside closes modals
   let isMinimized = localStorage.getItem('bc-widget-minimized') === 'true';
+  let lastDarkMode = null; // track dark mode changes
+
+  // Watch for dark mode toggles on <html> and <body> (class/attribute changes)
+  const darkModeObserver = new MutationObserver(() => {
+    const dark = isDarkMode();
+    if (dark !== lastDarkMode) {
+      lastDarkMode = dark;
+      injectStyles();
+    }
+  });
+  darkModeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme', 'data-mode'] });
+  if (document.body) {
+    darkModeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  }
 
   // Toggle minimized state
   function toggleMinimize(e) {
