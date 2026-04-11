@@ -542,7 +542,7 @@
         <span class="bc-btn-text">${config.buttonText}</span>
         <span class="bc-minimize-btn" title="Minimize">−</span>
       `;
-      button.onclick = openModal;
+      button.onclick = (e) => { e.stopPropagation(); openModal(); };
       // Pre-capture screenshot on mousedown, before click propagates and closes
       // any open modals/dropdowns on the page via click-outside handlers
       button.onmousedown = async (e) => {
@@ -961,7 +961,7 @@
     if (!overlay) {
       overlay = document.createElement('div');
       overlay.className = 'bc-modal-overlay';
-      overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
+      overlay.onclick = (e) => { e.stopPropagation(); if (e.target === overlay) closeModal(); };
       document.body.appendChild(overlay);
     }
 
