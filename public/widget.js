@@ -503,6 +503,7 @@
   let comment = '';
   let submitterName = inlineUserName || inlineUserEmail || '';
   let button = null;
+  let preCapture = null; // screenshot captured on mousedown before click-outside closes modals
   let isMinimized = localStorage.getItem('bc-widget-minimized') === 'true';
 
   // Toggle minimized state
@@ -542,6 +543,17 @@
         <span class="bc-minimize-btn" title="Minimize">−</span>
       `;
       button.onclick = openModal;
+      // Pre-capture screenshot on mousedown, before click propagates and closes
+      // any open modals/dropdowns on the page via click-outside handlers
+      button.onmousedown = async (e) => {
+        if (isCapturing || isOpen) return;
+        e.preventDefault(); // prevent focus shift that might close modals
+        try {
+          preCapture = await captureScreenshot();
+        } catch (err) {
+          preCapture = null;
+        }
+      };
       button.style.padding = '10px 16px';
 
       // Add click handler to minimize button
@@ -667,7 +679,14 @@
     button.innerHTML = `<span>Capturing...</span>`;
 
     try {
-      screenshot = await captureScreenshot();
+      // Use pre-captured screenshot from mousedown if available (captures modals
+      // before click-outside handlers close them), otherwise capture now
+      if (preCapture) {
+        screenshot = preCapture;
+        preCapture = null;
+      } else {
+        screenshot = await captureScreenshot();
+      }
     } catch (err) {
       console.error('Failed to capture screenshot:', err);
       // Create a placeholder image instead of failing
