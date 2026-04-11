@@ -837,20 +837,34 @@ export async function getProjectByToken(token: string): Promise<Project | null> 
   }
 }
 
-// Get project by matching origin URL
+// Get project by matching origin URL.
+// The url column can hold multiple comma-separated URLs (e.g. "https://staging.example.com, http://localhost:3000").
+// Each entry is matched against the origin.
 export async function getProjectByOrigin(clientId: number, origin: string): Promise<Project | null> {
   const dbClient = await pool.connect();
   try {
-    // Match project URL that starts with or contains the origin
-    const result = await dbClient.query(
-      `SELECT * FROM projects WHERE client_id = $1 AND (
-        url LIKE $2 || '%' OR
-        url LIKE '%://' || $3 || '%' OR
-        $2 LIKE url || '%'
-      ) LIMIT 1`,
-      [clientId, origin, origin.replace(/^https?:\/\//, '')]
+    const projects = await dbClient.query(
+      `SELECT * FROM projects WHERE client_id = $1`,
+      [clientId]
     );
-    return result.rows[0] || null;
+    const originClean = origin.replace(/\/$/, '').toLowerCase();
+    const originNaked = originClean.replace(/^https?:\/\//, '');
+
+    for (const project of projects.rows) {
+      const urls = (project.url || '').split(',').map((u: string) => u.trim().replace(/\/$/, '').toLowerCase());
+      for (const url of urls) {
+        const urlNaked = url.replace(/^https?:\/\//, '');
+        if (
+          url === originClean ||
+          urlNaked === originNaked ||
+          originClean.startsWith(url) ||
+          url.startsWith(originClean)
+        ) {
+          return project;
+        }
+      }
+    }
+    return null;
   } finally {
     dbClient.release();
   }

@@ -110,10 +110,14 @@ function HomeContent() {
     }
 
     try {
-      let url = newProjectUrl;
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = 'https://' + url;
-      }
+      // Support comma-separated URLs, add https:// to each if missing
+      const url = newProjectUrl.split(',').map(u => {
+        const trimmed = u.trim();
+        if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+          return 'https://' + trimmed;
+        }
+        return trimmed;
+      }).join(', ');
 
       const response = await fetch(`/api/projects?admin=${adminSecret}`, {
         method: 'POST',
@@ -181,6 +185,20 @@ function HomeContent() {
     } catch (err) {
       console.error('Error generating widget key:', err);
       alert('Failed to generate widget key');
+    }
+  };
+
+  const deleteProjectById = async (projectId: number) => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}?admin=${adminSecret}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        setProjects(prev => prev.filter(p => p.id !== projectId));
+      }
+    } catch (err) {
+      console.error('Error deleting project:', err);
+      alert('Failed to delete project');
     }
   };
 
@@ -397,7 +415,7 @@ function HomeContent() {
                     type="text"
                     value={newProjectUrl}
                     onChange={(e) => setNewProjectUrl(e.target.value)}
-                    placeholder="URL to review (e.g., example.com/page)"
+                    placeholder="URLs (comma-separated, e.g. staging.example.com, localhost:3000)"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                   />
                   <button
@@ -421,6 +439,7 @@ function HomeContent() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">URL</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project Token</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -477,6 +496,18 @@ function HomeContent() {
                               Generate Token
                             </button>
                           )}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete project "${project.name}"? This will also delete all its comments.`)) {
+                                deleteProjectById(project.id);
+                              }
+                            }}
+                            className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs"
+                          >
+                            Delete
+                          </button>
                         </td>
                       </tr>
                     ))}
