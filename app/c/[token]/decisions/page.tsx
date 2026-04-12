@@ -14,6 +14,8 @@ interface DecisionItem {
   source: string | null;
   created_at: string;
   updated_at: string;
+  comment_display_number: number | null;
+  comment_project_id: number | null;
 }
 
 interface Project {
@@ -277,7 +279,7 @@ export default function ClientDecisionsPage() {
                 {decisions.map((decision) => (
                   <tr key={decision.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-700">
-                      {getProjectName(decision.project_id)}
+                      {getProjectName(decision.project_id || decision.comment_project_id)}
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <span className={`px-2 py-1 rounded text-xs ${
@@ -294,7 +296,7 @@ export default function ClientDecisionsPage() {
                           href={`/c/${token}/comments?commentId=${decision.comment_id}`}
                           className="text-blue-500 hover:underline font-mono"
                         >
-                          #{decision.comment_id}
+                          #{decision.comment_display_number || decision.comment_id}
                         </Link>
                       ) : (
                         <span className="text-gray-400">—</span>

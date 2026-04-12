@@ -597,7 +597,10 @@ export async function getDecisionItems(): Promise<DecisionItem[]> {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `SELECT * FROM decision_items ORDER BY created_at DESC`
+      `SELECT d.*, c.display_number as comment_display_number, c.project_id as comment_project_id
+       FROM decision_items d
+       LEFT JOIN comments c ON d.comment_id = c.id
+       ORDER BY d.created_at DESC`
     );
     return result.rows;
   } finally {
@@ -1075,9 +1078,11 @@ export async function getDecisionItemsByProjectId(projectId: number): Promise<De
   try {
     // Match decisions explicitly tagged with this project, OR decisions
     // linked to a comment that belongs to this project (covers older items
-    // created before project_id was passed on POST)
+    // created before project_id was passed on POST).
+    // Also return the comment's display_number and project_id for the UI.
     const result = await dbClient.query(
-      `SELECT d.* FROM decision_items d
+      `SELECT d.*, c.display_number as comment_display_number, c.project_id as comment_project_id
+       FROM decision_items d
        LEFT JOIN comments c ON d.comment_id = c.id
        WHERE d.project_id = $1
           OR (d.project_id IS NULL AND c.project_id = $1)
@@ -1095,8 +1100,10 @@ export async function getDecisionItemsByClientId(clientId: number): Promise<Deci
   const dbClient = await pool.connect();
   try {
     const result = await dbClient.query(
-      `SELECT d.* FROM decision_items d
-       JOIN projects p ON d.project_id = p.id
+      `SELECT d.*, c.display_number as comment_display_number, c.project_id as comment_project_id
+       FROM decision_items d
+       LEFT JOIN comments c ON d.comment_id = c.id
+       LEFT JOIN projects p ON COALESCE(d.project_id, c.project_id) = p.id
        WHERE p.client_id = $1
        ORDER BY d.created_at DESC`,
       [clientId]
