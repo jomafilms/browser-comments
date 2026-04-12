@@ -1073,8 +1073,15 @@ export async function getCommentsByClientId(
 export async function getDecisionItemsByProjectId(projectId: number): Promise<DecisionItem[]> {
   const dbClient = await pool.connect();
   try {
+    // Match decisions explicitly tagged with this project, OR decisions
+    // linked to a comment that belongs to this project (covers older items
+    // created before project_id was passed on POST)
     const result = await dbClient.query(
-      `SELECT * FROM decision_items WHERE project_id = $1 ORDER BY created_at DESC`,
+      `SELECT d.* FROM decision_items d
+       LEFT JOIN comments c ON d.comment_id = c.id
+       WHERE d.project_id = $1
+          OR (d.project_id IS NULL AND c.project_id = $1)
+       ORDER BY d.created_at DESC`,
       [projectId]
     );
     return result.rows;

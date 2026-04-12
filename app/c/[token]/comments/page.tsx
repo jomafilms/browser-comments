@@ -263,7 +263,7 @@ export default function ClientCommentsPage() {
       if (addNoteToDecisions) {
         const comment = comments.find(c => c.id === id);
         const noteIndex = comment ? comment.text_annotations.length : 0;
-        await fetch('/api/decisions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ noteText: newNote, commentId: id, noteIndex, source: 'comment' }) });
+        await fetch('/api/decisions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ noteText: newNote, commentId: id, noteIndex, source: 'comment', projectId: comment?.project_id || null }) });
         fetchDecisionItems();
       }
       setNewNote(''); setAddNoteToDecisions(false); setExpandedComment(null);
