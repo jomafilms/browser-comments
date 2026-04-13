@@ -583,7 +583,7 @@
   let comment = '';
   let submitterName = inlineUserName || inlineUserEmail || '';
   let button = null;
-  let preCapture = null; // screenshot captured on mousedown before click-outside closes modals
+  let preCapturePromise = null; // screenshot capture started on mousedown
   let isMinimized = localStorage.getItem('bc-widget-minimized') === 'true';
   let lastDarkMode = null; // track dark mode changes
 
@@ -639,14 +639,11 @@
       button.onclick = (e) => { e.stopPropagation(); openModal(); };
       // Pre-capture screenshot on mousedown, before click propagates and closes
       // any open modals/dropdowns on the page via click-outside handlers
-      button.onmousedown = async (e) => {
+      button.onmousedown = (e) => {
         if (isCapturing || isOpen) return;
         e.preventDefault(); // prevent focus shift that might close modals
-        try {
-          preCapture = await captureScreenshot();
-        } catch (err) {
-          preCapture = null;
-        }
+        // Start capture immediately — openModal will await this promise
+        preCapturePromise = captureScreenshot().catch(() => null);
       };
       button.style.padding = '10px 16px';
 
@@ -773,12 +770,13 @@
     button.innerHTML = `<span>Capturing...</span>`;
 
     try {
-      // Use pre-captured screenshot from mousedown if available (captures modals
-      // before click-outside handlers close them), otherwise capture now
-      if (preCapture) {
-        screenshot = preCapture;
-        preCapture = null;
-      } else {
+      // Await the capture started on mousedown (preserves modals/dropdowns
+      // that close on click), or capture fresh if no mousedown preceded this
+      if (preCapturePromise) {
+        screenshot = await preCapturePromise;
+        preCapturePromise = null;
+      }
+      if (!screenshot) {
         screenshot = await captureScreenshot();
       }
     } catch (err) {
@@ -811,6 +809,7 @@
   function closeModal() {
     isOpen = false;
     screenshot = null;
+    preCapturePromise = null;
     annotations = [];
     currentAnnotation = null;
     textAnnotations = [];
