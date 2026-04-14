@@ -639,12 +639,14 @@
       button.onclick = (e) => { e.stopPropagation(); openModal(); };
       // Pre-capture screenshot on mousedown, before click propagates and closes
       // any open modals/dropdowns on the page via click-outside handlers
-      button.onmousedown = (e) => {
+      const startPreCapture = (e) => {
         if (isCapturing || isOpen) return;
         e.preventDefault(); // prevent focus shift that might close modals
         // Start capture immediately — openModal will await this promise
         preCapturePromise = captureScreenshot().catch(() => null);
       };
+      button.onmousedown = startPreCapture;
+      button.ontouchstart = startPreCapture;
       button.style.padding = '10px 16px';
 
       // Add click handler to minimize button
@@ -1319,65 +1321,78 @@
           updateToolbarState(overlay);
         };
 
-        // Drag functionality
+        // Drag functionality (mouse + touch)
         let isDragging = false;
         let dragOffsetX = 0;
         let dragOffsetY = 0;
 
-        wrapper.onmousedown = (e) => {
-          if (e.target === input || e.target === deleteBtn || e.target === resizeHandle) return;
+        const startDrag = (e) => {
+          const target = e.target || (e.touches && document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY));
+          if (target === input || target === deleteBtn || target === resizeHandle) return;
           isDragging = true;
-          dragOffsetX = e.clientX - wrapper.offsetLeft;
-          dragOffsetY = e.clientY - wrapper.offsetTop;
+          const cx = e.touches ? e.touches[0].clientX : e.clientX;
+          const cy = e.touches ? e.touches[0].clientY : e.clientY;
+          dragOffsetX = cx - wrapper.offsetLeft;
+          dragOffsetY = cy - wrapper.offsetTop;
           e.preventDefault();
         };
+        wrapper.onmousedown = startDrag;
+        wrapper.ontouchstart = startDrag;
 
-        document.addEventListener('mousemove', (e) => {
+        const moveDrag = (e) => {
           if (!isDragging) return;
-          const newX = e.clientX - dragOffsetX;
-          const newY = e.clientY - dragOffsetY;
+          const cx = e.touches ? e.touches[0].clientX : e.clientX;
+          const cy = e.touches ? e.touches[0].clientY : e.clientY;
+          const newX = cx - dragOffsetX;
+          const newY = cy - dragOffsetY;
           wrapper.style.left = newX + 'px';
           wrapper.style.top = newY + 'px';
-          // Update canvas coordinates
           textAnn.x = newX / scaleX;
           textAnn.y = newY / scaleY;
-        });
+        };
+        document.addEventListener('mousemove', moveDrag);
+        document.addEventListener('touchmove', moveDrag, { passive: false });
 
-        document.addEventListener('mouseup', () => {
-          isDragging = false;
-        });
+        const endDrag = () => { isDragging = false; };
+        document.addEventListener('mouseup', endDrag);
+        document.addEventListener('touchend', endDrag);
 
-        // Resize functionality
+        // Resize functionality (mouse + touch)
         let isResizing = false;
         let startWidth = 0;
         let startHeight = 0;
         let startX = 0;
         let startY = 0;
 
-        resizeHandle.onmousedown = (e) => {
+        const startResize = (e) => {
           isResizing = true;
           startWidth = input.offsetWidth;
           startHeight = input.offsetHeight;
-          startX = e.clientX;
-          startY = e.clientY;
+          startX = e.touches ? e.touches[0].clientX : e.clientX;
+          startY = e.touches ? e.touches[0].clientY : e.clientY;
           e.preventDefault();
           e.stopPropagation();
         };
+        resizeHandle.onmousedown = startResize;
+        resizeHandle.ontouchstart = startResize;
 
-        document.addEventListener('mousemove', (e) => {
+        const moveResize = (e) => {
           if (!isResizing) return;
-          const newWidth = Math.max(100, startWidth + (e.clientX - startX));
-          const newHeight = Math.max(40, startHeight + (e.clientY - startY));
+          const cx = e.touches ? e.touches[0].clientX : e.clientX;
+          const cy = e.touches ? e.touches[0].clientY : e.clientY;
+          const newWidth = Math.max(100, startWidth + (cx - startX));
+          const newHeight = Math.max(40, startHeight + (cy - startY));
           input.style.width = newWidth + 'px';
           input.style.height = newHeight + 'px';
-          // Store dimensions for canvas drawing
           textAnn.width = newWidth / scaleX;
           textAnn.height = newHeight / scaleY;
-        });
+        };
+        document.addEventListener('mousemove', moveResize);
+        document.addEventListener('touchmove', moveResize, { passive: false });
 
-        document.addEventListener('mouseup', () => {
-          isResizing = false;
-        });
+        const endResize = () => { isResizing = false; };
+        document.addEventListener('mouseup', endResize);
+        document.addEventListener('touchend', endResize);
 
         return;
       }
