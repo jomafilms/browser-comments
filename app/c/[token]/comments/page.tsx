@@ -43,6 +43,7 @@ export default function ClientCommentsPage() {
   const [newNote, setNewNote] = useState('');
   const [addNoteToDecisions, setAddNoteToDecisions] = useState(false);
   const [decisionNoteKeys, setDecisionNoteKeys] = useState<Set<string>>(new Set());
+  const [recentGroupByPage, setRecentGroupByPage] = useState(false);
 
   // Initialize filters from URL parameters
   useEffect(() => {
@@ -61,6 +62,7 @@ export default function ClientCommentsPage() {
     if (viewParam === 'table' || viewParam === 'card') setViewMode(viewParam);
     const sortParam = urlParams.get('sort');
     if (sortParam === 'recent' || sortParam === 'resolved-bottom' || sortParam === 'priority') setSortMode(sortParam);
+    if (urlParams.get('groupByPage') === 'true') setRecentGroupByPage(true);
     const commentIdParam = urlParams.get('commentId');
     if (commentIdParam) {
       const id = parseInt(commentIdParam);
@@ -80,10 +82,11 @@ export default function ClientCommentsPage() {
     if (selectedAssignee !== 'all') urlParams.set('assignee', selectedAssignee);
     if (viewMode !== 'card') urlParams.set('view', viewMode);
     urlParams.set('sort', sortMode);
+    if (sortMode === 'recent' && recentGroupByPage) urlParams.set('groupByPage', 'true');
     const queryString = urlParams.toString();
     const newUrl = queryString ? `/c/${token}/comments?${queryString}` : `/c/${token}/comments`;
     window.history.replaceState({}, '', newUrl);
-  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee, viewMode, sortMode, isInitialized, token]);
+  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee, viewMode, sortMode, recentGroupByPage, isInitialized, token]);
 
   // Initial data load
   useEffect(() => {
@@ -285,17 +288,18 @@ export default function ClientCommentsPage() {
     } catch (err) { console.error('Error batch updating priorities:', err); }
   };
 
-  // For "recent" sort, show a single flat list ordered strictly by date.
-  // For other sort modes, group by page section so the URL context stays grouped.
-  const groupedComments = sortMode === 'recent'
-    ? { 'Most Recent First': sortComments(displayComments) }
-    : displayComments.reduce((acc, comment) => {
+  // For "recent" sort, default to a single flat list ordered strictly by date;
+  // optionally group by page via the checkbox. Other sort modes always group.
+  const shouldGroup = sortMode !== 'recent' || recentGroupByPage;
+  const groupedComments = shouldGroup
+    ? displayComments.reduce((acc, comment) => {
         const pageSection = comment.page_section || 'Unknown';
         if (!acc[pageSection]) acc[pageSection] = [];
         acc[pageSection].push(comment);
         return acc;
-      }, {} as Record<string, Comment[]>);
-  if (sortMode !== 'recent') {
+      }, {} as Record<string, Comment[]>)
+    : { 'Most Recent First': sortComments(displayComments) };
+  if (shouldGroup) {
     Object.keys(groupedComments).forEach(pageSection => { groupedComments[pageSection] = sortComments(groupedComments[pageSection]); });
   }
 
@@ -356,12 +360,18 @@ export default function ClientCommentsPage() {
               <option value="Unassigned">Unassigned</option>
               {assignees.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
             </select>
-            <div className="flex gap-1 border-l pl-3">
+            <div className="flex gap-1 border-l pl-3 items-center">
               {(['recent', 'resolved-bottom', 'priority'] as const).map((s) => (
                 <button key={s} onClick={() => setSortMode(s)} className={`px-3 py-1.5 rounded text-sm ${sortMode === s ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}>
                   {s === 'recent' ? 'Recent' : s === 'resolved-bottom' ? 'Resolved to Bottom' : 'Priority'}
                 </button>
               ))}
+              {sortMode === 'recent' && (
+                <label className="flex items-center gap-1.5 ml-2 text-sm text-gray-700 cursor-pointer">
+                  <input type="checkbox" checked={recentGroupByPage} onChange={(e) => setRecentGroupByPage(e.target.checked)} />
+                  Group by page
+                </label>
+              )}
             </div>
           </div>
         </div>
