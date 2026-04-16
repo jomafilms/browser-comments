@@ -285,14 +285,19 @@ export default function ClientCommentsPage() {
     } catch (err) { console.error('Error batch updating priorities:', err); }
   };
 
-  // Group and sort comments by page section
-  const groupedComments = displayComments.reduce((acc, comment) => {
-    const pageSection = comment.page_section || 'Unknown';
-    if (!acc[pageSection]) acc[pageSection] = [];
-    acc[pageSection].push(comment);
-    return acc;
-  }, {} as Record<string, Comment[]>);
-  Object.keys(groupedComments).forEach(pageSection => { groupedComments[pageSection] = sortComments(groupedComments[pageSection]); });
+  // For "recent" sort, show a single flat list ordered strictly by date.
+  // For other sort modes, group by page section so the URL context stays grouped.
+  const groupedComments = sortMode === 'recent'
+    ? { 'All Recent': sortComments(displayComments) }
+    : displayComments.reduce((acc, comment) => {
+        const pageSection = comment.page_section || 'Unknown';
+        if (!acc[pageSection]) acc[pageSection] = [];
+        acc[pageSection].push(comment);
+        return acc;
+      }, {} as Record<string, Comment[]>);
+  if (sortMode !== 'recent') {
+    Object.keys(groupedComments).forEach(pageSection => { groupedComments[pageSection] = sortComments(groupedComments[pageSection]); });
+  }
 
   if (error) {
     return (
