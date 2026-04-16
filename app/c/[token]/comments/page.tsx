@@ -361,9 +361,9 @@ export default function ClientCommentsPage() {
               {assignees.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
             </select>
             <div className="flex gap-1 border-l pl-3 items-center">
-              {(['recent', 'resolved-bottom', 'priority'] as const).map((s) => (
+              {(['recent', 'priority'] as const).map((s) => (
                 <button key={s} onClick={() => setSortMode(s)} className={`px-3 py-1.5 rounded text-sm ${sortMode === s ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}>
-                  {s === 'recent' ? 'Recent' : s === 'resolved-bottom' ? 'Resolved to Bottom' : 'Priority'}
+                  {s === 'recent' ? 'Recent' : 'Priority'}
                 </button>
               ))}
               {sortMode === 'recent' && (
