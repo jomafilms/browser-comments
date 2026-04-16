@@ -288,7 +288,7 @@ export default function ClientCommentsPage() {
   // For "recent" sort, show a single flat list ordered strictly by date.
   // For other sort modes, group by page section so the URL context stays grouped.
   const groupedComments = sortMode === 'recent'
-    ? { 'All Recent': sortComments(displayComments) }
+    ? { 'Most Recent First': sortComments(displayComments) }
     : displayComments.reduce((acc, comment) => {
         const pageSection = comment.page_section || 'Unknown';
         if (!acc[pageSection]) acc[pageSection] = [];
