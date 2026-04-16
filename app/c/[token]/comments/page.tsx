@@ -43,7 +43,7 @@ export default function ClientCommentsPage() {
   const [newNote, setNewNote] = useState('');
   const [addNoteToDecisions, setAddNoteToDecisions] = useState(false);
   const [decisionNoteKeys, setDecisionNoteKeys] = useState<Set<string>>(new Set());
-  const [recentGroupByPage, setRecentGroupByPage] = useState(false);
+  const [groupByPage, setGroupByPage] = useState(false);
 
   // Initialize filters from URL parameters
   useEffect(() => {
@@ -62,7 +62,7 @@ export default function ClientCommentsPage() {
     if (viewParam === 'table' || viewParam === 'card') setViewMode(viewParam);
     const sortParam = urlParams.get('sort');
     if (sortParam === 'recent' || sortParam === 'resolved-bottom' || sortParam === 'priority') setSortMode(sortParam);
-    if (urlParams.get('groupByPage') === 'true') setRecentGroupByPage(true);
+    if (urlParams.get('groupByPage') === 'true') setGroupByPage(true);
     const commentIdParam = urlParams.get('commentId');
     if (commentIdParam) {
       const id = parseInt(commentIdParam);
@@ -82,11 +82,11 @@ export default function ClientCommentsPage() {
     if (selectedAssignee !== 'all') urlParams.set('assignee', selectedAssignee);
     if (viewMode !== 'card') urlParams.set('view', viewMode);
     urlParams.set('sort', sortMode);
-    if (sortMode === 'recent' && recentGroupByPage) urlParams.set('groupByPage', 'true');
+    if (groupByPage) urlParams.set('groupByPage', 'true');
     const queryString = urlParams.toString();
     const newUrl = queryString ? `/c/${token}/comments?${queryString}` : `/c/${token}/comments`;
     window.history.replaceState({}, '', newUrl);
-  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee, viewMode, sortMode, recentGroupByPage, isInitialized, token]);
+  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee, viewMode, sortMode, groupByPage, isInitialized, token]);
 
   // Initial data load
   useEffect(() => {
@@ -288,9 +288,10 @@ export default function ClientCommentsPage() {
     } catch (err) { console.error('Error batch updating priorities:', err); }
   };
 
-  // For "recent" sort, default to a single flat list ordered strictly by date;
-  // optionally group by page via the checkbox. Other sort modes always group.
-  const shouldGroup = sortMode !== 'recent' || recentGroupByPage;
+  // Sort and optionally group by page section. resolved-bottom always groups
+  // (it's only accessible via URL param); recent and priority respect the checkbox.
+  const shouldGroup = sortMode === 'resolved-bottom' || groupByPage;
+  const flatHeader = sortMode === 'recent' ? 'Most Recent First' : 'By Priority';
   const groupedComments = shouldGroup
     ? displayComments.reduce((acc, comment) => {
         const pageSection = comment.page_section || 'Unknown';
@@ -298,7 +299,7 @@ export default function ClientCommentsPage() {
         acc[pageSection].push(comment);
         return acc;
       }, {} as Record<string, Comment[]>)
-    : { 'Most Recent First': sortComments(displayComments) };
+    : { [flatHeader]: sortComments(displayComments) };
   if (shouldGroup) {
     Object.keys(groupedComments).forEach(pageSection => { groupedComments[pageSection] = sortComments(groupedComments[pageSection]); });
   }
@@ -366,9 +367,9 @@ export default function ClientCommentsPage() {
                   {s === 'recent' ? 'Recent' : 'Priority'}
                 </button>
               ))}
-              {sortMode === 'recent' && (
+              {(sortMode === 'recent' || sortMode === 'priority') && (
                 <label className="flex items-center gap-1.5 ml-2 text-sm text-gray-700 cursor-pointer">
-                  <input type="checkbox" checked={recentGroupByPage} onChange={(e) => setRecentGroupByPage(e.target.checked)} />
+                  <input type="checkbox" checked={groupByPage} onChange={(e) => setGroupByPage(e.target.checked)} />
                   Group by page
                 </label>
               )}
