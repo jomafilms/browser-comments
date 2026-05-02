@@ -29,6 +29,14 @@ export async function GET(
     const { id: idString } = await context.params;
     const id = parseInt(idString);
 
+    const token = extractToken(request);
+    if (!token) {
+      return NextResponse.json({ error: 'Token required' }, { status: 401 });
+    }
+
+    const ownership = await verifyCommentOwnership(token, id);
+    if (!ownership.ok) return ownership.response;
+
     const dbClient = await pool.connect();
     try {
       const result = await dbClient.query(

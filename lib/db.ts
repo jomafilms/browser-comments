@@ -966,6 +966,35 @@ export async function createProject(clientId: number, name: string, url: string)
   }
 }
 
+export async function updateProject(
+  id: number,
+  updates: { name?: string; url?: string }
+): Promise<Project | null> {
+  const sets: string[] = [];
+  const params: (string | number)[] = [];
+  let idx = 1;
+  if (updates.name !== undefined) {
+    sets.push(`name = $${idx++}`);
+    params.push(updates.name);
+  }
+  if (updates.url !== undefined) {
+    sets.push(`url = $${idx++}`);
+    params.push(updates.url);
+  }
+  if (sets.length === 0) return getProjectById(id);
+  params.push(id);
+  const dbClient = await pool.connect();
+  try {
+    const result = await dbClient.query(
+      `UPDATE projects SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+      params
+    );
+    return result.rows[0] || null;
+  } finally {
+    dbClient.release();
+  }
+}
+
 export async function getProjectsByClientId(clientId: number): Promise<Project[]> {
   const dbClient = await pool.connect();
   try {

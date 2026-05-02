@@ -293,7 +293,9 @@ export default function ClientDecisionsPage() {
                     <td className="px-4 py-3 text-sm">
                       {decision.comment_id ? (
                         <Link
-                          href={`/c/${token}/comments?commentId=${decision.comment_id}`}
+                          href={decision.comment_display_number
+                            ? `/c/${token}/comments?c=${decision.comment_display_number}`
+                            : `/c/${token}/comments?commentId=${decision.comment_id}`}
                           className="text-blue-500 hover:underline font-mono"
                         >
                           #{decision.comment_display_number || decision.comment_id}

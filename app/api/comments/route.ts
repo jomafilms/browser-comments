@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveComment, getComments, getCommentsByProjectId, getCommentsByTokenContext, resolveToken, initDB } from '@/lib/db';
+import { saveComment, getCommentsByTokenContext, resolveToken, initDB } from '@/lib/db';
 
 // Initialize DB on first request
 let dbInitialized = false;
@@ -9,6 +9,12 @@ async function ensureDB() {
     await initDB();
     dbInitialized = true;
   }
+}
+
+function extractToken(request: NextRequest): string | null {
+  const auth = request.headers.get('authorization');
+  if (auth?.startsWith('Bearer ')) return auth.slice(7);
+  return new URL(request.url).searchParams.get('token');
 }
 
 // CORS headers for cross-origin feedback widget
@@ -53,37 +59,28 @@ export async function GET(request: NextRequest) {
   try {
     await ensureDB();
     const { searchParams } = new URL(request.url);
-    const projectId = searchParams.get('projectId');
-    const token = searchParams.get('token');
     const pageSection = searchParams.get('pageSection') || undefined;
     const status = searchParams.get('status') as 'open' | 'resolved' | undefined;
     const priority = searchParams.get('priority') as 'high' | 'med' | 'low' | undefined;
     const assignee = searchParams.get('assignee') || undefined;
     const excludeImages = searchParams.get('excludeImages') === 'true';
 
-    // If token provided, resolve to client or project scope
-    if (token) {
-      const ctx = await resolveToken(token);
-      if (!ctx) {
-        return NextResponse.json({ error: 'Invalid token' }, { status: 404 });
-      }
-      const comments = await getCommentsByTokenContext(ctx, excludeImages, {
-        status: status || undefined,
-        priority: priority || undefined,
-        assignee: assignee || undefined,
-        pageSection: pageSection || undefined,
-      });
-      return NextResponse.json(comments);
+    const token = extractToken(request);
+    if (!token) {
+      return NextResponse.json({ error: 'Token required' }, { status: 401 });
     }
 
-    // If projectId provided, get comments for that project
-    if (projectId) {
-      const comments = await getCommentsByProjectId(parseInt(projectId), excludeImages);
-      return NextResponse.json(comments);
+    const ctx = await resolveToken(token);
+    if (!ctx) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Fall back to old behavior (for backwards compatibility)
-    const comments = await getComments({ pageSection, status, priority, assignee, excludeImages });
+    const comments = await getCommentsByTokenContext(ctx, excludeImages, {
+      status: status || undefined,
+      priority: priority || undefined,
+      assignee: assignee || undefined,
+      pageSection: pageSection || undefined,
+    });
     return NextResponse.json(comments);
   } catch (error) {
     console.error('Error fetching comments:', error);

@@ -38,6 +38,9 @@ function HomeContent() {
   const [showClientForm, setShowClientForm] = useState(false);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [expandedClientId, setExpandedClientId] = useState<number | null>(null);
+  const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
+  const [editProjectName, setEditProjectName] = useState('');
+  const [editProjectUrl, setEditProjectUrl] = useState('');
 
   useEffect(() => {
     if (adminSecret) {
@@ -185,6 +188,43 @@ function HomeContent() {
     } catch (err) {
       console.error('Error generating widget key:', err);
       alert('Failed to generate widget key');
+    }
+  };
+
+  const startEditingProject = (project: Project) => {
+    setEditingProjectId(project.id);
+    setEditProjectName(project.name);
+    setEditProjectUrl(project.url);
+  };
+
+  const cancelEditingProject = () => {
+    setEditingProjectId(null);
+    setEditProjectName('');
+    setEditProjectUrl('');
+  };
+
+  const saveProjectEdit = async (projectId: number) => {
+    if (!editProjectName.trim() || !editProjectUrl.trim()) {
+      alert('Name and URL are required');
+      return;
+    }
+    try {
+      const response = await fetch(`/api/projects/${projectId}?admin=${adminSecret}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editProjectName, url: editProjectUrl }),
+      });
+      if (response.ok) {
+        const updated = await response.json();
+        setProjects(prev => prev.map(p => p.id === projectId ? { ...p, name: updated.name, url: updated.url } : p));
+        cancelEditingProject();
+      } else {
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || 'Failed to update project');
+      }
+    } catch (err) {
+      console.error('Error updating project:', err);
+      alert('Failed to update project');
     }
   };
 
@@ -443,11 +483,36 @@ function HomeContent() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {projects.map((project) => (
+                    {projects.map((project) => {
+                      const isEditing = editingProjectId === project.id;
+                      return (
                       <tr key={project.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm text-gray-700">{project.client_name}</td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{project.name}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500 truncate max-w-xs">{project.url}</td>
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editProjectName}
+                              onChange={(e) => setEditProjectName(e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                            />
+                          ) : (
+                            project.name
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500 truncate max-w-xs">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editProjectUrl}
+                              onChange={(e) => setEditProjectUrl(e.target.value)}
+                              placeholder="URLs (comma-separated)"
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                            />
+                          ) : (
+                            project.url
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-sm">
                           {project.token ? (
                             <div className="flex items-center gap-2">
@@ -498,19 +563,47 @@ function HomeContent() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <button
-                            onClick={() => {
-                              if (confirm(`Delete project "${project.name}"? This will also delete all its comments.`)) {
-                                deleteProjectById(project.id);
-                              }
-                            }}
-                            className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs"
-                          >
-                            Delete
-                          </button>
+                          <div className="flex gap-2">
+                            {isEditing ? (
+                              <>
+                                <button
+                                  onClick={() => saveProjectEdit(project.id)}
+                                  className="px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 text-xs"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={cancelEditingProject}
+                                  className="px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-xs"
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => startEditingProject(project)}
+                                  className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-xs"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (confirm(`Delete project "${project.name}"? This will also delete all its comments.`)) {
+                                      deleteProjectById(project.id);
+                                    }
+                                  }}
+                                  className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs"
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                   </tbody>
                 </table>
               </div>

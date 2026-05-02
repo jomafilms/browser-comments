@@ -37,7 +37,8 @@ export default function ClientCommentsPage() {
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [sortMode, setSortMode] = useState<'recent' | 'resolved-bottom' | 'priority'>('priority');
   const [isInitialized, setIsInitialized] = useState(false);
-  const [highlightedCommentId, setHighlightedCommentId] = useState<number | null>(null);
+  const [highlightedDisplayNumber, setHighlightedDisplayNumber] = useState<number | null>(null);
+  const [pendingLegacyCommentId, setPendingLegacyCommentId] = useState<number | null>(null);
   const [searchCommentId, setSearchCommentId] = useState<string>('');
   const [expandedComment, setExpandedComment] = useState<number | null>(null);
   const [newNote, setNewNote] = useState('');
@@ -63,10 +64,16 @@ export default function ClientCommentsPage() {
     const sortParam = urlParams.get('sort');
     if (sortParam === 'recent' || sortParam === 'resolved-bottom' || sortParam === 'priority') setSortMode(sortParam);
     if (urlParams.get('groupByPage') === 'true') setGroupByPage(true);
-    const commentIdParam = urlParams.get('commentId');
-    if (commentIdParam) {
-      const id = parseInt(commentIdParam);
-      if (!isNaN(id)) setHighlightedCommentId(id);
+    const cParam = urlParams.get('c');
+    if (cParam) {
+      const num = parseInt(cParam);
+      if (!isNaN(num)) setHighlightedDisplayNumber(num);
+    } else {
+      const legacyId = urlParams.get('commentId');
+      if (legacyId) {
+        const id = parseInt(legacyId);
+        if (!isNaN(id)) setPendingLegacyCommentId(id);
+      }
     }
     setIsInitialized(true);
   }, []);
@@ -92,6 +99,20 @@ export default function ClientCommentsPage() {
   useEffect(() => {
     if (isInitialized) fetchData();
   }, [token, isInitialized]);
+
+  // Resolve legacy ?commentId=<dbId> links once comments load by mapping to display_number
+  useEffect(() => {
+    if (pendingLegacyCommentId === null || comments.length === 0) return;
+    const found = comments.find(c => c.id === pendingLegacyCommentId);
+    if (found) {
+      setHighlightedDisplayNumber(found.display_number);
+      const urlParams = new URLSearchParams(window.location.search);
+      urlParams.delete('commentId');
+      urlParams.set('c', found.display_number.toString());
+      window.history.replaceState({}, '', `/c/${token}/comments?${urlParams.toString()}`);
+    }
+    setPendingLegacyCommentId(null);
+  }, [pendingLegacyCommentId, comments, token]);
 
   // Refetch comments when filters change (but not on initial load - fetchData handles that)
   const [initialLoadDone, setInitialLoadDone] = useState(false);
@@ -166,7 +187,7 @@ export default function ClientCommentsPage() {
     }
   };
 
-  const displayComments = highlightedCommentId ? comments.filter(c => c.id === highlightedCommentId) : comments;
+  const displayComments = highlightedDisplayNumber ? comments.filter(c => c.display_number === highlightedDisplayNumber) : comments;
 
   const sortComments = (commentsToSort: Comment[]) => {
     if (sortMode === 'recent') {
@@ -203,7 +224,7 @@ export default function ClientCommentsPage() {
         const response = await fetch('/api/comments/images', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids }),
+          body: JSON.stringify({ ids, token }),
         });
 
         if (aborted) return;
@@ -234,7 +255,7 @@ export default function ClientCommentsPage() {
     loadAllBatches();
 
     return () => { aborted = true; };
-  }, [comments.length, loading, sortMode, highlightedCommentId]);
+  }, [comments.length, loading, sortMode, highlightedDisplayNumber]);
 
   const toggleStatus = async (id: number, currentStatus: 'open' | 'resolved') => {
     const newStatus = currentStatus === 'open' ? 'resolved' : 'open';
@@ -320,13 +341,13 @@ export default function ClientCommentsPage() {
       {/* Navigation */}
       <div className="sticky top-0 z-10">
         <ClientNav token={token}>
-          {highlightedCommentId && (
+          {highlightedDisplayNumber && (
             <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
-              <span className="text-sm text-blue-700">#{comments.find(c => c.id === highlightedCommentId)?.display_number || highlightedCommentId}</span>
-              <button onClick={() => { setHighlightedCommentId(null); setSearchCommentId(''); const urlParams = new URLSearchParams(window.location.search); urlParams.delete('commentId'); window.history.replaceState({}, '', urlParams.toString() ? `/c/${token}/comments?${urlParams.toString()}` : `/c/${token}/comments`); }} className="text-blue-700 hover:text-blue-900 font-bold">✕</button>
+              <span className="text-sm text-blue-700">#{highlightedDisplayNumber}</span>
+              <button onClick={() => { setHighlightedDisplayNumber(null); setSearchCommentId(''); const urlParams = new URLSearchParams(window.location.search); urlParams.delete('c'); urlParams.delete('commentId'); window.history.replaceState({}, '', urlParams.toString() ? `/c/${token}/comments?${urlParams.toString()}` : `/c/${token}/comments`); }} className="text-blue-700 hover:text-blue-900 font-bold">✕</button>
             </div>
           )}
-          <form onSubmit={(e) => { e.preventDefault(); const displayNum = parseInt(searchCommentId); if (!isNaN(displayNum) && displayNum > 0) { const foundComment = comments.find(c => c.display_number === displayNum); if (foundComment) { setHighlightedCommentId(foundComment.id); const urlParams = new URLSearchParams(window.location.search); urlParams.set('commentId', foundComment.id.toString()); window.history.replaceState({}, '', `/c/${token}/comments?${urlParams.toString()}`); } else { alert(`Comment #${displayNum} not found`); } }}} className="flex items-center gap-2">
+          <form onSubmit={(e) => { e.preventDefault(); const displayNum = parseInt(searchCommentId); if (!isNaN(displayNum) && displayNum > 0) { const foundComment = comments.find(c => c.display_number === displayNum); if (foundComment) { setHighlightedDisplayNumber(displayNum); const urlParams = new URLSearchParams(window.location.search); urlParams.delete('commentId'); urlParams.set('c', displayNum.toString()); window.history.replaceState({}, '', `/c/${token}/comments?${urlParams.toString()}`); } else { alert(`Comment #${displayNum} not found`); } }}} className="flex items-center gap-2">
             <input type="number" value={searchCommentId} onChange={(e) => setSearchCommentId(e.target.value)} placeholder="Jump to #" min="1" className="w-24 px-2 py-1 border border-gray-300 rounded text-sm" />
             <button type="submit" className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm">Go</button>
           </form>
@@ -404,13 +425,13 @@ export default function ClientCommentsPage() {
                     <CommentCard
                       key={comment.id}
                       comment={comment}
-                      isHighlighted={highlightedCommentId === comment.id}
+                      isHighlighted={highlightedDisplayNumber === comment.display_number}
                       decisionNoteKeys={decisionNoteKeys}
                       expandedComment={expandedComment}
                       newNote={newNote}
                       addNoteToDecisions={addNoteToDecisions}
                       decisionsLink={`/c/${token}/decisions`}
-                      copyLinkUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/c/${token}/comments?commentId=${comment.id}`}
+                      copyLinkUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/c/${token}/comments?c=${comment.display_number}`}
                       assignees={assignees}
                       onToggleStatus={toggleStatus}
                       onUpdatePriority={updatePriority}

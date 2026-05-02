@@ -55,10 +55,10 @@ const USAGE = `browser-comments <command> [options]
 
 Commands:
   list    [--status=open|resolved] [--priority=high|med|low] [--assignee=X] [--section=X] [--project=ID] [--include-images]
-  show    <id|#display_number> [--include-images]
-  resolve <id|#display_number> [--note="reason"]
-  reopen  <id|#display_number>
-  assign  <id|#display_number> --to=<assignee>
+  show    <display_number> [--include-images]
+  resolve <display_number> [--note="reason"]
+  reopen  <display_number>
+  assign  <display_number> --to=<assignee>
   watch   [--interval=60] [--schedule=manual|hourly|daily|weekly] [+ any list filters]
 
 Global:
@@ -88,7 +88,7 @@ async function main() {
 
       case 'show': {
         const ref = positional[0];
-        if (!ref) throw Object.assign(new Error('Usage: browser-comments show <id|#display_number>'), { _code: 'USAGE_ERROR' });
+        if (!ref) throw Object.assign(new Error('Usage: browser-comments show <display_number>'), { _code: 'USAGE_ERROR' });
         const includeImages = flags['include-images'] === 'true';
         const result = await showCommand(config, ref, includeImages);
         output(result, format);
@@ -97,7 +97,7 @@ async function main() {
 
       case 'resolve': {
         const ref = positional[0];
-        if (!ref) throw Object.assign(new Error('Usage: browser-comments resolve <id|#display_number>'), { _code: 'USAGE_ERROR' });
+        if (!ref) throw Object.assign(new Error('Usage: browser-comments resolve <display_number>'), { _code: 'USAGE_ERROR' });
         const result = await resolveCommand(config, ref, flags.note);
         output(result, format);
         break;
@@ -105,7 +105,7 @@ async function main() {
 
       case 'reopen': {
         const ref = positional[0];
-        if (!ref) throw Object.assign(new Error('Usage: browser-comments reopen <id|#display_number>'), { _code: 'USAGE_ERROR' });
+        if (!ref) throw Object.assign(new Error('Usage: browser-comments reopen <display_number>'), { _code: 'USAGE_ERROR' });
         const result = await reopenCommand(config, ref);
         output(result, format);
         break;
@@ -114,7 +114,7 @@ async function main() {
       case 'assign': {
         const ref = positional[0];
         const assignee = flags.to;
-        if (!ref || !assignee) throw Object.assign(new Error('Usage: browser-comments assign <id|#display_number> --to=<assignee>'), { _code: 'USAGE_ERROR' });
+        if (!ref || !assignee) throw Object.assign(new Error('Usage: browser-comments assign <display_number> --to=<assignee>'), { _code: 'USAGE_ERROR' });
         const result = await assignCommand(config, ref, assignee);
         output(result, format);
         break;

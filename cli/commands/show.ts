@@ -3,10 +3,8 @@ import { queryTicketById } from '../lib/db-reader';
 import { fetchTicketById } from '../lib/api-client';
 
 export function parseTicketRef(ref: string): { id: number; byDisplayNumber: boolean } {
-  if (ref.startsWith('#')) {
-    return { id: parseInt(ref.slice(1), 10), byDisplayNumber: true };
-  }
-  return { id: parseInt(ref, 10), byDisplayNumber: false };
+  const cleaned = ref.startsWith('#') ? ref.slice(1) : ref;
+  return { id: parseInt(cleaned, 10), byDisplayNumber: true };
 }
 
 export async function showCommand(
