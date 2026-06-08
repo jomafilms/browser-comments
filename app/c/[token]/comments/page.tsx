@@ -367,7 +367,7 @@ export default function ClientCommentsPage() {
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex gap-3 flex-wrap items-center">
             <div className="flex gap-1">
-              {(['all', 'open', 'resolved'] as const).map((f) => (
+              {(['open', 'resolved'] as const).map((f) => (
                 <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded capitalize ${filter === f ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}>{f}</button>
               ))}
             </div>
