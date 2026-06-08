@@ -92,7 +92,7 @@ curl -X PATCH "https://your-instance.vercel.app/api/comments/42" \
 
 ## 4. Add the feedback widget (optional)
 
-If you want testers to submit visual feedback on your dev/staging site, add this script tag:
+If you want testers to submit visual feedback on your dev/staging site, add this script tag **at the end of `<body>` (footer code)** — the widget injects a floating button into the body, so it needs the body to exist:
 
 ```html
 <script
@@ -101,7 +101,9 @@ If you want testers to submit visual feedback on your dev/staging site, add this
 ></script>
 ```
 
-Your admin will provide the widget key separately. Optional attributes:
+In Webflow: **Project Settings → Custom Code → Footer Code** (site-wide), or per-page **Page Settings → Custom Code → Before `</body>` tag**.
+
+Your admin will provide the widget key separately. It is safe to embed publicly — the key only authorizes feedback submissions for your project, not ticket access. Optional attributes:
 
 | Attribute | Default | Description |
 |-----------|---------|-------------|
