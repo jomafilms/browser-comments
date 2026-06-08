@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import { randomBytes } from 'crypto';
+import { categorizeUA } from './ua';
 
 // For local development, use standard pg Pool
 // For production with Neon, use @neondatabase/serverless
@@ -62,6 +63,11 @@ export interface Comment {
   priority_number: number;
   assignee: string;
   submitter_name: string | null; // Name of the person who submitted the feedback
+  user_agent: string | null;
+  viewport_w: number | null;
+  viewport_h: number | null;
+  device_category: string | null;
+  device_model: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -74,7 +80,7 @@ export interface TextAnnotation {
 }
 
 // Current schema version - increment this when adding migrations
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 // Check if schema is up to date (fast check that doesn't run migrations)
 async function isSchemaUpToDate(): Promise<boolean> {
@@ -229,6 +235,22 @@ export async function initDB() {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='submitter_name') THEN
           ALTER TABLE comments ADD COLUMN submitter_name TEXT;
         END IF;
+        -- Device/browser tracking
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='user_agent') THEN
+          ALTER TABLE comments ADD COLUMN user_agent TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='viewport_w') THEN
+          ALTER TABLE comments ADD COLUMN viewport_w INTEGER;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='viewport_h') THEN
+          ALTER TABLE comments ADD COLUMN viewport_h INTEGER;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='device_category') THEN
+          ALTER TABLE comments ADD COLUMN device_category TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comments' AND column_name='device_model') THEN
+          ALTER TABLE comments ADD COLUMN device_model TEXT;
+        END IF;
       END $$;
     `);
 
@@ -273,6 +295,7 @@ export async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_created_at ON comments(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_priority ON comments(priority);
       CREATE INDEX IF NOT EXISTS idx_assignee ON comments(assignee);
+      CREATE INDEX IF NOT EXISTS idx_device_category ON comments(client_id, device_category);
     `);
 
     // Create decision_items table
@@ -346,6 +369,11 @@ export async function saveComment(data: {
   assignee?: string;
   projectId?: number;
   submitterName?: string;
+  userAgent?: string;
+  viewportW?: number;
+  viewportH?: number;
+  deviceCategory?: string;
+  deviceModel?: string;
 }): Promise<Comment> {
   const dbClient = await pool.connect();
   try {
@@ -374,9 +402,13 @@ export async function saveComment(data: {
     // Auto-extract page section from URL if not provided
     const pageSection = data.pageSection || extractPageSection(data.url);
 
+    // Derive category server-side if client didn't supply one but sent a UA
+    const deviceCategory =
+      data.deviceCategory || (data.userAgent ? categorizeUA(data.userAgent) : null);
+
     const result = await dbClient.query(
-      `INSERT INTO comments (url, page_section, image_data, text_annotations, priority, priority_number, assignee, project_id, client_id, display_number, submitter_name)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO comments (url, page_section, image_data, text_annotations, priority, priority_number, assignee, project_id, client_id, display_number, submitter_name, user_agent, viewport_w, viewport_h, device_category, device_model)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        RETURNING *`,
       [
         data.url,
@@ -389,7 +421,12 @@ export async function saveComment(data: {
         data.projectId || null,
         clientId,
         displayNumber,
-        data.submitterName || null
+        data.submitterName || null,
+        data.userAgent || null,
+        data.viewportW || null,
+        data.viewportH || null,
+        deviceCategory,
+        data.deviceModel || null,
       ]
     );
     return result.rows[0];
@@ -735,14 +772,14 @@ export async function resolveToken(token: string): Promise<TokenContext | null> 
 export async function getCommentsByTokenContext(
   ctx: TokenContext,
   excludeImages?: boolean,
-  filters?: { status?: string; priority?: string; assignee?: string; pageSection?: string }
+  filters?: { status?: string; priority?: string; assignee?: string; pageSection?: string; deviceCategory?: string }
 ): Promise<Comment[]> {
   if (ctx.projectId) {
     // Project-scoped: use project ID directly
     const dbClient = await pool.connect();
     try {
       const selectClause = excludeImages
-        ? "c.id, c.project_id, c.client_id, c.display_number, c.url, c.page_section, '' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.created_at, c.updated_at"
+        ? "c.id, c.project_id, c.client_id, c.display_number, c.url, c.page_section, '' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.user_agent, c.viewport_w, c.viewport_h, c.device_category, c.device_model, c.created_at, c.updated_at"
         : 'c.*';
 
       const conditions: string[] = ['c.project_id = $1'];
@@ -764,6 +801,10 @@ export async function getCommentsByTokenContext(
       if (filters?.pageSection) {
         conditions.push(`c.page_section ILIKE $${paramIdx++}`);
         params.push(`%${filters.pageSection}%`);
+      }
+      if (filters?.deviceCategory) {
+        conditions.push(`c.device_category = $${paramIdx++}`);
+        params.push(filters.deviceCategory);
       }
 
       const result = await dbClient.query(
@@ -1056,12 +1097,12 @@ export async function getCommentsByProjectId(projectId: number, excludeImages?: 
 export async function getCommentsByClientId(
   clientId: number,
   excludeImages?: boolean,
-  filters?: { status?: string; priority?: string; assignee?: string; pageSection?: string }
+  filters?: { status?: string; priority?: string; assignee?: string; pageSection?: string; deviceCategory?: string }
 ): Promise<Comment[]> {
   const dbClient = await pool.connect();
   try {
     const selectClause = excludeImages
-      ? 'c.id, c.project_id, c.client_id, c.display_number, c.url, c.page_section, \'\' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.created_at, c.updated_at'
+      ? 'c.id, c.project_id, c.client_id, c.display_number, c.url, c.page_section, \'\' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.user_agent, c.viewport_w, c.viewport_h, c.device_category, c.device_model, c.created_at, c.updated_at'
       : 'c.*';
 
     const conditions: string[] = ['p.client_id = $1'];
@@ -1083,6 +1124,10 @@ export async function getCommentsByClientId(
     if (filters?.pageSection) {
       conditions.push(`c.page_section ILIKE $${paramIdx++}`);
       params.push(`%${filters.pageSection}%`);
+    }
+    if (filters?.deviceCategory) {
+      conditions.push(`c.device_category = $${paramIdx++}`);
+      params.push(filters.deviceCategory);
     }
 
     const result = await dbClient.query(

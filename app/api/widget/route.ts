@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { widgetKey, url, imageData, textAnnotations, submitterName } = body;
+    const { widgetKey, url, imageData, textAnnotations, submitterName, userAgent, viewportW, viewportH, deviceCategory, deviceModel } = body;
 
     // Validate required fields
     if (!widgetKey) {
@@ -98,7 +98,12 @@ export async function POST(request: NextRequest) {
       priorityNumber: 0,
       assignee: 'Unassigned',
       projectId: project.id,
-      submitterName: submitterName || null,
+      submitterName: submitterName || undefined,
+      userAgent: userAgent || undefined,
+      viewportW: viewportW || undefined,
+      viewportH: viewportH || undefined,
+      deviceCategory: deviceCategory || undefined,
+      deviceModel: deviceModel || undefined,
     });
 
     return NextResponse.json(

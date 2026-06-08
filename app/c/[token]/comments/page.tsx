@@ -30,6 +30,8 @@ export default function ClientCommentsPage() {
   const [selectedPage, setSelectedPage] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
+  const [selectedDevice, setSelectedDevice] = useState<string>('all');
+  const [availableDevices, setAvailableDevices] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
@@ -59,6 +61,8 @@ export default function ClientCommentsPage() {
     if (priorityParam) setSelectedPriority(priorityParam.toLowerCase());
     const assigneeParam = urlParams.get('assignee');
     if (assigneeParam) setSelectedAssignee(assigneeParam);
+    const deviceParam = urlParams.get('device');
+    if (deviceParam) setSelectedDevice(deviceParam);
     const viewParam = urlParams.get('view');
     if (viewParam === 'table' || viewParam === 'card') setViewMode(viewParam);
     const sortParam = urlParams.get('sort');
@@ -87,13 +91,14 @@ export default function ClientCommentsPage() {
     if (selectedPage !== 'all') urlParams.set('page', selectedPage);
     if (selectedPriority !== 'all') urlParams.set('priority', selectedPriority);
     if (selectedAssignee !== 'all') urlParams.set('assignee', selectedAssignee);
+    if (selectedDevice !== 'all') urlParams.set('device', selectedDevice);
     if (viewMode !== 'card') urlParams.set('view', viewMode);
     urlParams.set('sort', sortMode);
     if (groupByPage) urlParams.set('groupByPage', 'true');
     const queryString = urlParams.toString();
     const newUrl = queryString ? `/c/${token}/comments?${queryString}` : `/c/${token}/comments`;
     window.history.replaceState({}, '', newUrl);
-  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee, viewMode, sortMode, groupByPage, isInitialized, token]);
+  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee, selectedDevice, viewMode, sortMode, groupByPage, isInitialized, token]);
 
   // Initial data load
   useEffect(() => {
@@ -118,7 +123,7 @@ export default function ClientCommentsPage() {
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   useEffect(() => {
     if (isInitialized && initialLoadDone) fetchComments();
-  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee]);
+  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee, selectedDevice]);
 
   const fetchDecisionItems = async () => {
     try {
@@ -171,14 +176,17 @@ export default function ClientCommentsPage() {
       const response = await fetch(`/api/comments?${urlParams}`);
       if (!response.ok) { setLoading(false); return; }
       let data = await response.json();
-      // Extract unique page sections before filtering
+      // Extract unique page sections + device categories before filtering
       const uniquePages = [...new Set(data.map((c: Comment) => c.page_section).filter(Boolean))] as string[];
       setPageSections(uniquePages.sort());
+      const uniqueDevices = [...new Set(data.map((c: Comment) => c.device_category).filter(Boolean))] as string[];
+      setAvailableDevices(uniqueDevices.sort());
       if (filter !== 'all') data = data.filter((c: Comment) => c.status === filter);
       if (selectedProject !== 'all') data = data.filter((c: Comment) => c.project_id === parseInt(selectedProject));
       if (selectedPage !== 'all') data = data.filter((c: Comment) => c.page_section === selectedPage);
       if (selectedPriority !== 'all') data = data.filter((c: Comment) => c.priority === selectedPriority);
       if (selectedAssignee !== 'all') data = data.filter((c: Comment) => c.assignee === selectedAssignee);
+      if (selectedDevice !== 'all') data = data.filter((c: Comment) => c.device_category === selectedDevice);
       setComments(data);
       setLoading(false);
     } catch (err) {
@@ -381,6 +389,10 @@ export default function ClientCommentsPage() {
               <option value="all">All Assignees</option>
               <option value="Unassigned">Unassigned</option>
               {assignees.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
+            </select>
+            <select value={selectedDevice} onChange={(e) => setSelectedDevice(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded">
+              <option value="all">All Devices</option>
+              {availableDevices.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
             <div className="flex gap-1 border-l pl-3 items-center">
               {(['recent', 'priority'] as const).map((s) => (

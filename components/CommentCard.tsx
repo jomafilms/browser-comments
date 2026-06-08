@@ -22,6 +22,11 @@ export interface Comment {
   priority_number: number;
   assignee: string;
   submitter_name: string | null;
+  user_agent?: string | null;
+  viewport_w?: number | null;
+  viewport_h?: number | null;
+  device_category?: string | null;
+  device_model?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -184,6 +189,18 @@ export default function CommentCard({
             {comment.submitter_name && (
               <div className="font-medium text-gray-700 mb-1">
                 Submitted by {comment.submitter_name}
+              </div>
+            )}
+            {comment.device_category && (
+              <div
+                className="text-xs text-gray-600 mb-1"
+                title={comment.user_agent || undefined}
+              >
+                {comment.device_category}
+                {comment.device_model ? ` — ${comment.device_model}` : ''}
+                {comment.viewport_w && comment.viewport_h
+                  ? ` (${comment.viewport_w}×${comment.viewport_h})`
+                  : ''}
               </div>
             )}
             <div className="flex justify-between items-center">

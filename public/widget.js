@@ -369,6 +369,27 @@
         background: ${t.readonlyBg};
         color: ${t.readonlyColor};
       }
+      .bc-device-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .bc-device-select, .bc-device-model {
+        flex: 1;
+        padding: 8px 12px;
+        border: 1px solid ${t.inputBorder};
+        border-radius: 8px;
+        background: ${t.inputBg};
+        color: ${t.textPrimary};
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 14px;
+        box-sizing: border-box;
+      }
+      .bc-device-select:focus, .bc-device-model:focus {
+        outline: none;
+        border-color: ${config.primaryColor};
+        box-shadow: 0 0 0 2px ${config.primaryColor}33;
+      }
       .bc-textarea {
         width: 100%;
         padding: 8px 12px;
@@ -565,6 +586,63 @@
     document.head.appendChild(styles);
   }
 
+  // Device detection — runs once on widget load so the form prefills cleanly
+  const DEVICE_CATEGORIES = ['Chrome', 'Safari', 'Firefox', 'Edge', 'iPhone', 'iPad', 'Android', 'Other'];
+
+  function categorizeUA(ua) {
+    if (!ua) return 'Other';
+    const s = ua.toLowerCase();
+    if (s.includes('iphone')) return 'iPhone';
+    if (s.includes('ipad')) return 'iPad';
+    // iPadOS 13+ reports as Mac — disambiguate via touch points
+    if (s.includes('macintosh') && navigator.maxTouchPoints > 1) return 'iPad';
+    if (s.includes('android')) return 'Android';
+    if (s.includes('edg/') || s.includes('edge/')) return 'Edge';
+    if (s.includes('firefox/')) return 'Firefox';
+    if (s.includes('chrome/') && !s.includes('chromium/')) return 'Chrome';
+    if (s.includes('safari/')) return 'Safari';
+    return 'Other';
+  }
+
+  function guessDeviceModel(category, w, h, dpr) {
+    if (category === 'iPhone') {
+      const sw = Math.min(w, h), sh = Math.max(w, h);
+      const map = {
+        '402x874@3': 'iPhone 16 Pro',
+        '440x956@3': 'iPhone 16 Pro Max',
+        '393x852@3': 'iPhone 16 / 15 Pro',
+        '430x932@3': 'iPhone 16 Plus / 15 Pro Max',
+        '390x844@3': 'iPhone 15 / 14 / 13 / 12',
+        '428x926@3': 'iPhone 14 Plus / 13 Pro Max',
+        '375x812@3': 'iPhone 13 mini / 12 mini / X / XS / 11 Pro',
+        '414x896@3': 'iPhone 11 Pro Max / XS Max',
+        '414x896@2': 'iPhone 11 / XR',
+        '375x667@2': 'iPhone SE / 8 / 7 / 6',
+      };
+      return map[`${sw}x${sh}@${dpr}`] || '';
+    }
+    if (category === 'iPad') {
+      const sw = Math.min(w, h), sh = Math.max(w, h);
+      const map = {
+        '1024x1366': 'iPad Pro 12.9"',
+        '1024x1180': 'iPad Pro 11" / Air',
+        '820x1180': 'iPad Air',
+        '810x1080': 'iPad (10th gen)',
+        '768x1024': 'iPad mini / iPad',
+        '744x1133': 'iPad mini (6th gen)',
+      };
+      return map[`${sw}x${sh}`] || '';
+    }
+    return '';
+  }
+
+  const detectedUA = navigator.userAgent || '';
+  const detectedViewportW = window.innerWidth;
+  const detectedViewportH = window.innerHeight;
+  const detectedDPR = Math.round(window.devicePixelRatio || 1);
+  const detectedCategory = categorizeUA(detectedUA);
+  const detectedModel = guessDeviceModel(detectedCategory, detectedViewportW, detectedViewportH, detectedDPR);
+
   // State
   let isOpen = false;
   let isCapturing = false;
@@ -582,6 +660,8 @@
   let colorPickerOpen = false;
   let comment = '';
   let submitterName = inlineUserName || inlineUserEmail || '';
+  let deviceCategory = detectedCategory;
+  let deviceModel = detectedModel;
   let button = null;
   let preCapturePromise = null; // screenshot capture started on mousedown
   let isMinimized = localStorage.getItem('bc-widget-minimized') === 'true';
@@ -714,49 +794,54 @@
       height: window.innerHeight,
       windowWidth: window.innerWidth,
       windowHeight: window.innerHeight,
-      // Handle iframes and fonts
+      // Handle iframes, videos, and fonts
       onclone: (clonedDoc) => {
         // Add font-display fix
         const fontStyle = clonedDoc.createElement('style');
         fontStyle.textContent = '* { font-display: block !important; }';
         clonedDoc.head.appendChild(fontStyle);
 
-        // Find all iframes and overlay with message
-        const iframes = clonedDoc.querySelectorAll('iframe');
-        iframes.forEach((iframe) => {
-          const parent = iframe.parentElement;
-          if (parent) {
-            const overlay = clonedDoc.createElement('div');
-            overlay.style.cssText = `
-              position: absolute;
-              top: 0;
-              left: 0;
-              right: 0;
-              bottom: 0;
-              background: linear-gradient(135deg, #f0f0f0 25%, #e0e0e0 25%, #e0e0e0 50%, #f0f0f0 50%, #f0f0f0 75%, #e0e0e0 75%);
-              background-size: 20px 20px;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              color: #666;
-              font-size: 14px;
-              text-align: center;
-              padding: 20px;
-              z-index: 1000;
-            `;
-            overlay.innerHTML = `
+        // Replace iframes and videos with placeholder divs.
+        // For <video>, html2canvas calls drawImage(videoEl) which can hang on
+        // cross-origin frames — so we must actually swap the node out, not overlay.
+        // Clone elements aren't laid out, so read dimensions from the source DOM.
+        const sourceMedia = Array.from(document.querySelectorAll('iframe, video'));
+        const cloneMedia = Array.from(clonedDoc.querySelectorAll('iframe, video'));
+
+        cloneMedia.forEach((el, i) => {
+          const source = sourceMedia[i];
+          const parent = el.parentElement;
+          if (!source || !parent) return;
+
+          const rect = source.getBoundingClientRect();
+          const computed = window.getComputedStyle(source);
+          const placeholder = clonedDoc.createElement('div');
+          placeholder.style.cssText = `
+            width: ${rect.width}px;
+            height: ${rect.height}px;
+            display: ${computed.display === 'inline' ? 'inline-block' : (computed.display || 'block')};
+            position: ${computed.position};
+            top: ${computed.top};
+            left: ${computed.left};
+            right: ${computed.right};
+            bottom: ${computed.bottom};
+            margin: ${computed.margin};
+            background: linear-gradient(135deg, #f0f0f0 25%, #e0e0e0 25%, #e0e0e0 50%, #f0f0f0 50%, #f0f0f0 75%, #e0e0e0 75%);
+            background-size: 20px 20px;
+            color: #666;
+            font-size: 14px;
+            text-align: center;
+            overflow: hidden;
+          `;
+          placeholder.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; height: 100%; width: 100%;">
               <div style="background: white; padding: 16px 24px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                 <div style="font-weight: bold; margin-bottom: 8px;">Embedded Content</div>
-                <div style="font-size: 12px; color: #888;">Content not captured in screenshot.<br/>Use annotations to describe the issue.</div>
+                <div style="font-size: 12px; color: #888;">Not captured in screenshot.<br/>Use annotations to describe the issue.</div>
               </div>
-            `;
-            const parentStyle = window.getComputedStyle(parent);
-            if (parentStyle.position === 'static') {
-              parent.style.position = 'relative';
-            }
-            parent.appendChild(overlay);
-          }
+            </div>
+          `;
+          parent.replaceChild(placeholder, el);
         });
       },
     });
@@ -1025,6 +1110,11 @@
           imageData,
           textAnnotations: allTextAnnotations,
           submitterName: submitterName.trim(),
+          userAgent: detectedUA,
+          viewportW: detectedViewportW,
+          viewportH: detectedViewportH,
+          deviceCategory: deviceCategory || null,
+          deviceModel: deviceModel.trim() || null,
         }),
       });
 
@@ -1135,6 +1225,12 @@
             <button class="bc-action-btn" id="bc-clear" ${annotations.length === 0 && textAnnotations.length === 0 ? 'disabled' : ''}>Clear</button>
           </div>
           <input type="text" class="bc-name-input" placeholder="Your name *" id="bc-name" value="${submitterName}" ${inlineUserName || inlineUserEmail ? 'readonly' : ''} required />
+          <div class="bc-device-row">
+            <select class="bc-device-select" id="bc-device-category" title="Browser / device">
+              ${DEVICE_CATEGORIES.map(c => `<option value="${c}" ${c === deviceCategory ? 'selected' : ''}>${c}</option>`).join('')}
+            </select>
+            <input type="text" class="bc-device-model" id="bc-device-model" placeholder="Model (optional)" value="${deviceModel.replace(/"/g, '&quot;')}" />
+          </div>
           <textarea class="bc-textarea" placeholder="Add a comment (optional)..." rows="2" id="bc-comment">${comment}</textarea>
           <div class="bc-btn-row">
             <button class="bc-cancel-btn">Cancel</button>
@@ -1240,6 +1336,14 @@
 
     overlay.querySelector('#bc-name').oninput = (e) => {
       submitterName = e.target.value;
+    };
+
+    overlay.querySelector('#bc-device-category').onchange = (e) => {
+      deviceCategory = e.target.value;
+    };
+
+    overlay.querySelector('#bc-device-model').oninput = (e) => {
+      deviceModel = e.target.value;
     };
 
     overlay.querySelector('#bc-comment').oninput = (e) => {

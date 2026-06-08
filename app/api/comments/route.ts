@@ -43,6 +43,12 @@ export async function POST(request: NextRequest) {
       priorityNumber: body.priorityNumber || 0,
       assignee: body.assignee || null,
       projectId: body.projectId || null,
+      submitterName: body.submitterName,
+      userAgent: body.userAgent,
+      viewportW: body.viewportW,
+      viewportH: body.viewportH,
+      deviceCategory: body.deviceCategory,
+      deviceModel: body.deviceModel,
     });
 
     return NextResponse.json(comment, { headers: corsHeaders });
@@ -63,6 +69,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') as 'open' | 'resolved' | undefined;
     const priority = searchParams.get('priority') as 'high' | 'med' | 'low' | undefined;
     const assignee = searchParams.get('assignee') || undefined;
+    const deviceCategory = searchParams.get('deviceCategory') || undefined;
     const excludeImages = searchParams.get('excludeImages') === 'true';
 
     const token = extractToken(request);
@@ -80,6 +87,7 @@ export async function GET(request: NextRequest) {
       priority: priority || undefined,
       assignee: assignee || undefined,
       pageSection: pageSection || undefined,
+      deviceCategory: deviceCategory || undefined,
     });
     return NextResponse.json(comments);
   } catch (error) {
