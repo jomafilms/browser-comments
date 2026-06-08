@@ -879,6 +879,7 @@
           allowTaint: true,
           scale: 1, // Use 1x scale to keep image size manageable
           logging: false,
+          imageTimeout: 2000, // fail fast on slow images; default 15s blocks capture
           backgroundColor: '#ffffff',
           x: window.scrollX,
           y: window.scrollY,
