@@ -371,26 +371,26 @@ export default function ClientCommentsPage() {
                 <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded capitalize ${filter === f ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}>{f}</button>
               ))}
             </div>
-            <select value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded max-w-[200px] truncate">
+            <select value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)} className="w-32 px-2 py-1.5 border border-gray-300 rounded overflow-hidden text-ellipsis whitespace-nowrap" title={selectedProject === 'all' ? 'All Projects' : projects.find(p => String(p.id) === selectedProject)?.name}>
               <option value="all">All Projects</option>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
-            <select value={selectedPage} onChange={(e) => setSelectedPage(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded max-w-[200px] truncate">
+            <select value={selectedPage} onChange={(e) => setSelectedPage(e.target.value)} className="w-32 px-2 py-1.5 border border-gray-300 rounded overflow-hidden text-ellipsis whitespace-nowrap" title={selectedPage === 'all' ? 'All Pages' : selectedPage}>
               <option value="all">All Pages</option>
               {pageSections.map((page) => <option key={page} value={page}>{page.split('/').pop() || page}</option>)}
             </select>
-            <select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded">
+            <select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)} className="w-32 px-2 py-1.5 border border-gray-300 rounded overflow-hidden text-ellipsis whitespace-nowrap">
               <option value="all">All Priorities</option>
               <option value="high">High</option>
               <option value="med">Med</option>
               <option value="low">Low</option>
             </select>
-            <select value={selectedAssignee} onChange={(e) => setSelectedAssignee(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded">
+            <select value={selectedAssignee} onChange={(e) => setSelectedAssignee(e.target.value)} className="w-32 px-2 py-1.5 border border-gray-300 rounded overflow-hidden text-ellipsis whitespace-nowrap" title={selectedAssignee === 'all' ? 'All Assignees' : selectedAssignee}>
               <option value="all">All Assignees</option>
               <option value="Unassigned">Unassigned</option>
               {assignees.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
             </select>
-            <select value={selectedDevice} onChange={(e) => setSelectedDevice(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded">
+            <select value={selectedDevice} onChange={(e) => setSelectedDevice(e.target.value)} className="w-32 px-2 py-1.5 border border-gray-300 rounded overflow-hidden text-ellipsis whitespace-nowrap" title={selectedDevice === 'all' ? 'All Devices' : selectedDevice}>
               <option value="all">All Devices</option>
               {availableDevices.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
