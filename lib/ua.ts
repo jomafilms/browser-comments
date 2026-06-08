@@ -46,8 +46,8 @@ export function guessIPhoneModel(
   const h = Math.max(width, height);
   const key = `${w}x${h}@${dpr}`;
   const map: Record<string, string> = {
-    '402x874@3': 'iPhone 16 Pro',
-    '440x956@3': 'iPhone 16 Pro Max',
+    '402x874@3': 'iPhone 17 Pro / 17 / 16 Pro',
+    '440x956@3': 'iPhone 17 Pro Max / 16 Pro Max',
     '393x852@3': 'iPhone 16 / 15 Pro',
     '430x932@3': 'iPhone 16 Plus / 15 Pro Max',
     '390x844@3': 'iPhone 15 / 14 / 13 / 12',

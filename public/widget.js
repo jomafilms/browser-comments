@@ -282,6 +282,7 @@
         padding: 16px;
         background: ${t.canvasBg};
         position: relative;
+        touch-action: pan-x pan-y; /* native scroll; pinch handled in JS */
       }
       .bc-canvas {
         max-width: 100%;
@@ -289,6 +290,7 @@
         cursor: crosshair;
         border: 1px solid ${t.canvasBorder};
         border-radius: 4px;
+        touch-action: none; /* single-finger drawing is JS-driven */
       }
       .bc-toolbar {
         padding: 16px;
@@ -297,7 +299,9 @@
       .bc-tool-row {
         display: flex;
         align-items: center;
-        gap: 16px;
+        flex-wrap: wrap;
+        row-gap: 8px;
+        column-gap: 16px;
         margin-bottom: 12px;
       }
       .bc-tool-group {
@@ -582,6 +586,18 @@
         background: #6b7280;
         opacity: 1 !important;
       }
+      @media (max-width: 500px) {
+        .bc-modal { max-height: 95vh; border-radius: 8px; }
+        .bc-modal-header { padding: 12px; }
+        .bc-toolbar { padding: 12px; }
+        .bc-canvas-container { padding: 8px; }
+        .bc-tool-row { column-gap: 8px; }
+        .bc-tool-group { padding: 2px; gap: 2px; }
+        .bc-tool-btn { padding: 8px; }
+        .bc-action-btn { padding: 8px 10px; font-size: 13px; }
+        .bc-divider { display: none; }
+        .bc-cancel-btn, .bc-submit-btn { padding: 10px 12px; }
+      }
     `;
     document.head.appendChild(styles);
   }
@@ -610,8 +626,8 @@
     if (category === 'iPhone') {
       const sw = Math.min(w, h), sh = Math.max(w, h);
       const map = {
-        '402x874@3': 'iPhone 16 Pro',
-        '440x956@3': 'iPhone 16 Pro Max',
+        '402x874@3': 'iPhone 17 Pro / 17 / 16 Pro',
+        '440x956@3': 'iPhone 17 Pro Max / 16 Pro Max',
         '393x852@3': 'iPhone 16 / 15 Pro',
         '430x932@3': 'iPhone 16 Plus / 15 Pro Max',
         '390x844@3': 'iPhone 15 / 14 / 13 / 12',
@@ -671,11 +687,13 @@
   }
 
   const detectedUA = navigator.userAgent || '';
-  const detectedViewportW = window.innerWidth;
-  const detectedViewportH = window.innerHeight;
+  // Use screen.* (stable device dimensions) for the model lookup. window.inner*
+  // shrinks by the URL bar in iOS Safari, which breaks every iPhone match.
+  const detectedScreenW = window.screen?.width || window.innerWidth;
+  const detectedScreenH = window.screen?.height || window.innerHeight;
   const detectedDPR = Math.round(window.devicePixelRatio || 1);
   const detectedCategory = categorizeUA(detectedUA);
-  const detectedModel = guessDeviceModel(detectedCategory, detectedViewportW, detectedViewportH, detectedDPR, detectedUA);
+  const detectedModel = guessDeviceModel(detectedCategory, detectedScreenW, detectedScreenH, detectedDPR, detectedUA);
 
   // State
   let isOpen = false;
@@ -760,10 +778,40 @@
         preCapturePromise = captureScreenshot().catch(() => null);
       };
       button.onmousedown = startPreCapture;
-      button.ontouchstart = startPreCapture;
+      // Touch path: preventDefault on touchstart suppresses iOS's synthetic
+      // click, so we drive open/minimize from touchend ourselves. Without this,
+      // taps on iPhone/iPad often do nothing.
+      let touchStartXY = null;
+      button.ontouchstart = (e) => {
+        const onMinimize = e.target.closest('.bc-minimize-btn');
+        const t = e.touches[0];
+        touchStartXY = t ? { x: t.clientX, y: t.clientY } : null;
+        if (onMinimize) return; // let minimize tap behave normally
+        if (isCapturing || isOpen) return;
+        e.preventDefault();
+        preCapturePromise = captureScreenshot().catch(() => null);
+      };
+      button.ontouchend = (e) => {
+        // Reject swipes — only treat as a tap if finger barely moved
+        const t = e.changedTouches && e.changedTouches[0];
+        if (touchStartXY && t) {
+          const dx = t.clientX - touchStartXY.x;
+          const dy = t.clientY - touchStartXY.y;
+          if (Math.hypot(dx, dy) > 20) { touchStartXY = null; return; }
+        }
+        touchStartXY = null;
+        if (e.target.closest('.bc-minimize-btn')) {
+          e.preventDefault();
+          toggleMinimize(e);
+          return;
+        }
+        if (isOpen) return;
+        e.preventDefault(); // also suppresses the synthetic click that follows
+        openModal();
+      };
       button.style.padding = '10px 16px';
 
-      // Add click handler to minimize button
+      // Add click handler to minimize button (mouse / non-touch path)
       const minimizeBtn = button.querySelector('.bc-minimize-btn');
       if (minimizeBtn) {
         minimizeBtn.onclick = toggleMinimize;
@@ -1403,8 +1451,43 @@
       comment = e.target.value;
     };
 
+    // Pinch-zoom on the screenshot canvas (mobile). Tracked at container level
+    // so both fingers don't have to land on the canvas itself.
+    const canvasContainerEl = overlay.querySelector('.bc-canvas-container');
+    let pinchStartDist = 0;
+    let pinchStartWidth = 0;
+    const touchDistance = (touches) => {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.hypot(dx, dy);
+    };
+    canvasContainerEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        pinchStartDist = touchDistance(e.touches);
+        pinchStartWidth = canvas.getBoundingClientRect().width;
+        e.preventDefault();
+      }
+    }, { passive: false });
+    canvasContainerEl.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && pinchStartDist > 0) {
+        const d = touchDistance(e.touches);
+        const minW = 80;
+        const maxW = canvas.width * 4;
+        const newW = Math.max(minW, Math.min(maxW, pinchStartWidth * (d / pinchStartDist)));
+        canvas.style.width = newW + 'px';
+        canvas.style.height = (newW / canvas.width * canvas.height) + 'px';
+        canvas.style.maxWidth = 'none';
+        e.preventDefault();
+      }
+    }, { passive: false });
+    canvasContainerEl.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) pinchStartDist = 0;
+    });
+
     // Canvas drawing events
     canvas.onmousedown = canvas.ontouchstart = (e) => {
+      // Ignore second/third fingers — those are for pinch, not drawing
+      if (e.touches && e.touches.length > 1) return;
       e.preventDefault();
       const point = getCanvasPoint(e, canvas);
 
@@ -1560,6 +1643,8 @@
 
     canvas.onmousemove = canvas.ontouchmove = (e) => {
       if (!isDrawing || !currentAnnotation) return;
+      // Bail out mid-stroke if a second finger lands (pinch-zoom takes over)
+      if (e.touches && e.touches.length > 1) { isDrawing = false; currentAnnotation = null; return; }
       e.preventDefault();
       const point = getCanvasPoint(e, canvas);
       if (activeTool === 'draw') {
