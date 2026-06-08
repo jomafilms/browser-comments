@@ -604,7 +604,9 @@
     return 'Other';
   }
 
-  function guessDeviceModel(category, w, h, dpr) {
+  function guessDeviceModel(category, w, h, dpr, ua) {
+    const join = (a, b) => (a && b ? `${a} (${b})` : a || b || '');
+
     if (category === 'iPhone') {
       const sw = Math.min(w, h), sh = Math.max(w, h);
       const map = {
@@ -619,7 +621,10 @@
         '414x896@2': 'iPhone 11 / XR',
         '375x667@2': 'iPhone SE / 8 / 7 / 6',
       };
-      return map[`${sw}x${sh}@${dpr}`] || '';
+      const device = map[`${sw}x${sh}@${dpr}`] || '';
+      const iosMatch = ua.match(/OS (\d+(?:_\d+){0,2})/);
+      const ios = iosMatch ? `iOS ${iosMatch[1].replace(/_/g, '.')}` : '';
+      return join(device, ios);
     }
     if (category === 'iPad') {
       const sw = Math.min(w, h), sh = Math.max(w, h);
@@ -631,7 +636,36 @@
         '768x1024': 'iPad mini / iPad',
         '744x1133': 'iPad mini (6th gen)',
       };
-      return map[`${sw}x${sh}`] || '';
+      const device = map[`${sw}x${sh}`] || '';
+      const iosMatch = ua.match(/OS (\d+(?:_\d+){0,2})/);
+      const ios = iosMatch ? `iPadOS ${iosMatch[1].replace(/_/g, '.')}` : '';
+      return join(device, ios);
+    }
+    if (category === 'Android') {
+      const verMatch = ua.match(/Android (\d+(?:\.\d+)?)/);
+      const ver = verMatch ? verMatch[1] : '';
+      // Try to pull device name from "Android 14; Pixel 9 Build/..."
+      let model = '';
+      const m = ua.match(/Android [^;]+; ([^)]+)\)/);
+      if (m) model = m[1].split(' Build')[0].trim();
+      const os = ver ? `Android ${ver}` : '';
+      return join(model, os);
+    }
+    if (category === 'Safari') {
+      const m = ua.match(/Version\/(\d+(?:\.\d+)?)/);
+      return m ? `Safari ${m[1]}` : '';
+    }
+    if (category === 'Chrome') {
+      const m = ua.match(/Chrome\/(\d+)/);
+      return m ? `Chrome ${m[1]}` : '';
+    }
+    if (category === 'Firefox') {
+      const m = ua.match(/Firefox\/(\d+(?:\.\d+)?)/);
+      return m ? `Firefox ${m[1]}` : '';
+    }
+    if (category === 'Edge') {
+      const m = ua.match(/Edg\/(\d+)/);
+      return m ? `Edge ${m[1]}` : '';
     }
     return '';
   }
@@ -641,7 +675,7 @@
   const detectedViewportH = window.innerHeight;
   const detectedDPR = Math.round(window.devicePixelRatio || 1);
   const detectedCategory = categorizeUA(detectedUA);
-  const detectedModel = guessDeviceModel(detectedCategory, detectedViewportW, detectedViewportH, detectedDPR);
+  const detectedModel = guessDeviceModel(detectedCategory, detectedViewportW, detectedViewportH, detectedDPR, detectedUA);
 
   // State
   let isOpen = false;
@@ -1247,7 +1281,7 @@
             <select class="bc-device-select" id="bc-device-category" title="Browser / device">
               ${DEVICE_CATEGORIES.map(c => `<option value="${c}" ${c === deviceCategory ? 'selected' : ''}>${c}</option>`).join('')}
             </select>
-            <input type="text" class="bc-device-model" id="bc-device-model" placeholder="Model (optional)" value="${deviceModel.replace(/"/g, '&quot;')}" />
+            <input type="text" class="bc-device-model" id="bc-device-model" placeholder="Model/version (optional)" value="${deviceModel.replace(/"/g, '&quot;')}" />
           </div>
           <textarea class="bc-textarea" placeholder="Add a comment (optional)..." rows="2" id="bc-comment">${comment}</textarea>
           <div class="bc-btn-row">
