@@ -778,75 +778,93 @@
     });
   }
 
+  // Swap source-DOM <video>/<iframe> elements for placeholder divs so html2canvas
+  // never sees them (it can hang during its source-DOM walk on cross-origin
+  // video frames, before onclone ever fires). Returns a restore() function.
+  function swapMediaForPlaceholders() {
+    const swaps = [];
+    document.querySelectorAll('iframe, video').forEach((el) => {
+      const parent = el.parentElement;
+      if (!parent) return;
+      const rect = el.getBoundingClientRect();
+      const computed = window.getComputedStyle(el);
+      const placeholder = document.createElement('div');
+      placeholder.setAttribute('data-bc-media-placeholder', '1');
+      placeholder.style.cssText = `
+        width: ${rect.width}px;
+        height: ${rect.height}px;
+        display: ${computed.display === 'inline' ? 'inline-block' : (computed.display || 'block')};
+        background: linear-gradient(135deg, #f0f0f0 25%, #e0e0e0 25%, #e0e0e0 50%, #f0f0f0 50%, #f0f0f0 75%, #e0e0e0 75%);
+        background-size: 20px 20px;
+        color: #666;
+        font-size: 14px;
+        text-align: center;
+        overflow: hidden;
+        vertical-align: ${computed.verticalAlign};
+      `;
+      placeholder.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: center; height: 100%; width: 100%;">
+          <div style="background: white; padding: 16px 24px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <div style="font-weight: bold; margin-bottom: 8px;">Embedded Content</div>
+            <div style="font-size: 12px; color: #888;">Not captured in screenshot.<br/>Use annotations to describe the issue.</div>
+          </div>
+        </div>
+      `;
+      parent.insertBefore(placeholder, el);
+      const prevDisplay = el.style.display;
+      el.style.display = 'none';
+      swaps.push({ el, placeholder, prevDisplay });
+    });
+    return () => {
+      swaps.forEach(({ el, placeholder, prevDisplay }) => {
+        el.style.display = prevDisplay;
+        placeholder.remove();
+      });
+    };
+  }
+
   // Capture screenshot
   async function captureScreenshot() {
     const html2canvas = await loadHtml2Canvas();
 
-    const captureCanvas = await html2canvas(document.body, {
-      useCORS: true,
-      allowTaint: true,
-      scale: 1, // Use 1x scale to keep image size manageable
-      logging: false,
-      backgroundColor: '#ffffff',
-      x: window.scrollX,
-      y: window.scrollY,
-      width: window.innerWidth,
-      height: window.innerHeight,
-      windowWidth: window.innerWidth,
-      windowHeight: window.innerHeight,
-      // Handle iframes, videos, and fonts
-      onclone: (clonedDoc) => {
-        // Add font-display fix
-        const fontStyle = clonedDoc.createElement('style');
-        fontStyle.textContent = '* { font-display: block !important; }';
-        clonedDoc.head.appendChild(fontStyle);
+    // Pre-process: swap videos/iframes in source DOM before html2canvas touches them.
+    // Doing this in onclone is too late — html2canvas can hang during its source-DOM
+    // walk on cross-origin video frames, before onclone fires.
+    const restoreMedia = swapMediaForPlaceholders();
 
-        // Replace iframes and videos with placeholder divs.
-        // For <video>, html2canvas calls drawImage(videoEl) which can hang on
-        // cross-origin frames — so we must actually swap the node out, not overlay.
-        // Clone elements aren't laid out, so read dimensions from the source DOM.
-        const sourceMedia = Array.from(document.querySelectorAll('iframe, video'));
-        const cloneMedia = Array.from(clonedDoc.querySelectorAll('iframe, video'));
-
-        cloneMedia.forEach((el, i) => {
-          const source = sourceMedia[i];
-          const parent = el.parentElement;
-          if (!source || !parent) return;
-
-          const rect = source.getBoundingClientRect();
-          const computed = window.getComputedStyle(source);
-          const placeholder = clonedDoc.createElement('div');
-          placeholder.style.cssText = `
-            width: ${rect.width}px;
-            height: ${rect.height}px;
-            display: ${computed.display === 'inline' ? 'inline-block' : (computed.display || 'block')};
-            position: ${computed.position};
-            top: ${computed.top};
-            left: ${computed.left};
-            right: ${computed.right};
-            bottom: ${computed.bottom};
-            margin: ${computed.margin};
-            background: linear-gradient(135deg, #f0f0f0 25%, #e0e0e0 25%, #e0e0e0 50%, #f0f0f0 50%, #f0f0f0 75%, #e0e0e0 75%);
-            background-size: 20px 20px;
-            color: #666;
-            font-size: 14px;
-            text-align: center;
-            overflow: hidden;
-          `;
-          placeholder.innerHTML = `
-            <div style="display: flex; align-items: center; justify-content: center; height: 100%; width: 100%;">
-              <div style="background: white; padding: 16px 24px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                <div style="font-weight: bold; margin-bottom: 8px;">Embedded Content</div>
-                <div style="font-size: 12px; color: #888;">Not captured in screenshot.<br/>Use annotations to describe the issue.</div>
-              </div>
-            </div>
-          `;
-          parent.replaceChild(placeholder, el);
-        });
-      },
+    // Hard timeout so a stuck html2canvas can't dead-spin the widget forever.
+    const CAPTURE_TIMEOUT_MS = 15000;
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Screenshot capture timed out')), CAPTURE_TIMEOUT_MS);
     });
 
-    return captureCanvas.toDataURL('image/png');
+    try {
+      const captureCanvas = await Promise.race([
+        html2canvas(document.body, {
+          useCORS: true,
+          allowTaint: true,
+          scale: 1, // Use 1x scale to keep image size manageable
+          logging: false,
+          backgroundColor: '#ffffff',
+          x: window.scrollX,
+          y: window.scrollY,
+          width: window.innerWidth,
+          height: window.innerHeight,
+          windowWidth: window.innerWidth,
+          windowHeight: window.innerHeight,
+          onclone: (clonedDoc) => {
+            const fontStyle = clonedDoc.createElement('style');
+            fontStyle.textContent = '* { font-display: block !important; }';
+            clonedDoc.head.appendChild(fontStyle);
+          },
+        }),
+        timeoutPromise,
+      ]);
+
+      return captureCanvas.toDataURL('image/png');
+    } finally {
+      restoreMedia();
+    }
   }
 
   // Open modal
