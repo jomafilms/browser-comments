@@ -27,11 +27,26 @@
     return;
   }
 
+  // Escape config/user values before interpolating into innerHTML
+  function esc(value) {
+    return String(value).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  // Colors go into a <style> tag — only allow hex so they can't break out of CSS
+  const HEX_COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
+  function safeColor(color, fallback) {
+    return HEX_COLOR_RE.test(String(color)) ? color : fallback;
+  }
+
+  const DEFAULT_COLOR = '#2563eb';
+
   // Default settings
   let config = {
     buttonText: inlineButtonText || 'Feedback',
     buttonPosition: inlinePosition || 'bottom-right',
-    primaryColor: inlineColor || '#2563eb',
+    primaryColor: safeColor(inlineColor, DEFAULT_COLOR),
     modalTitle: inlineTitle || 'Send Feedback',
     modalSubtitle: inlineSubtitle || 'Draw on the screenshot to highlight issues',
     successMessage: 'Your feedback has been submitted!',
@@ -50,7 +65,7 @@
     config = {
       buttonText: inlineButtonText || serverSettings.buttonText || config.buttonText,
       buttonPosition: inlinePosition || serverSettings.buttonPosition || config.buttonPosition,
-      primaryColor: inlineColor || serverSettings.primaryColor || config.primaryColor,
+      primaryColor: safeColor(inlineColor || serverSettings.primaryColor || config.primaryColor, DEFAULT_COLOR),
       modalTitle: inlineTitle || serverSettings.modalTitle || config.modalTitle,
       modalSubtitle: inlineSubtitle || serverSettings.modalSubtitle || config.modalSubtitle,
       successMessage: serverSettings.successMessage || config.successMessage,
@@ -765,7 +780,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="bc-main-icon">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
         </svg>
-        <span class="bc-btn-text">${config.buttonText}</span>
+        <span class="bc-btn-text">${esc(config.buttonText)}</span>
         <span class="bc-minimize-btn" title="Minimize">−</span>
       `;
       button.onclick = (e) => { e.stopPropagation(); openModal(); };
@@ -1262,7 +1277,7 @@
           </div>
           <div class="bc-success">
             <div class="bc-success-icon">✓</div>
-            <p class="bc-success-text">${config.successMessage}</p>
+            <p class="bc-success-text">${esc(config.successMessage)}</p>
           </div>
         </div>
       `;
@@ -1273,8 +1288,8 @@
       <div class="bc-modal">
         <div class="bc-modal-header">
           <div>
-            <h2 class="bc-modal-title">${config.modalTitle}</h2>
-            <p class="bc-modal-subtitle">${config.modalSubtitle}</p>
+            <h2 class="bc-modal-title">${esc(config.modalTitle)}</h2>
+            <p class="bc-modal-subtitle">${esc(config.modalSubtitle)}</p>
           </div>
           <button class="bc-close-btn">&times;</button>
         </div>
@@ -1325,14 +1340,14 @@
             <button class="bc-action-btn" id="bc-undo" ${annotations.length === 0 && textAnnotations.length === 0 ? 'disabled' : ''}>Undo</button>
             <button class="bc-action-btn" id="bc-clear" ${annotations.length === 0 && textAnnotations.length === 0 ? 'disabled' : ''}>Clear</button>
           </div>
-          <input type="text" class="bc-name-input" placeholder="Your name *" id="bc-name" value="${submitterName}" ${inlineUserName || inlineUserEmail ? 'readonly' : ''} required />
+          <input type="text" class="bc-name-input" placeholder="Your name *" id="bc-name" value="${esc(submitterName)}" ${inlineUserName || inlineUserEmail ? 'readonly' : ''} required />
           <div class="bc-device-row">
             <select class="bc-device-select" id="bc-device-category" title="Browser / device">
               ${DEVICE_CATEGORIES.map(c => `<option value="${c}" ${c === deviceCategory ? 'selected' : ''}>${c}</option>`).join('')}
             </select>
-            <input type="text" class="bc-device-model" id="bc-device-model" placeholder="Model/version (optional)" value="${deviceModel.replace(/"/g, '&quot;')}" />
+            <input type="text" class="bc-device-model" id="bc-device-model" placeholder="Model/version (optional)" value="${esc(deviceModel)}" />
           </div>
-          <textarea class="bc-textarea" placeholder="Add a comment (optional)..." rows="2" id="bc-comment">${comment}</textarea>
+          <textarea class="bc-textarea" placeholder="Add a comment (optional)..." rows="2" id="bc-comment">${esc(comment)}</textarea>
           <div class="bc-btn-row">
             <button class="bc-cancel-btn">Cancel</button>
             <button class="bc-submit-btn" ${isSubmitting ? 'disabled' : ''}>${isSubmitting ? 'Submitting...' : 'Submit Feedback'}</button>

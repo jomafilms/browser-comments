@@ -1,5 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initDB, deleteAssignee, updateAssignee } from '@/lib/db';
+import { requireToken, verifyAssigneeScope } from '@/lib/auth';
+
+// Resolve auth + ownership for an assignee id; returns the error response to send, or null.
+async function authorizeAssignee(request: NextRequest, id: number, bodyToken?: unknown): Promise<NextResponse | null> {
+  if (!Number.isInteger(id)) {
+    return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
+  }
+  const auth = await requireToken(request, bodyToken);
+  if (!auth.ok) return auth.response;
+
+  if (!(await verifyAssigneeScope(auth.ctx, id))) {
+    return NextResponse.json({ error: 'Assignee not found or access denied' }, { status: 404 });
+  }
+  return null;
+}
 
 // DELETE - Remove an assignee
 export async function DELETE(
@@ -9,11 +24,10 @@ export async function DELETE(
   await initDB();
 
   const { id } = await params;
-  const assigneeId = parseInt(id);
+  const assigneeId = Number(id);
 
-  if (isNaN(assigneeId)) {
-    return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
-  }
+  const denied = await authorizeAssignee(request, assigneeId);
+  if (denied) return denied;
 
   try {
     await deleteAssignee(assigneeId);
@@ -32,14 +46,14 @@ export async function PATCH(
   await initDB();
 
   const { id } = await params;
-  const assigneeId = parseInt(id);
-
-  if (isNaN(assigneeId)) {
-    return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
-  }
+  const assigneeId = Number(id);
 
   try {
     const body = await request.json();
+
+    const denied = await authorizeAssignee(request, assigneeId, body.token);
+    if (denied) return denied;
+
     const { name } = body;
 
     if (!name || !name.trim()) {

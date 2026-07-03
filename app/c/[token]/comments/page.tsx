@@ -295,7 +295,7 @@ export default function ClientCommentsPage() {
       if (addNoteToDecisions) {
         const comment = comments.find(c => c.id === id);
         const noteIndex = comment ? comment.text_annotations.length : 0;
-        await fetch('/api/decisions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ noteText: newNote, commentId: id, noteIndex, source: 'comment', projectId: comment?.project_id || null }) });
+        await fetch(`/api/decisions?token=${token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ noteText: newNote, commentId: id, noteIndex, source: 'comment', projectId: comment?.project_id || null }) });
         fetchDecisionItems();
       }
       setNewNote(''); setAddNoteToDecisions(false); setExpandedComment(null);
@@ -312,7 +312,7 @@ export default function ClientCommentsPage() {
 
   const batchUpdatePriority = async (updates: Array<{id: number, priorityNumber: number}>) => {
     try {
-      await fetch('/api/comments/batch-update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ updates }) });
+      await fetch(`/api/comments/batch-update?token=${token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ updates }) });
       setComments(prev => prev.map(c => { const update = updates.find(u => u.id === c.id); return update ? { ...c, priority_number: update.priorityNumber } : c; }));
     } catch (err) { console.error('Error batch updating priorities:', err); }
   };

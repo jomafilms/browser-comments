@@ -23,8 +23,8 @@ interface Project {
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const adminSecret = searchParams.get('admin');
 
+  const [adminSecret, setAdminSecret] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -42,24 +42,51 @@ function HomeContent() {
   const [editProjectName, setEditProjectName] = useState('');
   const [editProjectUrl, setEditProjectUrl] = useState('');
 
+  // Read ?admin= from the URL once, stash it for the session, and scrub it
+  // from the address bar so the secret never sits in history/logs/referers.
+  // Every API call sends it as an Authorization: Bearer header instead.
   useEffect(() => {
-    if (adminSecret) {
-      checkAdmin();
+    const fromUrl = searchParams.get('admin');
+    if (fromUrl) {
+      sessionStorage.setItem('bc-admin-secret', fromUrl);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('admin');
+      window.history.replaceState(null, '', url.toString());
+      setAdminSecret(fromUrl);
+      return;
+    }
+    const stored = sessionStorage.getItem('bc-admin-secret');
+    if (stored) {
+      setAdminSecret(stored);
     } else {
       setLoading(false);
     }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (adminSecret) {
+      checkAdmin(adminSecret);
+    }
   }, [adminSecret]);
 
-  const checkAdmin = async () => {
+  const adminFetch = (path: string, init?: RequestInit) =>
+    fetch(path, {
+      ...init,
+      headers: { ...(init?.headers || {}), Authorization: `Bearer ${adminSecret}` },
+    });
+
+  const checkAdmin = async (secret: string) => {
+    const withSecret = (path: string) =>
+      fetch(path, { headers: { Authorization: `Bearer ${secret}` } });
     try {
-      const response = await fetch(`/api/clients?admin=${adminSecret}`);
+      const response = await withSecret('/api/clients');
       if (response.ok) {
         setIsAdmin(true);
         const clientsData = await response.json();
         setClients(clientsData);
 
         // Fetch all projects
-        const projectsRes = await fetch(`/api/projects?admin=${adminSecret}`);
+        const projectsRes = await withSecret('/api/projects');
         if (projectsRes.ok) {
           const projectsData = await projectsRes.json();
           setProjects(projectsData);
@@ -83,7 +110,7 @@ function HomeContent() {
     }
 
     try {
-      const response = await fetch(`/api/clients?admin=${adminSecret}`, {
+      const response = await adminFetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newClientName })
@@ -122,7 +149,7 @@ function HomeContent() {
         return trimmed;
       }).join(', ');
 
-      const response = await fetch(`/api/projects?admin=${adminSecret}`, {
+      const response = await adminFetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -160,7 +187,7 @@ function HomeContent() {
 
   const regenerateToken = async (clientId: number) => {
     try {
-      const response = await fetch(`/api/clients/${clientId}/regenerate-token?admin=${adminSecret}`, {
+      const response = await adminFetch(`/api/clients/${clientId}/regenerate-token`, {
         method: 'POST'
       });
       if (response.ok) {
@@ -178,7 +205,7 @@ function HomeContent() {
 
   const generateWidgetKey = async (clientId: number) => {
     try {
-      const response = await fetch(`/api/clients/${clientId}/widget-key?admin=${adminSecret}`, {
+      const response = await adminFetch(`/api/clients/${clientId}/widget-key`, {
         method: 'POST'
       });
       if (response.ok) {
@@ -209,7 +236,7 @@ function HomeContent() {
       return;
     }
     try {
-      const response = await fetch(`/api/projects/${projectId}?admin=${adminSecret}`, {
+      const response = await adminFetch(`/api/projects/${projectId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: editProjectName, url: editProjectUrl }),
@@ -230,7 +257,7 @@ function HomeContent() {
 
   const deleteProjectById = async (projectId: number) => {
     try {
-      const response = await fetch(`/api/projects/${projectId}?admin=${adminSecret}`, {
+      const response = await adminFetch(`/api/projects/${projectId}`, {
         method: 'DELETE'
       });
       if (response.ok) {
@@ -244,7 +271,7 @@ function HomeContent() {
 
   const generateProjectToken = async (projectId: number) => {
     try {
-      const response = await fetch(`/api/projects/${projectId}/regenerate-token?admin=${adminSecret}`, {
+      const response = await adminFetch(`/api/projects/${projectId}/regenerate-token`, {
         method: 'POST'
       });
       if (response.ok) {

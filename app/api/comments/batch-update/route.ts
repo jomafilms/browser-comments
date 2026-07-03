@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { requireToken, verifyCommentsScope } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,6 +11,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid updates array' },
         { status: 400 }
+      );
+    }
+
+    const ids = updates.map((u) => u.id);
+    if (!ids.every(Number.isInteger) || !updates.every((u) => Number.isInteger(u.priorityNumber))) {
+      return NextResponse.json(
+        { error: 'Each update needs integer id and priorityNumber' },
+        { status: 400 }
+      );
+    }
+
+    const auth = await requireToken(request, body.token);
+    if (!auth.ok) return auth.response;
+
+    // Every comment in the batch must belong to the token's scope
+    if (!(await verifyCommentsScope(auth.ctx, ids))) {
+      return NextResponse.json(
+        { error: 'One or more comments not found or access denied' },
+        { status: 404 }
       );
     }
 

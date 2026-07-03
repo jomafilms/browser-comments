@@ -15,14 +15,17 @@ async function getClientByContextId(clientId: number) {
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-// Cache headers for widget settings (1 hour browser cache, CDN can serve stale while revalidating)
+// Short cache so revoked keys / changed settings propagate within minutes
 const cacheHeaders = {
   ...corsHeaders,
-  'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+  'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=300',
 };
+
+// Hex colors only — widget.js interpolates this into a <style> tag
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
@@ -95,6 +98,11 @@ export async function POST(request: NextRequest) {
     const validPositions = ['bottom-right', 'bottom-left', 'top-right', 'top-left'];
     if (buttonPosition && !validPositions.includes(buttonPosition)) {
       return NextResponse.json({ error: 'Invalid button position' }, { status: 400 });
+    }
+
+    // Reject non-hex colors — stored value stays untouched
+    if (primaryColor && !HEX_COLOR_RE.test(primaryColor)) {
+      return NextResponse.json({ error: 'primaryColor must be a hex color like #2563eb' }, { status: 400 });
     }
 
     const settings = {

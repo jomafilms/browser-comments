@@ -28,10 +28,10 @@ export async function fetchTickets(
   includeImages: boolean = false
 ): Promise<Ticket[]> {
   const url = new URL('/api/comments', apiUrl);
-  url.searchParams.set('token', token);
   if (!includeImages) url.searchParams.set('excludeImages', 'true');
 
-  const res = await fetch(url.toString());
+  // Token goes in the header, never the URL (avoids leaking via logs)
+  const res = await fetch(url.toString(), { headers: { 'Authorization': `Bearer ${token}` } });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `API returned ${res.status}`);
@@ -64,10 +64,9 @@ export async function fetchTicketById(
   includeImage: boolean = false
 ): Promise<Ticket | null> {
   const url = new URL('/api/comments', apiUrl);
-  url.searchParams.set('token', token);
   if (!includeImage) url.searchParams.set('excludeImages', 'true');
 
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), { headers: { 'Authorization': `Bearer ${token}` } });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `API returned ${res.status}`);

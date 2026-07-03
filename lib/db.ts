@@ -435,60 +435,6 @@ export async function saveComment(data: {
   }
 }
 
-export async function getComments(filters?: {
-  pageSection?: string;
-  status?: 'open' | 'resolved';
-  priority?: 'high' | 'med' | 'low';
-  assignee?: string;
-  excludeImages?: boolean;
-}): Promise<Comment[]> {
-  const client = await pool.connect();
-  try {
-    // If excludeImages is true, select all fields except image_data
-    const selectClause = filters?.excludeImages
-      ? 'id, project_id, client_id, display_number, url, page_section, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, submitter_name, created_at, updated_at'
-      : '*';
-
-    let query = `SELECT ${selectClause} FROM comments WHERE 1=1`;
-    const params: any[] = [];
-
-    if (filters?.pageSection) {
-      params.push(filters.pageSection);
-      query += ` AND page_section = $${params.length}`;
-    }
-
-    if (filters?.status) {
-      params.push(filters.status);
-      query += ` AND status = $${params.length}`;
-    }
-
-    if (filters?.priority) {
-      params.push(filters.priority);
-      query += ` AND priority = $${params.length}`;
-    }
-
-    if (filters?.assignee) {
-      params.push(filters.assignee);
-      query += ` AND assignee = $${params.length}`;
-    }
-
-    // Order by priority (high > med > low), then priority_number, then created_at
-    query += ` ORDER BY
-      CASE priority
-        WHEN 'high' THEN 1
-        WHEN 'med' THEN 2
-        WHEN 'low' THEN 3
-      END,
-      priority_number DESC,
-      created_at DESC`;
-
-    const result = await client.query(query, params);
-    return result.rows;
-  } finally {
-    client.release();
-  }
-}
-
 export async function updateCommentStatus(
   id: number,
   status: 'open' | 'resolved'
@@ -524,33 +470,6 @@ export async function addNoteToComment(
            updated_at = NOW()
        WHERE id = $2`,
       [JSON.stringify([{ text: note, x: 0, y: 0, color: 'black' }]), id]
-    );
-  } finally {
-    client.release();
-  }
-}
-
-export async function getPageSections(): Promise<string[]> {
-  const client = await pool.connect();
-  try {
-    const result = await client.query(
-      `SELECT DISTINCT page_section FROM comments ORDER BY page_section`
-    );
-    return result.rows.map(row => row.page_section);
-  } finally {
-    client.release();
-  }
-}
-
-export async function updatePageSection(
-  oldName: string,
-  newName: string
-): Promise<void> {
-  const client = await pool.connect();
-  try {
-    await client.query(
-      `UPDATE comments SET page_section = $1 WHERE page_section = $2`,
-      [newName, oldName]
     );
   } finally {
     client.release();
@@ -625,21 +544,6 @@ export async function addDecisionItem(
       [commentId || null, noteText, noteIndex || null, source || null, projectId || null]
     );
     return result.rows[0];
-  } finally {
-    client.release();
-  }
-}
-
-export async function getDecisionItems(): Promise<DecisionItem[]> {
-  const client = await pool.connect();
-  try {
-    const result = await client.query(
-      `SELECT d.*, c.display_number as comment_display_number, c.project_id as comment_project_id
-       FROM decision_items d
-       LEFT JOIN comments c ON d.comment_id = c.id
-       ORDER BY d.created_at DESC`
-    );
-    return result.rows;
   } finally {
     client.release();
   }
@@ -898,11 +802,12 @@ export async function getProjectByOrigin(clientId: number, origin: string): Prom
       const urls = (project.url || '').split(',').map((u: string) => u.trim().replace(/\/$/, '').toLowerCase());
       for (const url of urls) {
         const urlNaked = url.replace(/^https?:\/\//, '');
+        // Prefix matches require a '/' boundary so example.com never matches example.com.evil.io
         if (
           url === originClean ||
           urlNaked === originNaked ||
-          originClean.startsWith(url) ||
-          url.startsWith(originClean)
+          originClean.startsWith(url + '/') ||
+          url.startsWith(originClean + '/')
         ) {
           return project;
         }
@@ -1072,27 +977,6 @@ export async function deleteProject(id: number): Promise<void> {
 }
 
 // Get comments by project ID
-export async function getCommentsByProjectId(projectId: number, excludeImages?: boolean): Promise<Comment[]> {
-  const dbClient = await pool.connect();
-  try {
-    const selectClause = excludeImages
-      ? 'id, project_id, client_id, display_number, url, page_section, \'\' as image_data, text_annotations, status, priority, priority_number, assignee, submitter_name, created_at, updated_at'
-      : '*';
-
-    const result = await dbClient.query(
-      `SELECT ${selectClause} FROM comments WHERE project_id = $1
-       ORDER BY
-         CASE priority WHEN 'high' THEN 1 WHEN 'med' THEN 2 WHEN 'low' THEN 3 END,
-         priority_number DESC,
-         created_at DESC`,
-      [projectId]
-    );
-    return result.rows;
-  } finally {
-    dbClient.release();
-  }
-}
-
 // Get comments by client ID (all projects for a client)
 export async function getCommentsByClientId(
   clientId: number,

@@ -101,6 +101,9 @@ export default function SettingsPage() {
       if (response.ok) {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
+      } else {
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || 'Failed to save settings');
       }
     } catch (err) {
       console.error('Error saving settings:', err);
@@ -137,7 +140,7 @@ export default function SettingsPage() {
   const deleteAssignee = async (id: number) => {
     if (!confirm('Are you sure you want to delete this assignee?')) return;
     try {
-      await fetch(`/api/assignees/${id}`, { method: 'DELETE' });
+      await fetch(`/api/assignees/${id}?token=${token}`, { method: 'DELETE' });
       fetchAssignees();
     } catch (err) {
       console.error('Error deleting assignee:', err);
@@ -152,7 +155,7 @@ export default function SettingsPage() {
   const saveEditAssignee = async () => {
     if (!editName.trim() || !editingAssignee) return;
     try {
-      const response = await fetch(`/api/assignees/${editingAssignee}`, {
+      const response = await fetch(`/api/assignees/${editingAssignee}?token=${token}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: editName.trim() }),

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initDB, createProject, getProjectsByClientId, resolveToken, getClients, getProjectById } from '@/lib/db';
+import { isAdmin, requireAdmin } from '@/lib/auth';
 
 // Initialize database on first request
 let dbInitialized = false;
@@ -9,16 +10,6 @@ async function ensureDB() {
     await initDB();
     dbInitialized = true;
   }
-}
-
-// Check admin secret
-function isAdmin(request: NextRequest): boolean {
-  const adminSecret = process.env.ADMIN_SECRET;
-  if (!adminSecret) return false;
-
-  const url = new URL(request.url);
-  const providedSecret = url.searchParams.get('admin');
-  return providedSecret === adminSecret;
 }
 
 // GET - List projects for a client
@@ -78,9 +69,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   await ensureDB();
 
-  if (!isAdmin(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const denied = requireAdmin(request);
+  if (denied) return denied;
 
   try {
     const { clientId, name, url } = await request.json();
