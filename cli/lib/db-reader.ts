@@ -5,7 +5,8 @@ let pool: Pool | null = null;
 
 function getPool(dbUrl: string): Pool {
   if (!pool) {
-    const ssl = dbUrl.includes('neon.tech') ? { rejectUnauthorized: false } : undefined;
+    // Default certificate verification — Neon presents a valid cert
+    const ssl = dbUrl.includes('neon.tech') ? true : undefined;
     pool = new Pool({ connectionString: dbUrl, ssl });
   }
   return pool;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDecisionItems, addDecisionItem, getDecisionItemsByProjectId, getDecisionItemsByClientId, resolveToken, initDB } from '@/lib/db';
+import { addDecisionItem, getDecisionItemsByProjectId, getDecisionItemsByClientId, initDB } from '@/lib/db';
+import { requireToken, verifyProjectScope, verifyCommentScope } from '@/lib/auth';
 
 // Initialize DB on first request
 let dbInitialized = false;
@@ -16,32 +17,28 @@ export async function GET(request: NextRequest) {
     await ensureDB();
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
-    const token = searchParams.get('token');
 
-    // If token provided, resolve to project or client scope
-    if (token) {
-      const ctx = await resolveToken(token);
-      if (!ctx) {
-        return NextResponse.json({ error: 'Invalid token' }, { status: 404 });
-      }
-      // Project token: only that project's decisions
-      if (ctx.projectId) {
-        const items = await getDecisionItemsByProjectId(ctx.projectId);
-        return NextResponse.json(items);
-      }
-      // Client token: all decisions for the client
-      const items = await getDecisionItemsByClientId(ctx.clientId);
-      return NextResponse.json(items);
-    }
+    const auth = await requireToken(request);
+    if (!auth.ok) return auth.response;
 
-    // If projectId provided, get decisions for that project
+    // Explicit projectId filter — must be inside the token's scope
     if (projectId) {
-      const items = await getDecisionItemsByProjectId(parseInt(projectId));
+      const id = parseInt(projectId);
+      if (!(await verifyProjectScope(auth.ctx, id))) {
+        return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 });
+      }
+      const items = await getDecisionItemsByProjectId(id);
       return NextResponse.json(items);
     }
 
-    // Fall back to getting all decisions (for backwards compatibility)
-    const items = await getDecisionItems();
+    // Project token: only that project's decisions
+    if (auth.ctx.projectId) {
+      const items = await getDecisionItemsByProjectId(auth.ctx.projectId);
+      return NextResponse.json(items);
+    }
+
+    // Client token: all decisions for the client
+    const items = await getDecisionItemsByClientId(auth.ctx.clientId);
     return NextResponse.json(items);
   } catch (error) {
     console.error('Error fetching decision items:', error);
@@ -57,12 +54,28 @@ export async function POST(request: NextRequest) {
     await ensureDB();
     const body = await request.json();
 
+    const auth = await requireToken(request, body.token);
+    if (!auth.ok) return auth.response;
+
+    if (typeof body.noteText !== 'string' || !body.noteText.trim()) {
+      return NextResponse.json({ error: 'noteText is required' }, { status: 400 });
+    }
+
+    // Project tokens default to their own project; explicit ids must be in scope
+    const projectId = body.projectId ?? auth.ctx.projectId ?? null;
+    if (projectId !== null && !(await verifyProjectScope(auth.ctx, projectId))) {
+      return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 });
+    }
+    if (body.commentId && !(await verifyCommentScope(auth.ctx, body.commentId))) {
+      return NextResponse.json({ error: 'Comment not found or access denied' }, { status: 404 });
+    }
+
     const item = await addDecisionItem(
       body.noteText,
       body.commentId || null,
       body.noteIndex || null,
       body.source || null,
-      body.projectId || null
+      projectId
     );
 
     return NextResponse.json(item);

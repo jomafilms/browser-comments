@@ -62,7 +62,7 @@ export default function ReviewInterface() {
 
     setIsSaving(true);
     try {
-      const response = await fetch('/api/comments', {
+      const response = await fetch(`/api/comments?token=${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

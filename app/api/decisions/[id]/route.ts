@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteDecisionItem, updateDecisionItem, initDB } from '@/lib/db';
+import { requireToken, verifyDecisionScope } from '@/lib/auth';
 
 // Initialize DB on first request
 let dbInitialized = false;
@@ -11,6 +12,20 @@ async function ensureDB() {
   }
 }
 
+// Resolve auth + ownership for a decision id; returns the error response to send, or null.
+async function authorizeDecision(request: NextRequest, id: number, bodyToken?: unknown): Promise<NextResponse | null> {
+  if (!Number.isInteger(id)) {
+    return NextResponse.json({ error: 'Invalid decision item ID' }, { status: 400 });
+  }
+  const auth = await requireToken(request, bodyToken);
+  if (!auth.ok) return auth.response;
+
+  if (!(await verifyDecisionScope(auth.ctx, id))) {
+    return NextResponse.json({ error: 'Decision not found or access denied' }, { status: 404 });
+  }
+  return null;
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,16 +33,17 @@ export async function PATCH(
   try {
     await ensureDB();
     const { id: idParam } = await params;
-    const id = parseInt(idParam);
-
-    if (isNaN(id)) {
-      return NextResponse.json(
-        { error: 'Invalid decision item ID' },
-        { status: 400 }
-      );
-    }
+    const id = Number(idParam);
 
     const body = await request.json();
+
+    const denied = await authorizeDecision(request, id, body.token);
+    if (denied) return denied;
+
+    if (typeof body.noteText !== 'string' || !body.noteText.trim()) {
+      return NextResponse.json({ error: 'noteText is required' }, { status: 400 });
+    }
+
     const item = await updateDecisionItem(id, body.noteText, body.source);
     return NextResponse.json(item);
   } catch (error) {
@@ -46,14 +62,10 @@ export async function DELETE(
   try {
     await ensureDB();
     const { id: idParam } = await params;
-    const id = parseInt(idParam);
+    const id = Number(idParam);
 
-    if (isNaN(id)) {
-      return NextResponse.json(
-        { error: 'Invalid decision item ID' },
-        { status: 400 }
-      );
-    }
+    const denied = await authorizeDecision(request, id);
+    if (denied) return denied;
 
     await deleteDecisionItem(id);
     return NextResponse.json({ success: true });

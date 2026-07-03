@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateCommentStatus, addNoteToComment, deleteComment, updateCommentPriority, updateCommentAssignee, resolveToken, verifyCommentOwnershipByContext } from '@/lib/db';
+import { updateCommentStatus, addNoteToComment, deleteComment, updateCommentPriority, updateCommentAssignee } from '@/lib/db';
 import pool from '@/lib/db';
+import { requireToken, verifyCommentScope } from '@/lib/auth';
 
-function extractToken(request: NextRequest): string | null {
-  const auth = request.headers.get('authorization');
-  if (auth?.startsWith('Bearer ')) return auth.slice(7);
-  return new URL(request.url).searchParams.get('token');
-}
+const VALID_STATUSES = ['open', 'resolved'] as const;
+const VALID_PRIORITIES = ['high', 'med', 'low'] as const;
 
-async function verifyCommentOwnership(token: string, commentId: number): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
-  const ctx = await resolveToken(token);
-  if (!ctx) {
-    return { ok: false, response: NextResponse.json({ error: 'Invalid token' }, { status: 401 }) };
+// Resolve auth + ownership for a comment id; returns the error response to send, or null.
+async function authorizeComment(request: NextRequest, id: number): Promise<NextResponse | null> {
+  if (!Number.isInteger(id)) {
+    return NextResponse.json({ error: 'Invalid comment ID' }, { status: 400 });
   }
+  const auth = await requireToken(request);
+  if (!auth.ok) return auth.response;
 
-  const hasAccess = await verifyCommentOwnershipByContext(ctx, commentId);
+  const hasAccess = await verifyCommentScope(auth.ctx, id);
   if (!hasAccess) {
-    return { ok: false, response: NextResponse.json({ error: 'Comment not found or access denied' }, { status: 404 }) };
+    return NextResponse.json({ error: 'Comment not found or access denied' }, { status: 404 });
   }
-  return { ok: true };
+  return null;
 }
 
 export async function GET(
@@ -27,15 +27,10 @@ export async function GET(
 ) {
   try {
     const { id: idString } = await context.params;
-    const id = parseInt(idString);
+    const id = Number(idString);
 
-    const token = extractToken(request);
-    if (!token) {
-      return NextResponse.json({ error: 'Token required' }, { status: 401 });
-    }
-
-    const ownership = await verifyCommentOwnership(token, id);
-    if (!ownership.ok) return ownership.response;
+    const denied = await authorizeComment(request, id);
+    if (denied) return denied;
 
     const dbClient = await pool.connect();
     try {
@@ -71,15 +66,26 @@ export async function PATCH(
   try {
     const body = await request.json();
     const { id: idString } = await context.params;
-    const id = parseInt(idString);
+    const id = Number(idString);
 
-    const token = extractToken(request);
-    if (!token) {
-      return NextResponse.json({ error: 'Token required' }, { status: 401 });
+    const denied = await authorizeComment(request, id);
+    if (denied) return denied;
+
+    if (body.status !== undefined && !VALID_STATUSES.includes(body.status)) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
-
-    const ownership = await verifyCommentOwnership(token, id);
-    if (!ownership.ok) return ownership.response;
+    if (body.priority !== undefined && !VALID_PRIORITIES.includes(body.priority)) {
+      return NextResponse.json({ error: 'Invalid priority' }, { status: 400 });
+    }
+    if (body.priorityNumber !== undefined && !Number.isInteger(body.priorityNumber)) {
+      return NextResponse.json({ error: 'Invalid priorityNumber' }, { status: 400 });
+    }
+    if (body.note !== undefined && typeof body.note !== 'string') {
+      return NextResponse.json({ error: 'Invalid note' }, { status: 400 });
+    }
+    if (body.assignee !== undefined && typeof body.assignee !== 'string') {
+      return NextResponse.json({ error: 'Invalid assignee' }, { status: 400 });
+    }
 
     if (body.status) {
       await updateCommentStatus(id, body.status);
@@ -113,15 +119,10 @@ export async function DELETE(
 ) {
   try {
     const { id: idString } = await context.params;
-    const id = parseInt(idString);
+    const id = Number(idString);
 
-    const token = extractToken(request);
-    if (!token) {
-      return NextResponse.json({ error: 'Token required' }, { status: 401 });
-    }
-
-    const ownership = await verifyCommentOwnership(token, id);
-    if (!ownership.ok) return ownership.response;
+    const denied = await authorizeComment(request, id);
+    if (denied) return denied;
 
     await deleteComment(id);
 

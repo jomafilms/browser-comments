@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initDB, generateProjectToken } from '@/lib/db';
-
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
+import { requireAdmin } from '@/lib/auth';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { searchParams } = new URL(request.url);
-  const adminSecret = searchParams.get('admin');
-
-  if (adminSecret !== ADMIN_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const denied = requireAdmin(request);
+  if (denied) return denied;
 
   await initDB();
 

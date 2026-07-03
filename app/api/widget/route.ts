@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initDB, getClientByWidgetKey, getProjectByOrigin, getProjectsByClientId, saveComment } from '@/lib/db';
+import { checkRateLimit, checkBodySize } from '@/lib/rate-limit';
 
 // Increase body size limit for screenshot uploads
 export const maxDuration = 60;
 
+// Max screenshot payload — JPEGs from the widget stay well under this
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const MAX_BODY_BYTES = 5 * 1024 * 1024;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-// Cache headers for widget validation (1 hour cache)
+// Short cache so a revoked widget key stops working within minutes
 const cacheHeaders = {
   ...corsHeaders,
-  'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+  'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=300',
 };
 
 export async function OPTIONS() {
@@ -25,6 +30,9 @@ export async function POST(request: NextRequest) {
   await initDB();
 
   try {
+    const tooLarge = checkBodySize(request, MAX_BODY_BYTES, corsHeaders);
+    if (tooLarge) return tooLarge;
+
     const body = await request.json();
     const { widgetKey, url, imageData, textAnnotations, submitterName, userAgent, viewportW, viewportH, deviceCategory, deviceModel } = body;
 
@@ -36,9 +44,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!imageData) {
+    const limited = checkRateLimit(request, `widget:${widgetKey}`, 'write', corsHeaders);
+    if (limited) return limited;
+
+    if (
+      typeof imageData !== 'string' ||
+      !imageData.startsWith('data:image/') ||
+      imageData.length > MAX_IMAGE_BYTES
+    ) {
       return NextResponse.json(
-        { error: 'Screenshot data is required' },
+        { error: 'Screenshot data must be a data:image/* URL under 4MB' },
         { status: 400, headers: corsHeaders }
       );
     }

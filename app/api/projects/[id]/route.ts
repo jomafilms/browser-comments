@@ -1,20 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initDB, deleteProject, updateProject } from '@/lib/db';
-
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
-
-function checkAdmin(request: NextRequest): boolean {
-  const adminSecret = new URL(request.url).searchParams.get('admin');
-  return !!ADMIN_SECRET && adminSecret === ADMIN_SECRET;
-}
+import { requireAdmin } from '@/lib/auth';
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!checkAdmin(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const denied = requireAdmin(request);
+  if (denied) return denied;
 
   await initDB();
 
@@ -66,9 +59,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!checkAdmin(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const denied = requireAdmin(request);
+  if (denied) return denied;
 
   await initDB();
 

@@ -78,7 +78,7 @@ export default function ClientDecisionsPage() {
     }
 
     try {
-      await fetch('/api/decisions', {
+      await fetch(`/api/decisions?token=${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -101,7 +101,7 @@ export default function ClientDecisionsPage() {
     if (!confirm('Remove this item from decisions?')) return;
 
     try {
-      await fetch(`/api/decisions/${id}`, { method: 'DELETE' });
+      await fetch(`/api/decisions/${id}?token=${token}`, { method: 'DELETE' });
       setDecisions(prev => prev.filter(d => d.id !== id));
     } catch (err) {
       console.error('Error deleting decision:', err);
@@ -127,7 +127,7 @@ export default function ClientDecisionsPage() {
     }
 
     try {
-      await fetch(`/api/decisions/${id}`, {
+      await fetch(`/api/decisions/${id}?token=${token}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
