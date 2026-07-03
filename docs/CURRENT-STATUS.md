@@ -77,6 +77,10 @@
 
 ## Migration Ledger
 
+- **prod (Neon) @ v5** (2026-07-03, Annie-approved) — webhooks table; snapshot `pre-v5-snapshot-2026-07-03` (`br-still-dream-afyhhx5f`)
+- **prod Better Auth tables applied** (2026-07-03, Annie-approved) — user/session/account/verification; snapshot `pre-auth-snapshot-2026-07-03` (`br-small-band-afizfm0l`); BETTER_AUTH_SECRET/URL set on Vercel prod; owner account NOT yet created — first /admin signup bootstraps it
+- Snapshot branches (v4/v5/auth) deletable after a few days of stability
+
 - **dev @ v4** (2026-07-03, local Postgres `browser_comments`) — note: this repo's `.env.local` ACTIVE `DATABASE_URL` is the live Neon DB; local dev is the commented localhost line. Lane servers should override `DATABASE_URL` inline.
 - **prod (Neon) @ v4** (2026-07-03, Annie-approved deliberate apply) — snapshot branch `pre-v4-snapshot-2026-07-03` (`br-young-poetry-af3zh8kz`) is the rollback point; verified: 885/885 comments uuid+project_number, 0 dup numbers, prefixes generated, instance_settings present. Delete the snapshot branch after a few days of stability.
 - **Better Auth tables** (`user`/`session`/`account`/`verification`) — **dev** applied 2026-07-03 (local Postgres); **prod** provisioned on deploy via `ensureAuthTables()` (idempotent `CREATE TABLE IF NOT EXISTS`, additive, runs before the version gate on the first request / `init-db`). Merged with Neon snapshot in place as rollback and `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL` set on Vercel prod. Not tracked by `schema_version` (Better-Auth-owned; agent-plumbing bumps `SCHEMA_VERSION` to 5 independently).
