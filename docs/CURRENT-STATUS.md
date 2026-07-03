@@ -1,7 +1,7 @@
 # browser-comments — Current Status
 
 **Last Updated:** 2026-07-03
-**Last Commit:** `1aa24d2` widget-ux lane (prior: data-model merge, `87c4fd3` security lane)
+**Last Commit:** `better-auth` lane — owner login at /admin (prior: `43dcc82` prod v4 migrate)
 **Branch:** main
 **Launch:** launched (production: https://dev-tix.vercel.app)  <!-- The /migrate skill reads this to gate prod DB migrations. -->
 
@@ -9,6 +9,15 @@
 
 ## What Was Last Done
 
+- **better-auth lane (Wave 3) SHIPPED** — 2026-07-03 → archived brief: handoff/done/2026-07-03-better-auth.md
+  - **Real owner login** via Better Auth (`^1.6.23`, email+password, sessions in Postgres on the existing pg pool — no external auth service). Admin moved off `/?admin=SECRET` to **`/admin`** behind a session; `/admin/login` doubles as the first-run **create-owner** form (single owner: first sign-up bootstraps, a before-hook rejects every later sign-up — no public signup). `/` is now a stub redirect → `/admin` (landing lane replaces it).
+  - **`requireAdmin`/`isAdmin` are now async** and accept EITHER a valid owner session OR the legacy `ADMIN_SECRET` bearer (deprecated break-glass / back-compat — existing installs + scripts keep working) in one code path. All admin-gated routes awaited. Client magic-links (`/c/{token}`) + agent API tokens (`requireToken`) untouched.
+  - **Auth tables** (`user`/`session`/`account`/`verification`) provisioned by `npm run init-db` (+ lazy fallback) via `ensureAuthTables()` — idempotent DDL in `lib/db/schema-auth.ts` (from `@better-auth/cli generate`), **decoupled from `SCHEMA_VERSION` (not bumped)** so it runs regardless of version.
+  - **Operator branding is now editable + displayed:** admin instance form + per-client/per-project overrides (`app/admin/BrandingEditor`, `app/api/branding`); client-facing `/c/{token}` header (`components/ClientNav`) shows resolved logo + company name + Support mailto (http(s)-only logo, escaped text).
+  - 645-line `app/page.tsx` split into `app/admin/*` components, **all ≤300 lines**. New env: `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (set on Vercel prod). `docs/PROJECT-RULES` gained an **Auth tiers** section (owner session / client viewer / agent token / widget key).
+  - Verified: tsc + build clean; create-owner→200+session, 2nd-signup→403 (locked), wrong-pw→401, sign-out, legacy bearer→200, unauth `/admin`→307, `/`→307; branding round-trip + resolved into `/api/settings` + client header render (Playwright) + `javascript:` logoUrl→400 + branding-unauth→401; token-auth path unregressed. Adversarial security review: **SHIP** (no auth-bypass / XSS / committed secrets; 4 low-sev notes, non-blocking).
+  - RELEASE-NOTES for fork owners: admin is at **`/admin`** behind a login (create owner on first visit); `?admin=`/`ADMIN_SECRET` **deprecated** but still accepted; new dep `better-auth`; new env `BETTER_AUTH_SECRET`(≥32 chars)/`BETTER_AUTH_URL`; auth tables auto-created by `init-db`; password reset not built (recover via DB / re-bootstrap — follow-up for email lane); 2FA not built.
+  - Note: left a test owner `owner@example.com` in the **local** dev DB (harmless). Password-reset + 2FA deferred; multi-owner later = Better Auth organizations plugin (nothing built).
 - **widget-ux lane (Wave 2) SHIPPED** — 2026-07-03 → archived brief: handoff/done/2026-07-03-widget-ux.md
   - Name persistence root-caused + fixed: submitter name was never written to localStorage at all; now own `bc_submitter_name` key (never inside the settings cache), written on successful submit, prefilled on open; last annotation color persists under `bc_annotation_color`; ALL localStorage access via guarded lsGet/lsSet (Safari private mode / sandboxed iframes degrade to in-memory instead of crashing the widget)
   - Friction wins: capture spinner; Escape closes modal (blurs an in-progress text annotation first); Escape/click-outside/× keep the comment draft in memory until Cancel or successful submit (memory-only by design — no reload persistence, avoids stale-screenshot pairing); inline form errors replace alert() (name validation highlights+focuses field; network failure says the draft is kept); failed submit preserves annotated image + comment; retry no longer double-stamps text annotations (export from a canvas copy); success auto-close timer cancelled on manual close; success view shows `Your ticket: <ref>` when the API returns `ref` (feature-detected — see What's Next one-liner)
@@ -52,7 +61,7 @@
 - ~~Wave 2: data-model ∥ widget-ux~~ ✅ both shipped 2026-07-03 (see What Was Last Done)
 - Trivial one-liner (no handoff file needed): add `ref: comment.ref` to the POST `/api/widget` response in app/api/widget/route.ts — saveComment already returns it; the widget success view already feature-detects and displays it. Owner: next lane that touches app/api (agent-plumbing) or a 2-minute solo task.
 - **prod-migrate-v4 [operational, HUMAN GATE — Annie] → handoff/prod-migrate-v4.md** (apply schema v4 to prod Neon deliberately; ⚠️ deploying data-model code auto-migrates prod lazily on first request — decide, don't drift)
-- Wave 3: better-auth [build] → handoff/better-auth.md ∥ agent-plumbing [build] → handoff/agent-plumbing.md
+- Wave 3: ~~better-auth~~ ✅ shipped 2026-07-03 (see What Was Last Done) ∥ agent-plumbing [build] → handoff/agent-plumbing.md
 - Wave 4: landing-install [build] → handoff/landing-install.md ∥ email [build] → handoff/email.md
 - Wave 5: ui-rethink [design→build, Annie gate between] → handoff/ui-rethink.md
 - Later / parked: Jira bridge via webhook · Cloudflare Workers/D1 spike (parked 2026-07-03) · Turnstile option (see docs/RATE-LIMITING.md) · Vercel WAF rate-limit rules in prod (manual, recipe in docs/RATE-LIMITING.md) · tier-2 honor license page · Next 16 + TS 6 majors · optional submitter email in widget (changes anonymity promise — Annie's call)
@@ -63,6 +72,7 @@
 
 - **dev @ v4** (2026-07-03, local Postgres `browser_comments`) — note: this repo's `.env.local` ACTIVE `DATABASE_URL` is the live Neon DB; local dev is the commented localhost line. Lane servers should override `DATABASE_URL` inline.
 - **prod (Neon) @ v4** (2026-07-03, Annie-approved deliberate apply) — snapshot branch `pre-v4-snapshot-2026-07-03` (`br-young-poetry-af3zh8kz`) is the rollback point; verified: 885/885 comments uuid+project_number, 0 dup numbers, prefixes generated, instance_settings present. Delete the snapshot branch after a few days of stability.
+- **Better Auth tables** (`user`/`session`/`account`/`verification`) — **dev** applied 2026-07-03 (local Postgres); **prod** provisioned on deploy via `ensureAuthTables()` (idempotent `CREATE TABLE IF NOT EXISTS`, additive, runs before the version gate on the first request / `init-db`). Merged with Neon snapshot in place as rollback and `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL` set on Vercel prod. Not tracked by `schema_version` (Better-Auth-owned; `SCHEMA_VERSION` still 4 here).
 - Note: `npm run init-db` does NOT load .env.local (bare tsx) — export DATABASE_URL explicitly. Vercel auto-deploys main on push: schema lanes must resolve the prod-migration gate BEFORE merge-to-main from now on.
 
 ---
