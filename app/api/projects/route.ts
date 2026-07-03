@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     // If clientId provided (admin use)
     if (clientId) {
-      if (!isAdmin(request)) {
+      if (!(await isAdmin(request))) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
       const projects = await getProjectsByClientId(parseInt(clientId));
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     // No filter - return all projects (admin only)
-    if (!isAdmin(request)) {
+    if (!(await isAdmin(request))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Create a new project (admin only)
 export async function POST(request: NextRequest) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
 
   try {
