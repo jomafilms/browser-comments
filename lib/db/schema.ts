@@ -1,6 +1,7 @@
 import { PoolClient } from 'pg';
 import { pool } from './pool';
 import { applyBaseSchema } from './schema-base';
+import { applyAuthSchema } from './schema-auth';
 import { generateRefPrefix, dedupeRefPrefix } from './refs';
 
 // Current schema version - increment this when adding migrations
@@ -153,6 +154,12 @@ async function applySchemaV5(client: PoolClient): Promise<void> {
 // Canonical explicit runner: `npm run init-db`. Also invoked lazily via
 // withClient() as a zero-config fallback on fresh deploys.
 export async function initDB() {
+  // Better Auth tables are versioned by Better Auth, not our schema_version, so
+  // provision them independently of the version gate below — this way both
+  // `npm run init-db` and the lazy fallback create them even when our own
+  // schema is already current. Idempotent + cheap (a to_regclass check first).
+  await ensureAuthTables();
+
   // Quick check - skip everything if already initialized
   if (await isSchemaUpToDate()) {
     return;
@@ -178,6 +185,19 @@ export async function initDB() {
       INSERT INTO schema_version (id, version, updated_at) VALUES (1, $1, NOW())
       ON CONFLICT (id) DO UPDATE SET version = $1, updated_at = NOW()
     `, [SCHEMA_VERSION]);
+  } finally {
+    client.release();
+  }
+}
+
+// Create Better Auth's tables if absent. Guarded by a single cheap to_regclass
+// check so the common (already-provisioned) path is one query, not seven DDLs.
+async function ensureAuthTables(): Promise<void> {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(`SELECT to_regclass('public."user"') AS t`);
+    if (rows[0].t) return;
+    await applyAuthSchema(client);
   } finally {
     client.release();
   }

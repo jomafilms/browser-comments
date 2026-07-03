@@ -36,9 +36,27 @@
 - **Framework:** Next.js 15 (App Router), React 19, Tailwind v4
 - **Database:** PostgreSQL on Neon, raw `pg` (no ORM)
 - **Hosting:** Vercel (production: https://dev-tix.vercel.app)
-- **Auth:** admin secret (dashboard), per-client widget keys, per-client share tokens — no user accounts
 - **File size max:** 250-300 lines per file
 - **No hardcoded values:** Everything in config files / env vars
+
+### Auth tiers (four distinct kinds of access — do not conflate)
+
+1. **Owner (session)** — the single operator account. Better Auth email+password
+   (`lib/auth-server.ts`), login at `/admin/login`, session cookie in Postgres.
+   Gates the admin surface (`/admin`) and all admin APIs (`/api/clients*`,
+   `/api/projects*`, regenerate-token, widget-key, `/api/branding`). No public
+   signup — the first sign-up bootstraps the owner, then it's locked.
+   `ADMIN_SECRET` bearer/`?admin=` is a **deprecated** break-glass/back-compat
+   path still accepted by `requireAdmin()` alongside the session.
+2. **Client viewer (magic-link token)** — unauthenticated share URLs `/c/{token}`.
+   Zero-friction by design; **do not gate them.** Scoped per-client/per-project.
+3. **Agent (API token)** — CLI/MCP/HTTP clients via `Authorization: Bearer <token>`,
+   validated by `requireToken()`. Scoped like the viewer tokens.
+4. **Widget (public key)** — embeddable `widget.js` `data-key`; public by design,
+   origin-checked against project URLs.
+
+> Multi-tenant / multiple owner accounts later = Better Auth **organizations**
+> plugin. Not built. One line here so the path is known; add nothing until asked.
 
 ---
 

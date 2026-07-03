@@ -4,7 +4,7 @@ import { requireAdmin } from '@/lib/auth';
 
 // GET - List all clients (admin only)
 export async function GET(request: NextRequest) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
 
   try {
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Create a new client (admin only)
 export async function POST(request: NextRequest) {
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
 
   try {

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash, timingSafeEqual } from 'crypto';
 import { withClient, resolveToken, TokenContext, verifyCommentOwnershipByContext } from '@/lib/db';
+import { auth } from '@/lib/auth-server';
 
-// Single home for request authentication. Better Auth (later lane) swaps the
-// internals of requireAdmin/requireToken — routes only ever call these helpers.
+// Single home for request authentication. Routes only ever call these helpers.
+// Admin auth accepts EITHER a Better Auth owner session (the /admin login) OR
+// the legacy ADMIN_SECRET bearer (deprecated break-glass / back-compat). Client
+// magic-link tokens and agent API tokens are unrelated and untouched.
 
 export type AuthResult =
   | { ok: true; ctx: TokenContext }
@@ -37,23 +40,41 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(ha, hb);
 }
 
-// Admin auth: `Authorization: Bearer <ADMIN_SECRET>` is the supported path.
-// `?admin=` is still accepted for backwards compatibility (deprecated — the
-// dashboard no longer sends it; secrets in URLs leak via logs and referers).
-export function isAdmin(request: NextRequest): boolean {
+// Does the request carry the legacy admin secret?
+// `Authorization: Bearer <ADMIN_SECRET>` is the supported header; `?admin=` is
+// still accepted for backwards compatibility (deprecated — secrets in URLs leak
+// via logs and referers). Deprecated in favor of the owner session below.
+function hasLegacyAdminSecret(request: NextRequest): boolean {
   const adminSecret = process.env.ADMIN_SECRET;
   if (!adminSecret) return false;
 
-  const auth = request.headers.get('authorization');
-  if (auth?.startsWith('Bearer ') && safeEqual(auth.slice(7), adminSecret)) return true;
+  const header = request.headers.get('authorization');
+  if (header?.startsWith('Bearer ') && safeEqual(header.slice(7), adminSecret)) return true;
 
   const legacy = new URL(request.url).searchParams.get('admin');
   return legacy !== null && safeEqual(legacy, adminSecret);
 }
 
+// Is there a valid Better Auth owner session on this request?
+async function hasOwnerSession(request: NextRequest): Promise<boolean> {
+  try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    return !!session;
+  } catch {
+    return false;
+  }
+}
+
+// Admin = a real owner session OR the legacy secret. Checks the secret first
+// (a cheap, in-process compare) before the session lookup (a DB round trip).
+export async function isAdmin(request: NextRequest): Promise<boolean> {
+  if (hasLegacyAdminSecret(request)) return true;
+  return hasOwnerSession(request);
+}
+
 // Returns null when authorized, or the 401 response to send back.
-export function requireAdmin(request: NextRequest): NextResponse | null {
-  if (isAdmin(request)) return null;
+export async function requireAdmin(request: NextRequest): Promise<NextResponse | null> {
+  if (await isAdmin(request)) return null;
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 }
 
