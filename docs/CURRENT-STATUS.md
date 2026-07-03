@@ -62,7 +62,8 @@
 ## Migration Ledger
 
 - **dev @ v4** (2026-07-03, local Postgres `browser_comments`) — note: this repo's `.env.local` ACTIVE `DATABASE_URL` is the live Neon DB; local dev is the commented localhost line. Lane servers should override `DATABASE_URL` inline.
-- **prod (Neon) @ v3 — v4 NOT APPLIED, deferred human gate** → handoff/prod-migrate-v4.md. Deploying the data-model code lazily migrates prod on first request; run the deliberate path (Neon snapshot branch + `npm run init-db`) first.
+- **prod (Neon) @ v4** (2026-07-03, Annie-approved deliberate apply) — snapshot branch `pre-v4-snapshot-2026-07-03` (`br-young-poetry-af3zh8kz`) is the rollback point; verified: 885/885 comments uuid+project_number, 0 dup numbers, prefixes generated, instance_settings present. Delete the snapshot branch after a few days of stability.
+- Note: `npm run init-db` does NOT load .env.local (bare tsx) — export DATABASE_URL explicitly. Vercel auto-deploys main on push: schema lanes must resolve the prod-migration gate BEFORE merge-to-main from now on.
 
 ---
 
