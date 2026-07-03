@@ -1,7 +1,7 @@
 # browser-comments — Current Status
 
 **Last Updated:** 2026-07-03
-**Last Commit:** `better-auth` lane — owner login at /admin (prior: `43dcc82` prod v4 migrate)
+**Last Commit:** `agent-plumbing` lane — webhooks + polling (prior: `better-auth` owner login at /admin)
 **Branch:** main
 **Launch:** launched (production: https://dev-tix.vercel.app)  <!-- The /migrate skill reads this to gate prod DB migrations. -->
 
@@ -9,6 +9,13 @@
 
 ## What Was Last Done
 
+- **agent-plumbing lane (Wave 3) SHIPPED** — 2026-07-03 → archived brief: handoff/done/2026-07-03-agent-plumbing.md
+  - **Webhooks (schema v5, additive):** new `webhooks` table (client/project-scoped); token-scoped `/api/webhooks` CRUD (`lib/db/webhooks.ts`) — project token manages its project's hooks, client token all, admin all; signing secret shown **once** on create. `lib/notify.ts` fires **fire-and-forget** via `after()` (next/server; no new dep) from comments POST + widget POST + PATCH — channel-shaped so the email lane hangs its channel here without touching call sites. `lib/webhook-delivery.ts`: HMAC `X-BC-Signature: sha256=<hmac(raw body)>` + `X-BC-Event`, 5s timeout, 1 retry, **SSRF guard** (https-only; http loopback only; full IPv6 parser rejects private/loopback/link-local/metadata incl. hex-mapped `::ffff:` + NAT64; `redirect:'manual'`). Events: `comment.created`, `comment.updated` (status/assignee only). Screenshot omitted — fetch via `links.api?includeImage=true`.
+  - **Polling:** `GET /api/comments?since=<ISO8601>` (updated-after; validated) + **`X-Server-Time` response header** as the skew-free checkpoint (body unchanged — still a plain array). ⚠️ `GET /api/comments/[id]` default changed to the **full record** (accepts id/uuid/ref, scope-checked); `?includeImage=true` adds image; **`?imageOnly=true` = legacy `{image_data}`** (Annie-accepted break — no in-repo callers; **older CLI/MCP installs must update** for single-ticket image retrieval).
+  - **CLI:** watch double-tick + pool-close bugs fixed; `watch --since-file` streams new/changed tickets as JSON lines **exactly once across restarts**; list filters applied server-side; `show/resolve/reopen/assign` accept refs/uuids/legacy-numbers via the single-ticket endpoint (no full-list downloads for ref/uuid). **MCP:** `list_tickets` gains `since`; all tools accept refs/uuids everywhere. New `docs/AGENT-SETUP.md` (Claude Routine / GitHub repository_dispatch / plain watch recipes + signature verification) + minimal webhook UI on the settings page (`components/WebhooksSettings.tsx`).
+  - Verified: tsc + build clean (app/cli/mcp) **after merging better-auth**; live — webhook HMAC valid + tamper rejected, SSRF metadata IP blocked (incl. hex-mapped IPv6 bypass caught by review), `?since=` round-trip, single-ticket by ref/uuid/id + cross-tenant 404, watch exactly-once across restarts. `/check` ran business rules + independent security review (found+FIXED two HIGH SSRF bypasses — hex-mapped-IPv6 + redirect-follow) + correctness review (SHIP). Merge-fix: better-auth made `isAdmin` async → awaited it in the webhooks route (unawaited Promise would have leaked all hooks to invalid tokens).
+  - RELEASE-NOTES for fork owners: new `webhooks` table + `/api/webhooks`; webhook payloads HMAC-signed (`X-BC-Signature`), verify before trusting; `GET /api/comments?since=` + `X-Server-Time` header for polling; **`GET /api/comments/[id]` now returns the full record** (image behind `?includeImage=true`; legacy `{image_data}` behind `?imageOnly=true`) — **update CLI (`npm i -g @jomafilms/browser-comments-cli`) + MCP** so single-ticket image fetch keeps working; `POST /api/widget` response gains `ref`; CLI `watch --since-file` + ref-aware commands; MCP `since` + refs. New optional env: `WEBHOOK_BASE_URL` (canonical origin for payload links), `WEBHOOK_ALLOW_LOOPBACK=false` (forbid loopback targets in hosted prod).
+  - Note: left test data cleaned from local dev DB. Deferred LOWs: per-field `comment.updated` fires one event per changed field (rare multi-field PATCH → 2 events); `lib/db/comments.ts` at 332 lines (split candidate); DNS-rebinding TOCTOU residual (undici IP-pinning unavailable; redirects closed + poll safety-net).
 - **better-auth lane (Wave 3) SHIPPED** — 2026-07-03 → archived brief: handoff/done/2026-07-03-better-auth.md
   - **Real owner login** via Better Auth (`^1.6.23`, email+password, sessions in Postgres on the existing pg pool — no external auth service). Admin moved off `/?admin=SECRET` to **`/admin`** behind a session; `/admin/login` doubles as the first-run **create-owner** form (single owner: first sign-up bootstraps, a before-hook rejects every later sign-up — no public signup). `/` is now a stub redirect → `/admin` (landing lane replaces it).
   - **`requireAdmin`/`isAdmin` are now async** and accept EITHER a valid owner session OR the legacy `ADMIN_SECRET` bearer (deprecated break-glass / back-compat — existing installs + scripts keep working) in one code path. All admin-gated routes awaited. Client magic-links (`/c/{token}`) + agent API tokens (`requireToken`) untouched.
@@ -59,9 +66,9 @@
 
 - ~~Wave 1: security~~ ✅ shipped 2026-07-03 (see What Was Last Done)
 - ~~Wave 2: data-model ∥ widget-ux~~ ✅ both shipped 2026-07-03 (see What Was Last Done)
-- Trivial one-liner (no handoff file needed): add `ref: comment.ref` to the POST `/api/widget` response in app/api/widget/route.ts — saveComment already returns it; the widget success view already feature-detects and displays it. Owner: next lane that touches app/api (agent-plumbing) or a 2-minute solo task.
-- **prod-migrate-v4 [operational, HUMAN GATE — Annie] → handoff/prod-migrate-v4.md** (apply schema v4 to prod Neon deliberately; ⚠️ deploying data-model code auto-migrates prod lazily on first request — decide, don't drift)
-- Wave 3: ~~better-auth~~ ✅ shipped 2026-07-03 (see What Was Last Done) ∥ agent-plumbing [build] → handoff/agent-plumbing.md
+- ~~Trivial one-liner: `ref` in POST `/api/widget` response~~ ✅ done in agent-plumbing lane
+- ~~prod-migrate-v4~~ ✅ done 2026-07-03 (prod @ v4, see Migration Ledger)
+- Wave 3: ~~better-auth~~ ✅ ∥ ~~agent-plumbing~~ ✅ both shipped 2026-07-03 (see What Was Last Done)
 - Wave 4: landing-install [build] → handoff/landing-install.md ∥ email [build] → handoff/email.md
 - Wave 5: ui-rethink [design→build, Annie gate between] → handoff/ui-rethink.md
 - Later / parked: Jira bridge via webhook · Cloudflare Workers/D1 spike (parked 2026-07-03) · Turnstile option (see docs/RATE-LIMITING.md) · Vercel WAF rate-limit rules in prod (manual, recipe in docs/RATE-LIMITING.md) · tier-2 honor license page · Next 16 + TS 6 majors · optional submitter email in widget (changes anonymity promise — Annie's call)
@@ -72,7 +79,8 @@
 
 - **dev @ v4** (2026-07-03, local Postgres `browser_comments`) — note: this repo's `.env.local` ACTIVE `DATABASE_URL` is the live Neon DB; local dev is the commented localhost line. Lane servers should override `DATABASE_URL` inline.
 - **prod (Neon) @ v4** (2026-07-03, Annie-approved deliberate apply) — snapshot branch `pre-v4-snapshot-2026-07-03` (`br-young-poetry-af3zh8kz`) is the rollback point; verified: 885/885 comments uuid+project_number, 0 dup numbers, prefixes generated, instance_settings present. Delete the snapshot branch after a few days of stability.
-- **Better Auth tables** (`user`/`session`/`account`/`verification`) — **dev** applied 2026-07-03 (local Postgres); **prod** provisioned on deploy via `ensureAuthTables()` (idempotent `CREATE TABLE IF NOT EXISTS`, additive, runs before the version gate on the first request / `init-db`). Merged with Neon snapshot in place as rollback and `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL` set on Vercel prod. Not tracked by `schema_version` (Better-Auth-owned; `SCHEMA_VERSION` still 4 here).
+- **Better Auth tables** (`user`/`session`/`account`/`verification`) — **dev** applied 2026-07-03 (local Postgres); **prod** provisioned on deploy via `ensureAuthTables()` (idempotent `CREATE TABLE IF NOT EXISTS`, additive, runs before the version gate on the first request / `init-db`). Merged with Neon snapshot in place as rollback and `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL` set on Vercel prod. Not tracked by `schema_version` (Better-Auth-owned; agent-plumbing bumps `SCHEMA_VERSION` to 5 independently).
+- **Schema v5 (webhooks table, additive)** — **dev @ v5** applied 2026-07-03 (local Postgres, agent-plumbing); merged `initDB` verified: `ensureAuthTables()` + base + v4 + v5 all run, `user` + `webhooks` tables present. **prod (Neon):** v5 apply approved by Annie, rollback snapshot `pre-v5-snapshot-2026-07-03`; additive `CREATE TABLE IF NOT EXISTS webhooks` applies lazily on first request after deploy (or via `init-db`). No optional env required for webhooks; `WEBHOOK_BASE_URL` / `WEBHOOK_ALLOW_LOOPBACK` are optional hardening.
 - Note: `npm run init-db` does NOT load .env.local (bare tsx) — export DATABASE_URL explicitly. Vercel auto-deploys main on push: schema lanes must resolve the prod-migration gate BEFORE merge-to-main from now on.
 
 ---
