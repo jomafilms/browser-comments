@@ -389,6 +389,10 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
       const ctx = combinedCanvas.getContext('2d');
       if (!ctx) return;
 
+      // White base so transparent regions don't go black in the JPEG export
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, combinedCanvas.width, combinedCanvas.height);
+
       let capturedIframe = false;
 
       console.log('Starting screenshot capture...');
@@ -563,7 +567,8 @@ export default function AnnotationCanvas({ onSave, onNewComment, onViewComments,
         });
       }
 
-      const imageData = combinedCanvas.toDataURL('image/png');
+      // JPEG keeps large captures under the API's 4MB imageData cap (PNG can exceed it)
+      const imageData = combinedCanvas.toDataURL('image/jpeg', 0.8);
 
       // Extract text annotations
       const textAnnotations: TextAnnotation[] = (elements || [])

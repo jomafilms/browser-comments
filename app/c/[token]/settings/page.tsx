@@ -101,6 +101,9 @@ export default function SettingsPage() {
       if (response.ok) {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
+      } else {
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || 'Failed to save settings');
       }
     } catch (err) {
       console.error('Error saving settings:', err);
