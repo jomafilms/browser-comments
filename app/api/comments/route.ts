@@ -1,17 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveComment, getCommentsByTokenContext, initDB } from '@/lib/db';
+import { saveComment, getCommentsByTokenContext } from '@/lib/db';
 import { requireToken, verifyProjectScope } from '@/lib/auth';
 import { checkRateLimit, checkBodySize } from '@/lib/rate-limit';
-
-// Initialize DB on first request
-let dbInitialized = false;
-
-async function ensureDB() {
-  if (!dbInitialized) {
-    await initDB();
-    dbInitialized = true;
-  }
-}
 
 // Max screenshot payload — JPEGs from the widget stay well under this
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
@@ -31,8 +21,6 @@ export async function OPTIONS() {
 
 export async function POST(request: NextRequest) {
   try {
-    await ensureDB();
-
     const tooLarge = checkBodySize(request, MAX_BODY_BYTES, corsHeaders);
     if (tooLarge) return tooLarge;
 
@@ -93,7 +81,6 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    await ensureDB();
     const { searchParams } = new URL(request.url);
     const pageSection = searchParams.get('pageSection') || undefined;
     const status = searchParams.get('status') as 'open' | 'resolved' | undefined;

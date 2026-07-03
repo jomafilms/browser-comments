@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initDB, getClientByWidgetKey, getProjectByOrigin, getProjectsByClientId, saveComment } from '@/lib/db';
+import { getClientByWidgetKey, getProjectByOrigin, getProjectsByClientId, saveComment } from '@/lib/db';
 import { checkRateLimit, checkBodySize } from '@/lib/rate-limit';
 
 // Increase body size limit for screenshot uploads
@@ -27,8 +27,6 @@ export async function OPTIONS() {
 
 // POST - Submit feedback via widget
 export async function POST(request: NextRequest) {
-  await initDB();
-
   try {
     const tooLarge = checkBodySize(request, MAX_BODY_BYTES, corsHeaders);
     if (tooLarge) return tooLarge;
@@ -140,8 +138,6 @@ export async function POST(request: NextRequest) {
 
 // GET - Validate widget key and get config
 export async function GET(request: NextRequest) {
-  await initDB();
-
   const { searchParams } = new URL(request.url);
   const widgetKey = searchParams.get('key');
   const origin = request.headers.get('origin') || '';

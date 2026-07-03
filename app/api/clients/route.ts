@@ -1,21 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initDB, createClient, getClients } from '@/lib/db';
+import { createClient, getClients } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth';
-
-// Initialize database on first request
-let dbInitialized = false;
-
-async function ensureDB() {
-  if (!dbInitialized) {
-    await initDB();
-    dbInitialized = true;
-  }
-}
 
 // GET - List all clients (admin only)
 export async function GET(request: NextRequest) {
-  await ensureDB();
-
   const denied = requireAdmin(request);
   if (denied) return denied;
 
@@ -30,8 +18,6 @@ export async function GET(request: NextRequest) {
 
 // POST - Create a new client (admin only)
 export async function POST(request: NextRequest) {
-  await ensureDB();
-
   const denied = requireAdmin(request);
   if (denied) return denied;
 

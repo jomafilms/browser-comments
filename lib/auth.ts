@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash, timingSafeEqual } from 'crypto';
-import pool, { resolveToken, TokenContext, verifyCommentOwnershipByContext } from '@/lib/db';
+import { withClient, resolveToken, TokenContext, verifyCommentOwnershipByContext } from '@/lib/db';
 
 // Single home for request authentication. Better Auth (later lane) swaps the
 // internals of requireAdmin/requireToken — routes only ever call these helpers.
@@ -62,16 +62,13 @@ export function requireAdmin(request: NextRequest): NextResponse | null {
 export async function verifyProjectScope(ctx: TokenContext, projectId: number): Promise<boolean> {
   if (!Number.isInteger(projectId)) return false;
   if (ctx.projectId) return ctx.projectId === projectId;
-  const dbClient = await pool.connect();
-  try {
+  return withClient(async (dbClient) => {
     const result = await dbClient.query(
       'SELECT id FROM projects WHERE id = $1 AND client_id = $2',
       [projectId, ctx.clientId]
     );
     return result.rows.length > 0;
-  } finally {
-    dbClient.release();
-  }
+  });
 }
 
 export async function verifyCommentScope(ctx: TokenContext, commentId: number): Promise<boolean> {
@@ -82,8 +79,7 @@ export async function verifyCommentScope(ctx: TokenContext, commentId: number): 
 // All comment ids must belong to the token's scope.
 export async function verifyCommentsScope(ctx: TokenContext, commentIds: number[]): Promise<boolean> {
   if (commentIds.length === 0 || !commentIds.every(Number.isInteger)) return false;
-  const dbClient = await pool.connect();
-  try {
+  return withClient(async (dbClient) => {
     const result = ctx.projectId
       ? await dbClient.query(
           'SELECT COUNT(*)::int AS n FROM comments WHERE id = ANY($1) AND project_id = $2',
@@ -96,17 +92,14 @@ export async function verifyCommentsScope(ctx: TokenContext, commentIds: number[
           [commentIds, ctx.clientId]
         );
     return result.rows[0].n === new Set(commentIds).size;
-  } finally {
-    dbClient.release();
-  }
+  });
 }
 
 // A decision is in scope via its own project_id, or via its linked comment's
 // project. Orphan decisions (neither) are invisible to token reads, so deny.
 export async function verifyDecisionScope(ctx: TokenContext, decisionId: number): Promise<boolean> {
   if (!Number.isInteger(decisionId)) return false;
-  const dbClient = await pool.connect();
-  try {
+  return withClient(async (dbClient) => {
     const result = await dbClient.query(
       `SELECT d.id FROM decision_items d
        LEFT JOIN comments c ON d.comment_id = c.id
@@ -115,22 +108,17 @@ export async function verifyDecisionScope(ctx: TokenContext, decisionId: number)
       [decisionId, ctx.clientId, ctx.projectId]
     );
     return result.rows.length > 0;
-  } finally {
-    dbClient.release();
-  }
+  });
 }
 
 // Assignees are client-level — any token under the client may manage them.
 export async function verifyAssigneeScope(ctx: TokenContext, assigneeId: number): Promise<boolean> {
   if (!Number.isInteger(assigneeId)) return false;
-  const dbClient = await pool.connect();
-  try {
+  return withClient(async (dbClient) => {
     const result = await dbClient.query(
       'SELECT id FROM assignees WHERE id = $1 AND client_id = $2',
       [assigneeId, ctx.clientId]
     );
     return result.rows.length > 0;
-  } finally {
-    dbClient.release();
-  }
+  });
 }

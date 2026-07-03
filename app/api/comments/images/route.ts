@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '@/lib/db';
+import { withClient } from '@/lib/db';
 import { requireToken } from '@/lib/auth';
 
 // Bulk fetch images by IDs - more efficient than individual requests
@@ -19,28 +19,25 @@ export async function POST(request: NextRequest) {
     // Limit to 20 at a time to prevent huge payloads
     const limitedIds = ids.slice(0, 20);
 
-    const client = await pool.connect();
-    try {
-      // Restrict to comments the token can access
-      const result = ctx.projectId
-        ? await client.query(
+    // Restrict to comments the token can access
+    const result = await withClient((client) =>
+      ctx.projectId
+        ? client.query(
             'SELECT id, image_data FROM comments WHERE id = ANY($1) AND project_id = $2',
             [limitedIds, ctx.projectId]
           )
-        : await client.query(
+        : client.query(
             'SELECT id, image_data FROM comments WHERE id = ANY($1) AND client_id = $2',
             [limitedIds, ctx.clientId]
-          );
+          )
+    );
 
-      const images: Record<number, string> = {};
-      result.rows.forEach(row => {
-        images[row.id] = row.image_data;
-      });
+    const images: Record<number, string> = {};
+    result.rows.forEach(row => {
+      images[row.id] = row.image_data;
+    });
 
-      return NextResponse.json({ images });
-    } finally {
-      client.release();
-    }
+    return NextResponse.json({ images });
   } catch (error) {
     console.error('Error fetching images:', error);
     return NextResponse.json({ error: 'Failed to fetch images' }, { status: 500 });
