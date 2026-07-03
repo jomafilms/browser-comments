@@ -1,28 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-
-interface TextAnnotation {
-  text: string;
-  x: number;
-  y: number;
-  color: string;
-}
-
-interface Comment {
-  id: number;
-  display_number: number;
-  url: string;
-  page_section: string;
-  image_data: string;
-  text_annotations: TextAnnotation[];
-  status: 'open' | 'resolved';
-  priority: 'high' | 'med' | 'low';
-  priority_number: number;
-  assignee: string;
-  created_at: string;
-  updated_at: string;
-}
+import { formatCommentLabel } from '@/lib/db/refs';
+import { Comment } from './CommentCard';
 
 interface Assignee {
   id: number;
@@ -252,7 +232,7 @@ export default function CommentsTableView({
 
                       {/* Comment # */}
                       <td className="px-2 py-2 align-top text-sm font-mono text-gray-700">
-                        #{comment.display_number || comment.id}
+                        {formatCommentLabel(comment.ref, comment.display_number, comment.id)}
                       </td>
 
                       {/* Priority toggle buttons */}

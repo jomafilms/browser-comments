@@ -5,9 +5,10 @@ interface ImageModalProps {
   onClose: () => void;
   commentId?: number;
   displayNumber?: number;
+  commentRef?: string | null; // e.g. "LWF-12" — preferred label when present
 }
 
-export default function ImageModal({ imageData, onClose, commentId, displayNumber }: ImageModalProps) {
+export default function ImageModal({ imageData, onClose, commentId, displayNumber, commentRef }: ImageModalProps) {
   const handleDownload = () => {
     // Convert base64 to blob for proper download
     const byteString = atob(imageData.split(',')[1]);
@@ -26,8 +27,8 @@ export default function ImageModal({ imageData, onClose, commentId, displayNumbe
 
     // Generate filename
     const ext = mimeString.includes('png') ? 'png' : 'jpg';
-    const num = displayNumber || commentId || 'screenshot';
-    link.download = `feedback-${num}.${ext}`;
+    const label = commentRef || displayNumber || commentId || 'screenshot';
+    link.download = `feedback-${label}.${ext}`;
 
     document.body.appendChild(link);
     link.click();

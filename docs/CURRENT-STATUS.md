@@ -1,7 +1,7 @@
 # browser-comments — Current Status
 
 **Last Updated:** 2026-07-03
-**Last Commit:** `87c4fd3` (security lane: auth every write, SSRF proxy deleted, widget XSS escaping)
+**Last Commit:** data-model lane merge (see git log; prior: `87c4fd3` security lane)
 **Branch:** main
 **Launch:** launched (production: https://dev-tix.vercel.app)  <!-- The /migrate skill reads this to gate prod DB migrations. -->
 
@@ -9,6 +9,14 @@
 
 ## What Was Last Done
 
+- **data-model lane (Wave 2) SHIPPED** — 2026-07-03 → archived brief: handoff/done/2026-07-03-data-model.md
+  - lib/db.ts (1,124 lines) split into lib/db/{pool,schema,schema-base,refs,types,comments,clients,projects,decisions,assignees,branding}.ts behind a back-compat facade; `withClient()` wraps all ~40 call sites; all files ≤300 lines
+  - Migrations off the request path: memoized `ensureSchema()` inside withClient (one check/cold start); all 15 per-route ensureDB copies deleted; **`npm run init-db`** = canonical runner (lazy init kept as zero-config fallback)
+  - **Schema v4 (additive):** uuid on comments+decision_items; projects.ref_prefix (auto-generated + deduped per client, also on createProject; editable via PATCH `refPrefix`, 409 on within-client dup); comments.project_number with atomic in-INSERT allocation + UNIQUE(project_id,project_number) + UNIQUE(client_id,display_number) + retry on 23505 (kills the MAX+1 race); migration dedupes historic duplicate display_numbers; legacy display_number still written/returned everywhere (deprecated)
+  - **Refs:** `ref = "<PREFIX>-<project_number>"` (e.g. LWF-12) computed in queries + returned in API; `findCommentByRef` resolves uuid / ref (case-insensitive) / bare display_number within token scope; `/api/comments/[id]` accepts refs+UUIDs (bare integers stay serial PKs — CLI/MCP contract); dashboard cards/table/decisions display refs, Jump-to accepts refs or legacy numbers
+  - **Operator branding storage:** instance_settings table + branding JSONB on clients/projects; `resolveBranding()` per-key merge project→client→instance (logoUrl http(s)-validated); resolved branding in `/api/settings?token=` payload. Edit + display UI = better-auth lane (get/setBranding helpers ready)
+  - Verified: tsc+build clean; blank-DB → v4; seeded v3 DB (with dup display_numbers + orphan) → v4 correct backfill, idempotent; legacy local dev DB migrated; 10-way concurrent inserts unique (scripts/test-concurrent-numbering.ts); ref/uuid/serial resolution + cross-client scope fencing (two clients sharing LWF prefix) via live API; CLI list/show/assign/resolve/reopen with bare numbers (API+DB modes); dashboard DOM shows refs; /check ran business rules + full security-review (clean) + code-review (6 DRY findings, all fixed: shared refSelectSql/formatRef/formatCommentLabel, one Comment interface, consolidated branding get/set, BRANDING_KEYS const)
+  - RELEASE-NOTES for fork owners: comments API adds `uuid`/`project_number`/`ref`; decisions add `comment_ref`; settings adds `branding`; `/api/comments/[id]` also accepts ref or uuid; projects PATCH accepts `refPrefix`; new `npm run init-db` script; v4 is additive — **first run against a v3 DB backfills + dedupes** (see Migration Ledger)
 - **security lane (Wave 1) SHIPPED** — 2026-07-03 → archived brief: handoff/done/2026-07-03-security.md
   - New `lib/auth.ts` (requireToken/requireAdmin timing-safe + scope helpers) + `lib/rate-limit.ts`; token+scope required on ALL writes (comments, batch-update, decisions, assignees); deleted `/api/proxy` (SSRF); widget.js esc() on all config/user innerHTML; admin secret out of URLs (Bearer + sessionStorage, legacy `?admin=` still accepted); origin match needs `/` boundary; CLI/MCP tokens via header; CLI DB mode verifies TLS; PATCH enum validation; widget/settings cache 3600→300s; dead unscoped reads removed; minor dep bumps (next 15.5.20, pg 8.22, tailwind 4.3.2)
   - Rate limits 20 writes/min, 60 reads/min per IP+key (env-overridable); real enforcement recipe in `docs/RATE-LIMITING.md` (Vercel WAF — **manual dashboard step still to do in prod**)
@@ -33,11 +41,19 @@
 ## What's Next (orchestration plan, 2026-07-03 — waves of ≤2 parallel lanes)
 
 - ~~Wave 1: security~~ ✅ shipped 2026-07-03 (see What Was Last Done)
-- Wave 2 (NOW UNBLOCKED): data-model [build] → handoff/data-model.md ∥ widget-ux [build] → handoff/widget-ux.md
+- Wave 2: ~~data-model~~ ✅ shipped 2026-07-03 ∥ widget-ux [build] → handoff/widget-ux.md (in flight)
+- **prod-migrate-v4 [operational, HUMAN GATE — Annie] → handoff/prod-migrate-v4.md** (apply schema v4 to prod Neon deliberately; ⚠️ deploying data-model code auto-migrates prod lazily on first request — decide, don't drift)
 - Wave 3: better-auth [build] → handoff/better-auth.md ∥ agent-plumbing [build] → handoff/agent-plumbing.md
 - Wave 4: landing-install [build] → handoff/landing-install.md ∥ email [build] → handoff/email.md
 - Wave 5: ui-rethink [design→build, Annie gate between] → handoff/ui-rethink.md
 - Later / parked: Jira bridge via webhook · Cloudflare Workers/D1 spike (parked 2026-07-03) · Turnstile option (see docs/RATE-LIMITING.md) · Vercel WAF rate-limit rules in prod (manual, recipe in docs/RATE-LIMITING.md) · tier-2 honor license page · Next 16 + TS 6 majors · optional submitter email in widget (changes anonymity promise — Annie's call)
+
+---
+
+## Migration Ledger
+
+- **dev @ v4** (2026-07-03, local Postgres `browser_comments`) — note: this repo's `.env.local` ACTIVE `DATABASE_URL` is the live Neon DB; local dev is the commented localhost line. Lane servers should override `DATABASE_URL` inline.
+- **prod (Neon) @ v3 — v4 NOT APPLIED, deferred human gate** → handoff/prod-migrate-v4.md. Deploying the data-model code lazily migrates prod on first request; run the deliberate path (Neon snapshot branch + `npm run init-db`) first.
 
 ---
 

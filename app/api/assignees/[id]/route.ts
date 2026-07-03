@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initDB, deleteAssignee, updateAssignee } from '@/lib/db';
+import { deleteAssignee, updateAssignee } from '@/lib/db';
 import { requireToken, verifyAssigneeScope } from '@/lib/auth';
 
 // Resolve auth + ownership for an assignee id; returns the error response to send, or null.
@@ -21,8 +21,6 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  await initDB();
-
   const { id } = await params;
   const assigneeId = Number(id);
 
@@ -43,8 +41,6 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  await initDB();
-
   const { id } = await params;
   const assigneeId = Number(id);
 

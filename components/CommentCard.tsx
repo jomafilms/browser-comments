@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { formatCommentLabel } from '@/lib/db/refs';
 
 interface TextAnnotation {
   text: string;
@@ -11,8 +12,11 @@ interface TextAnnotation {
 
 export interface Comment {
   id: number;
+  uuid?: string;
   project_id?: number;
-  display_number: number;
+  display_number: number; // legacy per-client number — prefer ref for display
+  project_number?: number | null;
+  ref?: string | null; // e.g. "LWF-12"
   url: string;
   page_section: string;
   image_data: string;
@@ -104,7 +108,7 @@ export default function CommentCard({
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="px-2 py-1 rounded bg-gray-200 text-gray-700 text-xs font-mono">
-                #{comment.display_number || comment.id}
+                {formatCommentLabel(comment.ref, comment.display_number, comment.id)}
               </span>
               <button
                 onClick={() => {
