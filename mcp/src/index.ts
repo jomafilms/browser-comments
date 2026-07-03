@@ -5,7 +5,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
-import { fetchTickets, fetchTicketById, patchTicket, Ticket } from './api-client';
+import { fetchTickets, fetchTicketByRef, patchTicket, resolveWriteTarget, Ticket } from './api-client';
 
 // Load .env.local from current working directory (the project Claude Code is running in).
 // This lets users put a global MCP config in ~/.claude/settings.json and store
@@ -53,7 +53,7 @@ function formatTicket(t: Ticket): string {
     .join('\n');
 
   return [
-    `#${t.display_number} [${t.status}] ${t.priority} priority`,
+    `${t.ref || '#' + t.display_number} [${t.status}] ${t.priority} priority`,
     `  URL: ${t.url}`,
     `  Section: ${t.page_section}`,
     `  Assignee: ${t.assignee}`,
@@ -81,6 +81,7 @@ server.tool(
     priority: z.enum(['high', 'med', 'low']).optional().describe('Filter by priority'),
     assignee: z.string().optional().describe('Filter by assignee name'),
     section: z.string().optional().describe('Filter by page section (partial match)'),
+    since: z.string().optional().describe('ISO8601 timestamp — only tickets updated after this (for polling new/changed tickets)'),
     include_images: z.boolean().default(false).describe('Include annotated screenshot images'),
   },
   async ({ include_images, ...filters }) => {
@@ -105,16 +106,15 @@ server.tool(
 
 server.tool(
   'show_ticket',
-  'Show details for a single ticket by number (e.g. #3) or internal ID. Includes screenshot by default.',
+  'Show details for a single ticket by ref (e.g. "LWF-12"), uuid, or legacy number. Includes screenshot by default.',
   {
-    ref: z.number().describe('Ticket display number or internal ID'),
-    by_display_number: z.boolean().default(true).describe('If true, ref is the display number (#N). If false, ref is the internal ID.'),
+    ref: z.union([z.string(), z.number()]).describe('Ticket ref (e.g. "LWF-12"), uuid, or legacy number'),
     include_image: z.boolean().default(true).describe('Include the annotated screenshot image'),
   },
-  async ({ ref, by_display_number, include_image }) => {
-    const ticket = await fetchTicketById(apiUrl, token, ref, by_display_number, include_image);
+  async ({ ref, include_image }) => {
+    const ticket = await fetchTicketByRef(apiUrl, token, String(ref), include_image);
     if (!ticket) {
-      return { content: [{ type: 'text' as const, text: `Ticket ${by_display_number ? '#' : 'id:'}${ref} not found.` }] };
+      return { content: [{ type: 'text' as const, text: `Ticket ${ref} not found.` }] };
     }
 
     const content: ({ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string })[] = [
@@ -134,16 +134,13 @@ server.tool(
   'resolve_ticket',
   'Mark a ticket as resolved, optionally with a note',
   {
-    ref: z.number().describe('Ticket display number'),
+    ref: z.union([z.string(), z.number()]).describe('Ticket ref (e.g. "LWF-12"), uuid, or legacy number'),
     note: z.string().optional().describe('Resolution note (e.g. "Fixed in commit abc123")'),
   },
   async ({ ref, note }) => {
-    const ticket = await fetchTicketById(apiUrl, token, ref, true);
-    if (!ticket) {
-      return { content: [{ type: 'text' as const, text: `Ticket #${ref} not found.` }] };
-    }
-    await patchTicket(apiUrl, token, ticket.id, { status: 'resolved', ...(note ? { note } : {}) });
-    return { content: [{ type: 'text' as const, text: `Ticket #${ref} resolved.${note ? ` Note: ${note}` : ''}` }] };
+    const target = await resolveWriteTarget(apiUrl, token, String(ref));
+    await patchTicket(apiUrl, token, target, { status: 'resolved', ...(note ? { note } : {}) });
+    return { content: [{ type: 'text' as const, text: `Ticket ${ref} resolved.${note ? ` Note: ${note}` : ''}` }] };
   }
 );
 
@@ -151,15 +148,12 @@ server.tool(
   'reopen_ticket',
   'Reopen a previously resolved ticket',
   {
-    ref: z.number().describe('Ticket display number'),
+    ref: z.union([z.string(), z.number()]).describe('Ticket ref (e.g. "LWF-12"), uuid, or legacy number'),
   },
   async ({ ref }) => {
-    const ticket = await fetchTicketById(apiUrl, token, ref, true);
-    if (!ticket) {
-      return { content: [{ type: 'text' as const, text: `Ticket #${ref} not found.` }] };
-    }
-    await patchTicket(apiUrl, token, ticket.id, { status: 'open' });
-    return { content: [{ type: 'text' as const, text: `Ticket #${ref} reopened.` }] };
+    const target = await resolveWriteTarget(apiUrl, token, String(ref));
+    await patchTicket(apiUrl, token, target, { status: 'open' });
+    return { content: [{ type: 'text' as const, text: `Ticket ${ref} reopened.` }] };
   }
 );
 
@@ -167,16 +161,13 @@ server.tool(
   'assign_ticket',
   'Assign a ticket to a team member',
   {
-    ref: z.number().describe('Ticket display number'),
+    ref: z.union([z.string(), z.number()]).describe('Ticket ref (e.g. "LWF-12"), uuid, or legacy number'),
     assignee: z.string().describe('Name of the person to assign to'),
   },
   async ({ ref, assignee }) => {
-    const ticket = await fetchTicketById(apiUrl, token, ref, true);
-    if (!ticket) {
-      return { content: [{ type: 'text' as const, text: `Ticket #${ref} not found.` }] };
-    }
-    await patchTicket(apiUrl, token, ticket.id, { assignee });
-    return { content: [{ type: 'text' as const, text: `Ticket #${ref} assigned to ${assignee}.` }] };
+    const target = await resolveWriteTarget(apiUrl, token, String(ref));
+    await patchTicket(apiUrl, token, target, { assignee });
+    return { content: [{ type: 'text' as const, text: `Ticket ${ref} assigned to ${assignee}.` }] };
   }
 );
 

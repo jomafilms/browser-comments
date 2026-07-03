@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { saveComment, getCommentsByTokenContext } from '@/lib/db';
 import { requireToken, verifyProjectScope } from '@/lib/auth';
 import { checkRateLimit, checkBodySize } from '@/lib/rate-limit';
+import { onCommentCreated } from '@/lib/notify';
 
 // Max screenshot payload — JPEGs from the widget stay well under this
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
@@ -69,6 +70,9 @@ export async function POST(request: NextRequest) {
       deviceModel: body.deviceModel,
     });
 
+    // Fire webhooks after the response is sent (no added latency)
+    onCommentCreated(comment, new URL(request.url).origin);
+
     return NextResponse.json(comment, { headers: corsHeaders });
   } catch (error) {
     console.error('Error saving comment:', error);
@@ -87,6 +91,7 @@ export async function GET(request: NextRequest) {
     const priority = searchParams.get('priority') as 'high' | 'med' | 'low' | undefined;
     const assignee = searchParams.get('assignee') || undefined;
     const deviceCategory = searchParams.get('deviceCategory') || undefined;
+    const since = searchParams.get('since') || undefined; // ISO8601 — polling checkpoint
     const excludeImages = searchParams.get('excludeImages') === 'true';
 
     const auth = await requireToken(request);
@@ -95,14 +100,24 @@ export async function GET(request: NextRequest) {
     const limited = checkRateLimit(request, `comments:${auth.ctx.clientId}`, 'read');
     if (limited) return limited;
 
+    if (since !== undefined && Number.isNaN(Date.parse(since))) {
+      return NextResponse.json({ error: 'since must be an ISO8601 timestamp' }, { status: 400 });
+    }
+
+    // Stamp server time BEFORE the query so a poller re-using it as the next
+    // `since` never misses a comment written mid-query. Sent as a header (not a
+    // body field) to keep the response body a plain array — additive, no break.
+    const serverTime = new Date().toISOString();
+
     const comments = await getCommentsByTokenContext(auth.ctx, excludeImages, {
       status: status || undefined,
       priority: priority || undefined,
       assignee: assignee || undefined,
       pageSection: pageSection || undefined,
       deviceCategory: deviceCategory || undefined,
+      since,
     });
-    return NextResponse.json(comments);
+    return NextResponse.json(comments, { headers: { 'X-Server-Time': serverTime } });
   } catch (error) {
     console.error('Error fetching comments:', error);
     return NextResponse.json(

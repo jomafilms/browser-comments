@@ -62,6 +62,7 @@ export interface Comment {
   id: number;
   uuid: string; // stable external identifier (v4 schema)
   project_id: number | null;
+  client_id: number | null; // denormalized from project for per-client numbering + scoping
   display_number: number; // DEPRECATED: per-client sequential number — kept for back-compat, prefer ref
   project_number: number | null; // per-project sequential number (v4 schema)
   ref: string | null; // "<PREFIX>-<project_number>", computed in queries, e.g. "LWF-12"
@@ -89,6 +90,27 @@ export interface CommentFilters {
   assignee?: string;
   pageSection?: string;
   deviceCategory?: string;
+  since?: string; // ISO8601 — only comments with updated_at strictly greater (polling)
+}
+
+// Webhook events we emit. Additive: new event names may be added later.
+export type WebhookEvent = 'comment.created' | 'comment.updated';
+
+export const WEBHOOK_EVENTS: readonly WebhookEvent[] = ['comment.created', 'comment.updated'];
+
+// Outbound webhook registration. secret is an HMAC signing key (not a
+// password) — stored plain, returned in full only at creation.
+export interface Webhook {
+  id: number;
+  client_id: number;
+  project_id: number | null; // null = fires for all projects under the client
+  url: string;
+  secret: string;
+  events: WebhookEvent[];
+  active: boolean;
+  created_at: Date;
+  last_status: number | null; // HTTP status of the last delivery attempt (0 = network error)
+  last_fired_at: Date | null;
 }
 
 export interface DecisionItem {

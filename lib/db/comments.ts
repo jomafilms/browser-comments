@@ -186,6 +186,28 @@ async function queryComments(
     conditions.push(`c.device_category = $${paramIdx++}`);
     params.push(filters.deviceCategory);
   }
+  if (filters?.since) {
+    // Strictly greater so a poller checkpointing on the newest updated_at it
+    // saw never re-emits that same row. updated_at is maintained on every
+    // mutation (incl. batch-update), so this catches new + changed tickets.
+    //
+    // updated_at is `timestamp without time zone` written by NOW() in the DB
+    // session tz. Reinterpreting it in that same tz (current_setting('TimeZone'))
+    // recovers the true instant, which we compare against the ISO `since` as a
+    // timestamptz — otherwise Postgres ignores the `Z` and compares mismatched
+    // naive frames (off by the tz offset).
+    //   API path: fully tz-safe — the checkpoint is X-Server-Time, a true UTC
+    //   instant, and both sides here compare as true instants regardless of host tz.
+    //   CLI DB-mode checkpoint (data-derived max(updated_at)) additionally assumes
+    //   the CLI's Node tz matches the DB session tz (true locally; prod is UTC/UTC).
+    // Truncate to milliseconds: ISO checkpoints (JS Date) are ms-precision but
+    // the column is microsecond-precision, so an untruncated `>` re-emits the
+    // exact boundary row (…806380 > …806000) forever. ms-vs-ms compares cleanly.
+    conditions.push(
+      `date_trunc('milliseconds', c.updated_at AT TIME ZONE current_setting('TimeZone')) > $${paramIdx++}::timestamptz`
+    );
+    params.push(filters.since);
+  }
 
   return withClient(async (client) => {
     const result = await client.query(
@@ -221,6 +243,24 @@ export async function getCommentsByClientId(
   filters?: CommentFilters
 ): Promise<Comment[]> {
   return queryComments({ column: 'p.client_id', id: clientId }, excludeImages, filters);
+}
+
+// Fetch a single comment by its serial id, with the computed ref. image_data
+// is excluded unless includeImage is set (it is by far the heaviest column).
+export async function getCommentById(
+  id: number,
+  includeImage = false
+): Promise<Comment | null> {
+  const selectClause = includeImage ? 'c.*' : LIGHT_COLUMNS;
+  return withClient(async (client) => {
+    const result = await client.query(
+      `SELECT ${selectClause}, ${REF_SELECT} FROM comments c
+       LEFT JOIN projects p ON c.project_id = p.id
+       WHERE c.id = $1`,
+      [id]
+    );
+    return result.rows[0] || null;
+  });
 }
 
 // Verify comment ownership against a token context

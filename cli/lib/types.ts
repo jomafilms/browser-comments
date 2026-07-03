@@ -1,5 +1,7 @@
 export interface Ticket {
   id: number;
+  uuid?: string;
+  ref?: string | null; // "<PREFIX>-<project_number>", e.g. "LWF-12"
   display_number: number;
   url: string;
   page_section: string;
@@ -27,6 +29,7 @@ export interface TicketFilters {
   assignee?: string;
   section?: string;
   project?: string;
+  since?: string; // ISO8601 — only tickets updated after this (polling)
 }
 
 export interface SuccessResponse {

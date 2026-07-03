@@ -1,6 +1,18 @@
 import { Pool } from 'pg';
 import { Ticket, TicketFilters } from './types';
 
+// Image-free column list (image_data is the heaviest column). Includes uuid +
+// project_number so refs resolve. Queries JOIN projects as `p` for ref_prefix.
+const LIGHT_COLUMNS =
+  "c.id, c.uuid, c.project_id, c.client_id, c.display_number, c.project_number, c.url, c.page_section, '' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.created_at, c.updated_at";
+
+// Computed ref column ("LWF-12"), mirrors the server's refSelectSql.
+const REF_EXPR =
+  "CASE WHEN c.project_number IS NOT NULL AND p.ref_prefix IS NOT NULL THEN p.ref_prefix || '-' || c.project_number::text END AS ref";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const REF_RE = /^([A-Za-z][A-Za-z0-9]{0,7})-([0-9]+)$/;
+
 let pool: Pool | null = null;
 
 function getPool(dbUrl: string): Pool {
@@ -65,9 +77,7 @@ export async function queryTickets(
   const p = getPool(dbUrl);
   const client = await p.connect();
   try {
-    const selectClause = excludeImages
-      ? "c.id, c.project_id, c.client_id, c.display_number, c.url, c.page_section, '' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.created_at, c.updated_at"
-      : 'c.*';
+    const selectClause = excludeImages ? LIGHT_COLUMNS : 'c.*';
 
     const conditions: string[] = [];
     const params: (string | number)[] = [];
@@ -102,8 +112,16 @@ export async function queryTickets(
       conditions.push(`c.project_id = $${paramIdx++}`);
       params.push(parseInt(filters.project));
     }
+    if (filters.since) {
+      // Interpret the naive `updated_at` in the DB session tz and compare true
+      // instants (see lib/db/comments.ts) — avoids the UTC-vs-local-naive skew.
+      conditions.push(
+        `date_trunc('milliseconds', c.updated_at AT TIME ZONE current_setting('TimeZone')) > $${paramIdx++}::timestamptz`
+      );
+      params.push(filters.since);
+    }
 
-    const sql = `SELECT ${selectClause} FROM comments c
+    const sql = `SELECT ${selectClause}, ${REF_EXPR} FROM comments c
        JOIN projects p ON c.project_id = p.id
        WHERE ${conditions.join(' AND ')}
        ORDER BY
@@ -118,11 +136,13 @@ export async function queryTickets(
   }
 }
 
-export async function queryTicketById(
+// Resolve a single ticket by uuid / ref ("LWF-12") / bare number (legacy
+// display_number), scoped to the token. Mirrors the server's findCommentByRef
+// (this package can't import lib/db, so the resolution is kept minimal here).
+export async function queryTicketByRef(
   dbUrl: string,
   token: string,
-  ticketId: number,
-  byDisplayNumber: boolean,
+  ref: string,
   includeImages: boolean = false
 ): Promise<Ticket | null> {
   const ctx = await resolveTokenContext(dbUrl, token);
@@ -130,25 +150,36 @@ export async function queryTicketById(
     throw new Error('Invalid token — no matching client or project found.');
   }
 
+  const value = ref.trim();
+  let matchCondition: string;
+  const params: (string | number)[] = [];
+  const refMatch = REF_RE.exec(value);
+  if (UUID_RE.test(value)) {
+    matchCondition = 'c.uuid = $1';
+    params.push(value);
+  } else if (refMatch) {
+    matchCondition = 'UPPER(p.ref_prefix) = $1 AND c.project_number = $2';
+    params.push(refMatch[1].toUpperCase(), parseInt(refMatch[2], 10));
+  } else if (/^\d+$/.test(value) && parseInt(value, 10) <= 2147483647) {
+    matchCondition = 'c.display_number = $1';
+    params.push(parseInt(value, 10));
+  } else {
+    return null;
+  }
+
+  const scopeCondition = ctx.projectId ? `c.project_id = $${params.length + 1}` : `p.client_id = $${params.length + 1}`;
+  params.push(ctx.projectId ?? ctx.clientId);
+
+  const selectClause = includeImages ? 'c.*' : LIGHT_COLUMNS;
+
   const p = getPool(dbUrl);
   const client = await p.connect();
   try {
-    const idColumn = byDisplayNumber ? 'c.display_number' : 'c.id';
-    const selectClause = includeImages
-      ? 'c.*'
-      : "c.id, c.project_id, c.client_id, c.display_number, c.url, c.page_section, '' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.created_at, c.updated_at";
-
-    // Scope by project or client
-    const scopeCondition = ctx.projectId
-      ? 'c.project_id = $1'
-      : 'p.client_id = $1';
-    const scopeValue = ctx.projectId ?? ctx.clientId;
-
     const result = await client.query(
-      `SELECT ${selectClause} FROM comments c
+      `SELECT ${selectClause}, ${REF_EXPR} FROM comments c
        JOIN projects p ON c.project_id = p.id
-       WHERE ${scopeCondition} AND ${idColumn} = $2`,
-      [scopeValue, ticketId]
+       WHERE ${matchCondition} AND ${scopeCondition}`,
+      params
     );
     return result.rows[0] ? mapRow(result.rows[0]) : null;
   } finally {
@@ -166,6 +197,8 @@ export async function closePool(): Promise<void> {
 function mapRow(row: any): Ticket {
   return {
     id: row.id,
+    uuid: row.uuid,
+    ref: row.ref ?? null,
     display_number: row.display_number,
     url: row.url || '',
     page_section: row.page_section || '',

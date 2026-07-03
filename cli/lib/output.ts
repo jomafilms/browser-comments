@@ -28,7 +28,7 @@ export function formatText(response: CLIResponse): string {
   }
 
   const lines: string[] = [];
-  const header = padRow(['#', 'Status', 'Priority', 'Assignee', 'Section', 'Annotation']);
+  const header = padRow(['Ref', 'Status', 'Priority', 'Assignee', 'Section', 'Annotation']);
   lines.push(header);
   lines.push('-'.repeat(header.length));
 
@@ -36,7 +36,7 @@ export function formatText(response: CLIResponse): string {
     const firstAnnotation = t.text_annotations?.[0]?.text || '';
     const annotation = firstAnnotation.length > 40 ? firstAnnotation.slice(0, 37) + '...' : firstAnnotation;
     lines.push(padRow([
-      String(t.display_number),
+      t.ref || `#${t.display_number}`,
       t.status,
       t.priority,
       t.assignee || 'Unassigned',
@@ -50,7 +50,7 @@ export function formatText(response: CLIResponse): string {
 }
 
 function padRow(cols: string[]): string {
-  const widths = [5, 10, 10, 16, 20, 40];
+  const widths = [10, 10, 10, 16, 20, 40];
   return cols.map((c, i) => c.padEnd(widths[i] || 20)).join(' ');
 }
 

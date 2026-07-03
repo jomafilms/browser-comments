@@ -12,14 +12,20 @@ export function resolveInterval(schedule?: string, intervalSeconds?: number): nu
   return 0; // one-shot
 }
 
+// Owns ALL ticking — callers must not run the first tick themselves (that was
+// the old double-emit bug). One-shot runs exactly once, then calls
+// onOneShotDone so the caller can exit cleanly.
 export function startSchedule(
   intervalSeconds: number,
   tick: () => Promise<void>,
-  onError: (err: Error) => void
+  onError: (err: Error) => void,
+  onOneShotDone?: () => void
 ): { stop: () => void } {
   if (intervalSeconds <= 0) {
-    // One-shot: run once then return a no-op stop
-    tick().catch(onError);
+    // One-shot: run once, then signal completion.
+    tick()
+      .catch(onError)
+      .finally(() => onOneShotDone?.());
     return { stop: () => {} };
   }
 

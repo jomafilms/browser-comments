@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateCommentStatus, addNoteToComment, deleteComment, updateCommentPriority, updateCommentAssignee, findCommentByRef, withClient } from '@/lib/db';
+import { updateCommentStatus, addNoteToComment, deleteComment, updateCommentPriority, updateCommentAssignee, findCommentByRef, getCommentById, withClient } from '@/lib/db';
 import { requireToken, verifyCommentScope } from '@/lib/auth';
+import { onCommentUpdated, CommentChange } from '@/lib/notify';
 
 const VALID_STATUSES = ['open', 'resolved'] as const;
 const VALID_PRIORITIES = ['high', 'med', 'low'] as const;
@@ -37,30 +38,43 @@ async function resolveComment(
   return { id: found.id };
 }
 
+// Single-ticket read. Accepts a serial id, uuid, or ref (e.g. "LWF-12"),
+// scope-checked. Returns the full record by default (light — no image_data);
+//  - ?includeImage=true  → full record WITH image_data
+//  - ?imageOnly=true     → legacy { image_data } shape (back-compat)
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: idString } = await context.params;
+    const { searchParams } = new URL(request.url);
+    const includeImage = searchParams.get('includeImage') === 'true';
+    const imageOnly = searchParams.get('imageOnly') === 'true';
 
     const resolved = await resolveComment(request, idString);
     if ('response' in resolved) return resolved.response;
     const id = resolved.id;
 
-    const result = await withClient((dbClient) =>
-      dbClient.query('SELECT image_data FROM comments WHERE id = $1', [id])
-    );
-
-    if (result.rows.length === 0) {
-      return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
+    if (imageOnly) {
+      const result = await withClient((dbClient) =>
+        dbClient.query('SELECT image_data FROM comments WHERE id = $1', [id])
+      );
+      if (result.rows.length === 0) {
+        return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
+      }
+      return NextResponse.json({ image_data: result.rows[0].image_data });
     }
 
-    return NextResponse.json({ image_data: result.rows[0].image_data });
+    const comment = await getCommentById(id, includeImage);
+    if (!comment) {
+      return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
+    }
+    return NextResponse.json(comment);
   } catch (error) {
-    console.error('Error fetching comment image:', error);
+    console.error('Error fetching comment:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch comment image' },
+      { error: 'Failed to fetch comment' },
       { status: 500 }
     );
   }
@@ -94,6 +108,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid assignee' }, { status: 400 });
     }
 
+    // Capture prior values so we only notify on real status/assignee changes
+    // (priority renumbering is deliberately silent — it's high-frequency noise).
+    const willNotify = body.status !== undefined || body.assignee !== undefined;
+    const before = willNotify ? await getCommentById(id) : null;
+
     if (body.status) {
       await updateCommentStatus(id, body.status);
     }
@@ -108,6 +127,23 @@ export async function PATCH(
 
     if (body.assignee !== undefined) {
       await updateCommentAssignee(id, body.assignee);
+    }
+
+    const changes: CommentChange[] = [];
+    if (before) {
+      if (body.status && body.status !== before.status) {
+        changes.push({ field: 'status', from: before.status, to: body.status });
+      }
+      if (body.assignee !== undefined && body.assignee !== before.assignee) {
+        changes.push({ field: 'assignee', from: before.assignee, to: body.assignee });
+      }
+    }
+    if (changes.length > 0) {
+      const updated = await getCommentById(id);
+      if (updated) {
+        const baseUrl = new URL(request.url).origin;
+        for (const change of changes) onCommentUpdated(updated, change, baseUrl);
+      }
     }
 
     return NextResponse.json({ success: true });

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import ClientNav from '@/components/ClientNav';
+import WebhooksSettings from '@/components/WebhooksSettings';
 
 interface WidgetSettings {
   buttonText: string;
@@ -40,7 +41,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [activeSection, setActiveSection] = useState<'widget' | 'assignees'>('widget');
+  const [activeSection, setActiveSection] = useState<'widget' | 'assignees' | 'webhooks'>('widget');
   const [widgetTab, setWidgetTab] = useState<'appearance' | 'embed'>('appearance');
   const [copied, setCopied] = useState(false);
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
@@ -242,12 +243,22 @@ export default function SettingsPage() {
               >
                 Assignees
               </button>
+              <button
+                onClick={() => setActiveSection('webhooks')}
+                className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeSection === 'webhooks'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                Webhooks
+              </button>
             </nav>
           </div>
 
           {/* Content Area */}
           <div className="flex-1">
-            {activeSection === 'widget' ? (
+            {activeSection === 'widget' && (
               <>
                 {/* Widget Tabs */}
                 <div className="border-b mb-6">
@@ -493,7 +504,8 @@ export default function SettingsPage() {
                   </>
                 )}
               </>
-            ) : (
+            )}
+            {activeSection === 'assignees' && (
               /* Assignees Section */
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">Team Assignees</h3>
@@ -592,6 +604,7 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
+            {activeSection === 'webhooks' && <WebhooksSettings token={token} />}
           </div>
         </div>
       </div>

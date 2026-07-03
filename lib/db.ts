@@ -15,5 +15,6 @@ export * from './db/projects';
 export * from './db/decisions';
 export * from './db/assignees';
 export * from './db/branding';
+export * from './db/webhooks';
 
 export { default } from './db/pool';

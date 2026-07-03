@@ -4,7 +4,7 @@ import { applyBaseSchema } from './schema-base';
 import { generateRefPrefix, dedupeRefPrefix } from './refs';
 
 // Current schema version - increment this when adding migrations
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 // Check if schema is up to date (fast check that doesn't run migrations)
 async function isSchemaUpToDate(): Promise<boolean> {
@@ -124,6 +124,31 @@ async function applySchemaV4(client: PoolClient): Promise<void> {
   `);
 }
 
+// v5 (additive only): outbound webhooks. One row per registered endpoint,
+// scoped to a client and optionally a single project (null = all the client's
+// projects). secret is an HMAC signing key stored in plain text (it signs
+// outbound bodies; it is not a login credential).
+async function applySchemaV5(client: PoolClient): Promise<void> {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS webhooks (
+      id SERIAL PRIMARY KEY,
+      client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+      url TEXT NOT NULL,
+      secret VARCHAR(64) NOT NULL,
+      events TEXT[] NOT NULL DEFAULT ARRAY['comment.created'],
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT NOW(),
+      last_status INTEGER,
+      last_fired_at TIMESTAMP
+    );
+  `);
+  await client.query(`
+    CREATE INDEX IF NOT EXISTS idx_webhooks_client_id ON webhooks(client_id);
+    CREATE INDEX IF NOT EXISTS idx_webhooks_project_id ON webhooks(project_id);
+  `);
+}
+
 // Initialize database schema (only runs if needed).
 // Canonical explicit runner: `npm run init-db`. Also invoked lazily via
 // withClient() as a zero-config fallback on fresh deploys.
@@ -146,6 +171,7 @@ export async function initDB() {
 
     await applyBaseSchema(client);
     await applySchemaV4(client);
+    await applySchemaV5(client);
 
     // Mark schema as up to date (upsert)
     await client.query(`

@@ -1,10 +1,42 @@
-import { CLIConfig, SuccessResponse } from '../lib/types';
-import { queryTicketById } from '../lib/db-reader';
-import { fetchTicketById } from '../lib/api-client';
+import { CLIConfig, SuccessResponse, Ticket } from '../lib/types';
+import { queryTicketByRef } from '../lib/db-reader';
+import { fetchTicketByRef } from '../lib/api-client';
 
-export function parseTicketRef(ref: string): { id: number; byDisplayNumber: boolean } {
-  const cleaned = ref.startsWith('#') ? ref.slice(1) : ref;
-  return { id: parseInt(cleaned, 10), byDisplayNumber: true };
+// A ticket ref is a ref ("LWF-12"), uuid, or bare number; strip a leading '#'
+// and pass the rest through untouched (the endpoint resolves all three forms).
+export function cleanRef(ref: string): string {
+  const trimmed = ref.trim();
+  return trimmed.startsWith('#') ? trimmed.slice(1) : trimmed;
+}
+
+// Confirmation response for write commands (resolve/reopen/assign) — echoes the
+// ref and the fields that changed. `id` is stripped by output before display.
+export function ackResponse(mode: 'db' | 'api', fields: Partial<Ticket>): SuccessResponse {
+  return {
+    ok: true,
+    mode,
+    timestamp: new Date().toISOString(),
+    filters: {},
+    count: 1,
+    tickets: [
+      {
+        id: 0,
+        ref: null,
+        display_number: 0,
+        url: '',
+        page_section: '',
+        status: '',
+        priority: '',
+        priority_number: 0,
+        assignee: '',
+        submitter_name: '',
+        text_annotations: [],
+        created_at: '',
+        updated_at: '',
+        ...fields,
+      },
+    ],
+  };
 }
 
 export async function showCommand(
@@ -12,12 +44,12 @@ export async function showCommand(
   ref: string,
   includeImages: boolean = false
 ): Promise<SuccessResponse> {
-  const { id, byDisplayNumber } = parseTicketRef(ref);
-  if (isNaN(id)) throw new Error(`Invalid ticket reference: ${ref}`);
+  const cleaned = cleanRef(ref);
+  if (!cleaned) throw new Error(`Invalid ticket reference: ${ref}`);
 
   const ticket = config.mode === 'db' && config.dbUrl
-    ? await queryTicketById(config.dbUrl, config.token, id, byDisplayNumber, includeImages)
-    : await fetchTicketById(config.apiUrl!, config.token, id, byDisplayNumber, includeImages);
+    ? await queryTicketByRef(config.dbUrl, config.token, cleaned, includeImages)
+    : await fetchTicketByRef(config.apiUrl!, config.token, cleaned, includeImages);
 
   if (!ticket) throw new Error(`Ticket ${ref} not found.`);
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClientByWidgetKey, getProjectByOrigin, getProjectsByClientId, saveComment } from '@/lib/db';
 import { checkRateLimit, checkBodySize } from '@/lib/rate-limit';
+import { onCommentCreated } from '@/lib/notify';
 
 // Increase body size limit for screenshot uploads
 export const maxDuration = 60;
@@ -119,10 +120,14 @@ export async function POST(request: NextRequest) {
       deviceModel: deviceModel || undefined,
     });
 
+    // Fire webhooks after the response is sent (no added latency)
+    onCommentCreated(comment, new URL(request.url).origin);
+
     return NextResponse.json(
       {
         success: true,
         commentId: comment.id,
+        ref: comment.ref, // widget success view feature-detects this
         pageSection: comment.page_section
       },
       { headers: corsHeaders }

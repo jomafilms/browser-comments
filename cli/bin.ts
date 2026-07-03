@@ -55,11 +55,12 @@ const USAGE = `browser-comments <command> [options]
 
 Commands:
   list    [--status=open|resolved] [--priority=high|med|low] [--assignee=X] [--section=X] [--project=ID] [--include-images]
-  show    <display_number> [--include-images]
-  resolve <display_number> [--note="reason"]
-  reopen  <display_number>
-  assign  <display_number> --to=<assignee>
-  watch   [--interval=60] [--schedule=manual|hourly|daily|weekly] [+ any list filters]
+  show    <ref|uuid|number> [--include-images]
+  resolve <ref|uuid|number> [--note="reason"]
+  reopen  <ref|uuid|number>
+  assign  <ref|uuid|number> --to=<assignee>
+  watch   [--interval=60] [--schedule=manual|hourly|daily|weekly] [--since-file=PATH] [+ any list filters]
+            --since-file streams only new/changed tickets as JSON lines, exactly once across restarts
 
 Global:
   --format=json|text    (default: json)
@@ -123,8 +124,9 @@ async function main() {
       case 'watch': {
         const filters = extractFilters(flags);
         const interval = flags.interval ? parseInt(flags.interval, 10) : undefined;
-        watchCommand(config, filters, format, flags.schedule, interval);
-        return; // watch manages its own lifecycle
+        const sinceFile = flags['since-file'] && flags['since-file'] !== 'true' ? flags['since-file'] : undefined;
+        watchCommand(config, filters, format, flags.schedule, interval, sinceFile);
+        return; // watch manages its own lifecycle (and its own pool) — see finally below
       }
 
       default:
@@ -139,7 +141,9 @@ async function main() {
     outputError(err.message, code, format);
     process.exit(1);
   } finally {
-    await closePool();
+    // watch runs an interval that keeps using the pool — closing it here would
+    // kill DB-mode watch after the first tick. watch owns its own lifecycle.
+    if (command !== 'watch') await closePool();
   }
 }
 
