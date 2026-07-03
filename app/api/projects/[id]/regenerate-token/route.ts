@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initDB, generateProjectToken } from '@/lib/db';
+import { generateProjectToken } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth';
 
 export async function POST(
@@ -8,8 +8,6 @@ export async function POST(
 ) {
   const denied = requireAdmin(request);
   if (denied) return denied;
-
-  await initDB();
 
   try {
     const { id } = await params;

@@ -1,20 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { addDecisionItem, getDecisionItemsByProjectId, getDecisionItemsByClientId, initDB } from '@/lib/db';
+import { addDecisionItem, getDecisionItemsByProjectId, getDecisionItemsByClientId } from '@/lib/db';
 import { requireToken, verifyProjectScope, verifyCommentScope } from '@/lib/auth';
-
-// Initialize DB on first request
-let dbInitialized = false;
-
-async function ensureDB() {
-  if (!dbInitialized) {
-    await initDB();
-    dbInitialized = true;
-  }
-}
 
 export async function GET(request: NextRequest) {
   try {
-    await ensureDB();
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
 
@@ -51,7 +40,6 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await ensureDB();
     const body = await request.json();
 
     const auth = await requireToken(request, body.token);

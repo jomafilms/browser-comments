@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteDecisionItem, updateDecisionItem, initDB } from '@/lib/db';
+import { deleteDecisionItem, updateDecisionItem } from '@/lib/db';
 import { requireToken, verifyDecisionScope } from '@/lib/auth';
-
-// Initialize DB on first request
-let dbInitialized = false;
-
-async function ensureDB() {
-  if (!dbInitialized) {
-    await initDB();
-    dbInitialized = true;
-  }
-}
 
 // Resolve auth + ownership for a decision id; returns the error response to send, or null.
 async function authorizeDecision(request: NextRequest, id: number, bodyToken?: unknown): Promise<NextResponse | null> {
@@ -31,7 +21,6 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await ensureDB();
     const { id: idParam } = await params;
     const id = Number(idParam);
 
@@ -60,7 +49,6 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await ensureDB();
     const { id: idParam } = await params;
     const id = Number(idParam);
 

@@ -1,21 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initDB, createProject, getProjectsByClientId, resolveToken, getClients, getProjectById } from '@/lib/db';
+import { createProject, getProjectsByClientId, resolveToken, getClients, getProjectById } from '@/lib/db';
 import { isAdmin, requireAdmin } from '@/lib/auth';
-
-// Initialize database on first request
-let dbInitialized = false;
-
-async function ensureDB() {
-  if (!dbInitialized) {
-    await initDB();
-    dbInitialized = true;
-  }
-}
 
 // GET - List projects for a client
 export async function GET(request: NextRequest) {
-  await ensureDB();
-
   const { searchParams } = new URL(request.url);
   const clientId = searchParams.get('clientId');
   const token = searchParams.get('token');
@@ -67,8 +55,6 @@ export async function GET(request: NextRequest) {
 
 // POST - Create a new project (admin only)
 export async function POST(request: NextRequest) {
-  await ensureDB();
-
   const denied = requireAdmin(request);
   if (denied) return denied;
 

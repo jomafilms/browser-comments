@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initDB, deleteProject, updateProject } from '@/lib/db';
+import { deleteProject, updateProject, getProjectById, isRefPrefixTaken, REF_PREFIX_RE } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth';
 
 export async function PATCH(
@@ -8,8 +8,6 @@ export async function PATCH(
 ) {
   const denied = requireAdmin(request);
   if (denied) return denied;
-
-  await initDB();
 
   try {
     const { id } = await params;
@@ -20,7 +18,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const updates: { name?: string; url?: string } = {};
+    const updates: { name?: string; url?: string; ref_prefix?: string } = {};
     if (typeof body.name === 'string' && body.name.trim().length > 0) {
       updates.name = body.name.trim();
     }
@@ -38,6 +36,28 @@ export async function PATCH(
         })
         .filter((u: string) => u.length > 0)
         .join(', ');
+    }
+
+    // Ticket ref prefix (e.g. "LWF" in LWF-12) — unique within the client
+    if (typeof body.refPrefix === 'string') {
+      const prefix = body.refPrefix.trim().toUpperCase();
+      if (!REF_PREFIX_RE.test(prefix)) {
+        return NextResponse.json(
+          { error: 'refPrefix must start with a letter, be alphanumeric, and max 8 chars' },
+          { status: 400 }
+        );
+      }
+      const project = await getProjectById(projectId);
+      if (!project) {
+        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      }
+      if (await isRefPrefixTaken(project.client_id, prefix, projectId)) {
+        return NextResponse.json(
+          { error: 'refPrefix already used by another project of this client' },
+          { status: 409 }
+        );
+      }
+      updates.ref_prefix = prefix;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -61,8 +81,6 @@ export async function DELETE(
 ) {
   const denied = requireAdmin(request);
   if (denied) return denied;
-
-  await initDB();
 
   try {
     const { id } = await params;

@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "init-db": "npx tsx scripts/init-db.ts",
     "tickets": "npx tsx cli/bin.ts",
     "cli:build": "tsc -p cli/tsconfig.json",
     "mcp:build": "cd mcp && npm run build",

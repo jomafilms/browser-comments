@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import ClientNav from '@/components/ClientNav';
+import { formatCommentLabel } from '@/lib/db/refs';
 
 interface DecisionItem {
   id: number;
@@ -16,6 +17,7 @@ interface DecisionItem {
   updated_at: string;
   comment_display_number: number | null;
   comment_project_id: number | null;
+  comment_ref?: string | null; // e.g. "LWF-12"
 }
 
 interface Project {
@@ -298,7 +300,7 @@ export default function ClientDecisionsPage() {
                             : `/c/${token}/comments?commentId=${decision.comment_id}`}
                           className="text-blue-500 hover:underline font-mono"
                         >
-                          #{decision.comment_display_number || decision.comment_id}
+                          {formatCommentLabel(decision.comment_ref, decision.comment_display_number, decision.comment_id)}
                         </Link>
                       ) : (
                         <span className="text-gray-400">—</span>

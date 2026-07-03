@@ -1,16 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initDB, getClientByToken, getWidgetSettingsByKey, updateWidgetSettings, resolveToken } from '@/lib/db';
-import pool from '@/lib/db';
-
-async function getClientByContextId(clientId: number) {
-  const dbClient = await pool.connect();
-  try {
-    const result = await dbClient.query('SELECT * FROM clients WHERE id = $1', [clientId]);
-    return result.rows[0] || null;
-  } finally {
-    dbClient.release();
-  }
-}
+import { getClientById, getWidgetSettingsByKey, updateWidgetSettings, resolveToken, resolveBranding } from '@/lib/db';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,8 +22,6 @@ export async function OPTIONS() {
 
 // GET - Fetch widget settings (by widget key for external use, or by token for settings page)
 export async function GET(request: NextRequest) {
-  await initDB();
-
   const { searchParams } = new URL(request.url);
   const widgetKey = searchParams.get('key');
   const token = searchParams.get('token');
@@ -51,7 +38,7 @@ export async function GET(request: NextRequest) {
     if (!ctx) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-    const client = await getClientByContextId(ctx.clientId);
+    const client = await getClientById(ctx.clientId);
     if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
@@ -60,6 +47,8 @@ export async function GET(request: NextRequest) {
       clientName: client.name,
       widgetKey: client.widget_key || null,
       readOnly: ctx.projectId !== null, // project tokens can't modify client-level widget settings
+      // Resolved operator branding (project → client → instance) for client-facing pages
+      branding: await resolveBranding(ctx.projectId, ctx.clientId),
     });
   }
 
@@ -68,8 +57,6 @@ export async function GET(request: NextRequest) {
 
 // POST - Update widget settings (by token)
 export async function POST(request: NextRequest) {
-  await initDB();
-
   const { searchParams } = new URL(request.url);
   const token = searchParams.get('token');
 
@@ -85,7 +72,7 @@ export async function POST(request: NextRequest) {
   if (ctx.projectId) {
     return NextResponse.json({ error: 'Project tokens cannot modify widget settings. Use a client token.' }, { status: 403 });
   }
-  const client = await getClientByContextId(ctx.clientId);
+  const client = await getClientById(ctx.clientId);
   if (!client) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }

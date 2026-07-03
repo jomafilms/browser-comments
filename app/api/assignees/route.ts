@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initDB, resolveToken, getAssigneesByClientId, createAssignee } from '@/lib/db';
+import { resolveToken, getAssigneesByClientId, createAssignee } from '@/lib/db';
 
 // GET - Fetch assignees for a client
 export async function GET(request: NextRequest) {
-  await initDB();
-
   const { searchParams } = new URL(request.url);
   const token = searchParams.get('token');
 
@@ -24,8 +22,6 @@ export async function GET(request: NextRequest) {
 
 // POST - Create a new assignee
 export async function POST(request: NextRequest) {
-  await initDB();
-
   const { searchParams } = new URL(request.url);
   const token = searchParams.get('token');
 

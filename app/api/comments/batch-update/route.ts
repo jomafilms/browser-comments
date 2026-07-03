@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '@/lib/db';
+import { withClient } from '@/lib/db';
 import { requireToken, verifyCommentsScope } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
@@ -33,30 +33,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = await pool.connect();
-    try {
-      // Start a transaction
-      await client.query('BEGIN');
+    await withClient(async (client) => {
+      try {
+        await client.query('BEGIN');
 
-      // Update each comment's priority number
-      for (const update of updates) {
-        await client.query(
-          'UPDATE comments SET priority_number = $1, updated_at = NOW() WHERE id = $2',
-          [update.priorityNumber, update.id]
-        );
+        // Update each comment's priority number
+        for (const update of updates) {
+          await client.query(
+            'UPDATE comments SET priority_number = $1, updated_at = NOW() WHERE id = $2',
+            [update.priorityNumber, update.id]
+          );
+        }
+
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
       }
+    });
 
-      // Commit the transaction
-      await client.query('COMMIT');
-
-      return NextResponse.json({ success: true });
-    } catch (error) {
-      // Rollback on error
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error batch updating priorities:', error);
     return NextResponse.json(

@@ -6,6 +6,7 @@ import ClientNav from '@/components/ClientNav';
 import CommentsTableView from '@/components/CommentsTableView';
 import CommentCard, { Comment } from '@/components/CommentCard';
 import ImageModal from '@/components/ImageModal';
+import { formatCommentLabel } from '@/lib/db/refs';
 
 interface Project {
   id: number;
@@ -351,12 +352,12 @@ export default function ClientCommentsPage() {
         <ClientNav token={token}>
           {highlightedDisplayNumber && (
             <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
-              <span className="text-sm text-blue-700">#{highlightedDisplayNumber}</span>
+              <span className="text-sm text-blue-700">{formatCommentLabel(comments.find(c => c.display_number === highlightedDisplayNumber)?.ref, highlightedDisplayNumber)}</span>
               <button onClick={() => { setHighlightedDisplayNumber(null); setSearchCommentId(''); const urlParams = new URLSearchParams(window.location.search); urlParams.delete('c'); urlParams.delete('commentId'); window.history.replaceState({}, '', urlParams.toString() ? `/c/${token}/comments?${urlParams.toString()}` : `/c/${token}/comments`); }} className="text-blue-700 hover:text-blue-900 font-bold">✕</button>
             </div>
           )}
-          <form onSubmit={(e) => { e.preventDefault(); const displayNum = parseInt(searchCommentId); if (!isNaN(displayNum) && displayNum > 0) { const foundComment = comments.find(c => c.display_number === displayNum); if (foundComment) { setHighlightedDisplayNumber(displayNum); const urlParams = new URLSearchParams(window.location.search); urlParams.delete('commentId'); urlParams.set('c', displayNum.toString()); window.history.replaceState({}, '', `/c/${token}/comments?${urlParams.toString()}`); } else { alert(`Comment #${displayNum} not found`); } }}} className="flex items-center gap-2">
-            <input type="number" value={searchCommentId} onChange={(e) => setSearchCommentId(e.target.value)} placeholder="Jump to #" min="1" className="w-24 px-2 py-1 border border-gray-300 rounded text-sm" />
+          <form onSubmit={(e) => { e.preventDefault(); const q = searchCommentId.trim(); if (!q) return; const foundComment = comments.find(c => (c.ref && c.ref.toLowerCase() === q.toLowerCase()) || (/^\d+$/.test(q) && c.display_number === parseInt(q))); if (foundComment) { setHighlightedDisplayNumber(foundComment.display_number); const urlParams = new URLSearchParams(window.location.search); urlParams.delete('commentId'); urlParams.set('c', foundComment.display_number.toString()); window.history.replaceState({}, '', `/c/${token}/comments?${urlParams.toString()}`); } else { alert(`Comment ${q} not found`); } }} className="flex items-center gap-2">
+            <input type="text" value={searchCommentId} onChange={(e) => setSearchCommentId(e.target.value)} placeholder="Jump to ref or #" className="w-28 px-2 py-1 border border-gray-300 rounded text-sm" />
             <button type="submit" className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm">Go</button>
           </form>
         </ClientNav>
@@ -468,6 +469,7 @@ export default function ClientCommentsPage() {
           imageData={expandedImage.imageData}
           commentId={expandedImage.commentId}
           displayNumber={expandedImage.displayNumber}
+          commentRef={comments.find(c => c.id === expandedImage.commentId)?.ref}
           onClose={() => setExpandedImage(null)}
         />
       )}
