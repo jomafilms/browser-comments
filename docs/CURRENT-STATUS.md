@@ -1,7 +1,7 @@
 # browser-comments — Current Status
 
 **Last Updated:** 2026-07-03
-**Last Commit:** data-model lane merge (see git log; prior: `87c4fd3` security lane)
+**Last Commit:** `1aa24d2` widget-ux lane (prior: data-model merge, `87c4fd3` security lane)
 **Branch:** main
 **Launch:** launched (production: https://dev-tix.vercel.app)  <!-- The /migrate skill reads this to gate prod DB migrations. -->
 
@@ -9,6 +9,14 @@
 
 ## What Was Last Done
 
+- **widget-ux lane (Wave 2) SHIPPED** — 2026-07-03 → archived brief: handoff/done/2026-07-03-widget-ux.md
+  - Name persistence root-caused + fixed: submitter name was never written to localStorage at all; now own `bc_submitter_name` key (never inside the settings cache), written on successful submit, prefilled on open; last annotation color persists under `bc_annotation_color`; ALL localStorage access via guarded lsGet/lsSet (Safari private mode / sandboxed iframes degrade to in-memory instead of crashing the widget)
+  - Friction wins: capture spinner; Escape closes modal (blurs an in-progress text annotation first); Escape/click-outside/× keep the comment draft in memory until Cancel or successful submit (memory-only by design — no reload persistence, avoids stale-screenshot pairing); inline form errors replace alert() (name validation highlights+focuses field; network failure says the draft is kept); failed submit preserves annotated image + comment; retry no longer double-stamps text annotations (export from a canvas copy); success auto-close timer cancelled on manual close; success view shows `Your ticket: <ref>` when the API returns `ref` (feature-detected — see What's Next one-liner)
+  - html2canvas-pro 1.6.4 self-hosted in `public/vendor/` (SHA-256 verified against npm tarball, documented in vendor/README.md); loaded same-origin, SRI-pinned jsdelivr fallback for stale self-hosted installs (removes third-party supply chain + ad-blocker failure mode)
+  - `public/widget.js` is now a GENERATED committed artifact: source split into `widget-src/` modules (env/utils/settings/theme/device/capture/draw/main/index), `npm run build:widget` (esbuild 0.28.1 pinned, devDep, es2020, unminified). **Contributors edit widget-src/, not public/widget.js.** Embedders unaffected: same single dependency-free script tag; POST payload unchanged
+  - Verified (all on the final bundle): tsc+build clean; rebuild is byte-deterministic; desktop full flow incl. simulated network-failure submit (draft kept) + real POST 200 against merged schema-v4 tree; 375px mobile (hasTouch context: touch tap opens, touch draw, failure submit, layout fits); name+color survive reload with cold settings cache; localStorage-blocked boot; vendor-404 → SRI'd CDN fallback captures; zero widget console errors; /check ran business rules + full security-review (clean; vendored file + lockfile + artifact independently re-verified, SRI added from its recommendation) + code-review pass (live-binding of config in bundle confirmed; stale auto-close race found + fixed)
+  - RELEASE-NOTES for fork owners: widget users' name + annotation color now persist per browser; no more alert() popups from the widget; self-hosters updating widget.js should also copy `public/vendor/` (works without it via CDN fallback); `npm run build:widget` regenerates the artifact after editing widget-src/
+  - Note: verification submitted 2 test comments to the dev DB LWF project (submitter "Annie Test"/"Merged Tree Test") — delete from dashboard if unwanted
 - **data-model lane (Wave 2) SHIPPED** — 2026-07-03 → archived brief: handoff/done/2026-07-03-data-model.md
   - lib/db.ts (1,124 lines) split into lib/db/{pool,schema,schema-base,refs,types,comments,clients,projects,decisions,assignees,branding}.ts behind a back-compat facade; `withClient()` wraps all ~40 call sites; all files ≤300 lines
   - Migrations off the request path: memoized `ensureSchema()` inside withClient (one check/cold start); all 15 per-route ensureDB copies deleted; **`npm run init-db`** = canonical runner (lazy init kept as zero-config fallback)
@@ -41,7 +49,8 @@
 ## What's Next (orchestration plan, 2026-07-03 — waves of ≤2 parallel lanes)
 
 - ~~Wave 1: security~~ ✅ shipped 2026-07-03 (see What Was Last Done)
-- Wave 2: ~~data-model~~ ✅ shipped 2026-07-03 ∥ widget-ux [build] → handoff/widget-ux.md (in flight)
+- ~~Wave 2: data-model ∥ widget-ux~~ ✅ both shipped 2026-07-03 (see What Was Last Done)
+- Trivial one-liner (no handoff file needed): add `ref: comment.ref` to the POST `/api/widget` response in app/api/widget/route.ts — saveComment already returns it; the widget success view already feature-detects and displays it. Owner: next lane that touches app/api (agent-plumbing) or a 2-minute solo task.
 - **prod-migrate-v4 [operational, HUMAN GATE — Annie] → handoff/prod-migrate-v4.md** (apply schema v4 to prod Neon deliberately; ⚠️ deploying data-model code auto-migrates prod lazily on first request — decide, don't drift)
 - Wave 3: better-auth [build] → handoff/better-auth.md ∥ agent-plumbing [build] → handoff/agent-plumbing.md
 - Wave 4: landing-install [build] → handoff/landing-install.md ∥ email [build] → handoff/email.md
