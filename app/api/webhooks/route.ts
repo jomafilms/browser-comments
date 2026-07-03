@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       const hooks = await listWebhooksByContext(auth.ctx);
       return NextResponse.json(hooks.map(publicWebhook));
     }
-    if (isAdmin(request)) {
+    if (await isAdmin(request)) {
       const hooks = await listAllWebhooks();
       return NextResponse.json(hooks.map(publicWebhook));
     }
@@ -114,7 +114,7 @@ export async function DELETE(request: NextRequest) {
       if (!(await verifyWebhookScope(auth.ctx, id))) {
         return NextResponse.json({ error: 'Webhook not found or access denied' }, { status: 404 });
       }
-    } else if (!isAdmin(request)) {
+    } else if (!(await isAdmin(request))) {
       return auth.response;
     }
 
