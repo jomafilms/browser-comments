@@ -1,7 +1,7 @@
 # browser-comments — Current Status
 
 **Last Updated:** 2026-07-04
-**Last Commit:** `landing-install` lane — dev·tix open-source front door (prior: `email` opt-in notifications, v6)
+**Last Commit:** `ui-rethink` lane — scope-visible IA (prior: `landing-install` dev·tix front door)
 **Branch:** main
 **Launch:** launched (production: https://dev-tix.vercel.app)  <!-- The /migrate skill reads this to gate prod DB migrations. -->
 
@@ -9,6 +9,16 @@
 
 ## What Was Last Done
 
+- **ui-rethink lane (Wave 5) SHIPPED** — 2026-07-04 → archived brief + approved proposal: handoff/done/2026-07-04-ui-rethink.md + handoff/done/2026-07-04-ui-rethink-proposal.md
+  - **Magic links land on the Comments dashboard** — `/c/{token}` 307s to `/c/{token}/comments`; the old auto-redirect into the annotation canvas is gone. Capture is an explicit **＋ Capture** header button → `/c/{token}/capture` (project picker when >1) → `/c/{token}/capture/{id}` (canvas + floating "← Comments · project" pill; AnnotationCanvas component untouched). Legacy `/c/{token}/{id}` URLs redirect to the capture route forever.
+  - **Header scope pill** (`components/ScopePill.tsx` in ClientNav): client tokens get an "All projects ▾" switcher that drives the comments AND decisions project filter via `?project=`; project tokens get a fixed "«name» (PREFIX) · project link" label. Token scope is now stated on every page.
+  - **Settings → "Install & Access" panel** (new first section): embed snippet + widget key, a **sites-that-can-submit table** (each project origin → which project it routes to, with ref prefix — the invisible origin-matching made visible), and access links (client link + project magic links; Annie-approved showing project links to client tokens). **Widget appearance now honors `readOnly`** — project tokens get a banner + disabled fields instead of the editable-form-403-on-Save trap; sections carry scope badges ("applies to all projects" / "per project"). Mobile: settings side-nav → horizontal tabs; ClientNav wraps; filter bar scrolls horizontally.
+  - **Admin → client cards**: projects nested inside their client's card (separate all-clients Projects table deleted — `ProjectsSection.tsx` gone) + one **Access & Keys** expander per client consolidating magic link, widget key + snippet, project tokens, and a webhooks view (reuses `WebhooksSettings` with the client token). **Orphan-ticket banner** when `comments.project_id IS NULL` count > 0 (server-side `countOrphanComments()` in `app/admin/page.tsx` — prod count is 0; legacy local data only; no API change). Webhooks list shows project names, not ids.
+  - **File-size splits** (all touched files ≤300 lines): comments page (478) → `lib/hooks/useClientComments.ts` (data + mutations) + `components/CommentsFilterBar.tsx`; decisions → `DecisionsTable` + `AddDecisionForm`; settings (625) → shell + `settings/sections/*`; `lib/db/comments.ts` (336) → read (`comments.ts`) / write (`comments-write.ts`) behind the `lib/db` facade (closes the agent-plumbing deferred LOW).
+  - **No API or schema changes** (Rule 3): every new surface is served by existing endpoints (`/api/projects?token=`, `/api/settings` `readOnly`); magic links stay ungated (Rule 2 boundary untouched).
+  - Verified: tsc + build clean (pre- AND post-merge with landing-install + rename); every URL-compat row walked live on the lane server — `/c/{token}`→/comments 307 (client + project tokens), legacy `/c/{token}/{id}`→/capture 307, comments 200 with `?status=`/`?c=`/legacy `?commentId=`, decisions/settings/capture 200, `/admin`→login gate intact; screenshots desktop + 375px mobile (nav wrap, filter scroll, settings tabs); multi-project switcher + picker exercised (second local project created to test). Merge conflict (`ClientsSection.tsx`) resolved keeping the card layout + adopting landing's `lib/clipboard` helper across the new copy affordances. Annie visual review **APPROVED** 2026-07-04.
+  - Checked: `docs/EXTERNAL-DEV-SETUP.md` has no nav-dependent screenshots (CLI/embed docs only) and the landing showcase image is the widget modal (untouched) — no doc-screenshot refresh needed.
+  - Note: local dev DB got test fixtures during verification (project token for project 3, second LWF project "LWF Marketing Site", re-bootstrapped owner `owner@example.com`/`local-dev-pass-1`) — harmless, delete if unwanted. Follow-ups parked: `?project=` pill context doesn't persist across nav clicks (each page reads its own URL param — could lift to a shared search-param link builder); AccessKeys still uses `alert()` confirms (now via guarded `copyToClipboard`).
 - **landing-install lane (Wave 4) SHIPPED** — 2026-07-04 → archived brief: handoff/done/2026-07-04-landing-install.md
   - **Open-source front door.** `/` (was a redirect stub) is now a public marketing + install landing page, presented as **dev·tix** (repo, npm package `@jomafilms/browser-comments-cli`, `/widget.js`, and all URLs stay `browser-comments`). Sections: hero + a **real annotation-capture showcase** + 3-step install (Vercel Deploy Button provisioning Neon + widget snippet with one-click copy) + agent wiring (webhook / CLI / `llms.txt`) + honest **Known Limitations** (html2canvas reconstruction caveats: cross-origin images/CORS, video, iframes, native UI) + open-source pricing. Cobalt/ink design (Bricolage Grotesque / Schibsted Grotesk / JetBrains Mono); no cookie banner, analytics, or signup. Landing-scoped fonts + tokens leave `/admin` and `/c/*` visually untouched. A "Sign in" nav + "Owner login" footer link restore the `/admin` entry that the old root redirect used to provide.
   - **Deploy Button** clones the repo + attaches the Neon storage integration; prompts only `BETTER_AUTH_SECRET` (`ADMIN_SECRET` now optional, omitted). URL structure verified; a real end-to-end deploy is a **deferred human step** (needs a Vercel account).
@@ -89,9 +99,9 @@
 - ~~prod-migrate-v4~~ ✅ done 2026-07-03 (prod @ v4, see Migration Ledger)
 - Wave 3: ~~better-auth~~ ✅ ∥ ~~agent-plumbing~~ ✅ both shipped 2026-07-03 (see What Was Last Done)
 - Wave 4: ~~landing-install~~ ✅ ∥ ~~email~~ ✅ both shipped (see What Was Last Done; prod @ v6)
-- Wave 5: ui-rethink [design→build, Annie gate between] → handoff/ui-rethink.md
+- ~~Wave 5: ui-rethink~~ ✅ shipped 2026-07-04 (design gate + visual review both Annie-approved; see What Was Last Done)
 - Manual follow-ups (human/Annie, not agent lanes): **verify the Deploy Button end-to-end** with a real Vercel deploy (Neon provision + first-request schema init + create owner at /admin); optional **custom domain** for the landing page (kept dev-tix.vercel.app).
-- Trivial cleanup (one-liners, no handoff): shared `useCopy()` hook to unify the remaining admin copy buttons (`copyLink`/ProjectsSection/settings still `alert()`/inline).
+- Trivial cleanup (one-liners, no handoff): shared `useCopy()` hook to unify the remaining copy buttons (ui-rethink moved them all onto guarded `copyToClipboard`, but `AccessKeys`/`ClientsSection` still confirm via `alert()`; `InstallAccess` uses inline ✓ state).
 - Later / parked: Jira bridge via webhook · Cloudflare Workers/D1 spike (parked 2026-07-03) · Turnstile option (see docs/RATE-LIMITING.md) · Vercel WAF rate-limit rules in prod (manual, recipe in docs/RATE-LIMITING.md) · **tier-2 honor-system commercial license page** (deferred — no payments/enforcement, honor-system only when built) · Next 16 + TS 6 majors · optional submitter email in widget (changes anonymity promise — Annie's call)
 
 ---
@@ -122,7 +132,6 @@
 
 - (decided 2026-07-03: Better Auth · per-project prefixed refs · landing at `/` · Cloudflare parked)
 - (decided 2026-07-04: **MIT license** · displayed product name **dev·tix** (repo stays browser-comments) · landing design approved)
-- ui-rethink IA proposal approval — at wave 5
 
 ---
 

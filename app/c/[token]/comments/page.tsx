@@ -3,51 +3,49 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import ClientNav from '@/components/ClientNav';
+import CommentsFilterBar, { SortMode } from '@/components/CommentsFilterBar';
 import CommentsTableView from '@/components/CommentsTableView';
 import CommentCard, { Comment } from '@/components/CommentCard';
 import ImageModal from '@/components/ImageModal';
+import { useClientComments } from '@/lib/hooks/useClientComments';
 import { formatCommentLabel } from '@/lib/db/refs';
-
-interface Project {
-  id: number;
-  name: string;
-}
-
-interface Assignee {
-  id: number;
-  name: string;
-}
 
 export default function ClientCommentsPage() {
   const params = useParams();
   const token = params.token as string;
 
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [pageSections, setPageSections] = useState<string[]>([]);
-  const [assignees, setAssignees] = useState<Assignee[]>([]);
+  // Filter/UI state (data + mutations live in useClientComments)
   const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('open');
-  const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [selectedProject, setSelectedProject] = useState<string>('all'); // driven by the header scope pill
   const [selectedPage, setSelectedPage] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
   const [selectedDevice, setSelectedDevice] = useState<string>('all');
-  const [availableDevices, setAvailableDevices] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
-  const [expandedImage, setExpandedImage] = useState<{ imageData: string; commentId: number; displayNumber: number } | null>(null);
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
-  const [sortMode, setSortMode] = useState<'recent' | 'resolved-bottom' | 'priority'>('priority');
+  const [sortMode, setSortMode] = useState<SortMode>('priority');
+  const [groupByPage, setGroupByPage] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [highlightedDisplayNumber, setHighlightedDisplayNumber] = useState<number | null>(null);
   const [pendingLegacyCommentId, setPendingLegacyCommentId] = useState<number | null>(null);
   const [searchCommentId, setSearchCommentId] = useState<string>('');
+  const [expandedImage, setExpandedImage] = useState<{ imageData: string; commentId: number; displayNumber: number } | null>(null);
   const [expandedComment, setExpandedComment] = useState<number | null>(null);
   const [newNote, setNewNote] = useState('');
   const [addNoteToDecisions, setAddNoteToDecisions] = useState(false);
-  const [decisionNoteKeys, setDecisionNoteKeys] = useState<Set<string>>(new Set());
-  const [groupByPage, setGroupByPage] = useState(false);
+
+  const {
+    comments, projects, pageSections, availableDevices, assignees, decisionNoteKeys,
+    loading, error,
+    toggleStatus, updatePriority, updateAssignee, addNote, deleteComment, batchUpdatePriority,
+  } = useClientComments(token, {
+    enabled: isInitialized,
+    filters: {
+      status: filter, project: selectedProject, page: selectedPage,
+      priority: selectedPriority, assignee: selectedAssignee, device: selectedDevice,
+    },
+    sortMode,
+    highlightedDisplayNumber,
+  });
 
   // Initialize filters from URL parameters
   useEffect(() => {
@@ -101,11 +99,6 @@ export default function ClientCommentsPage() {
     window.history.replaceState({}, '', newUrl);
   }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee, selectedDevice, viewMode, sortMode, groupByPage, isInitialized, token]);
 
-  // Initial data load
-  useEffect(() => {
-    if (isInitialized) fetchData();
-  }, [token, isInitialized]);
-
   // Resolve legacy ?commentId=<dbId> links once comments load by mapping to display_number
   useEffect(() => {
     if (pendingLegacyCommentId === null || comments.length === 0) return;
@@ -120,80 +113,15 @@ export default function ClientCommentsPage() {
     setPendingLegacyCommentId(null);
   }, [pendingLegacyCommentId, comments, token]);
 
-  // Refetch comments when filters change (but not on initial load - fetchData handles that)
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
-  useEffect(() => {
-    if (isInitialized && initialLoadDone) fetchComments();
-  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee, selectedDevice]);
-
-  const fetchDecisionItems = async () => {
-    try {
-      const response = await fetch(`/api/decisions?token=${token}`);
-      const decisions = await response.json();
-      const keys = new Set<string>();
-      decisions.forEach((d: any) => {
-        if (d.comment_id !== null && d.note_index !== null) keys.add(`${d.comment_id}-${d.note_index}`);
-      });
-      setDecisionNoteKeys(keys);
-    } catch (error) {
-      console.error('Error fetching decision items:', error);
-    }
+  const handleAddNote = async (id: number) => {
+    if (!newNote.trim()) return;
+    const ok = await addNote(id, newNote, addNoteToDecisions);
+    if (ok) { setNewNote(''); setAddNoteToDecisions(false); setExpandedComment(null); }
   };
 
-  const fetchAssignees = async () => {
-    try {
-      const response = await fetch(`/api/assignees?token=${token}`);
-      if (response.ok) {
-        setAssignees(await response.json());
-      }
-    } catch (error) {
-      console.error('Error fetching assignees:', error);
-    }
-  };
-
-  const fetchData = async () => {
-    try {
-      const projectsRes = await fetch(`/api/projects?token=${token}`);
-      if (!projectsRes.ok) { setError('Invalid access link'); setLoading(false); return; }
-      setProjects(await projectsRes.json());
-      await fetchComments();
-      fetchDecisionItems();
-      fetchAssignees();
-      setInitialLoadDone(true);
-    } catch (err) {
-      console.error('Error fetching data:', err);
-      setError('Failed to load data');
-      setLoading(false);
-    }
-  };
-
-  const fetchComments = async () => {
-    setLoading(true);
-    setLoadedImages(new Set());
-    try {
-      const urlParams = new URLSearchParams();
-      urlParams.append('token', token);
-      urlParams.append('excludeImages', 'true');
-      const response = await fetch(`/api/comments?${urlParams}`);
-      if (!response.ok) { setLoading(false); return; }
-      let data = await response.json();
-      // Extract unique page sections + device categories before filtering
-      const uniquePages = [...new Set(data.map((c: Comment) => c.page_section).filter(Boolean))] as string[];
-      setPageSections(uniquePages.sort());
-      const uniqueDevices = [...new Set(data.map((c: Comment) => c.device_category).filter(Boolean))] as string[];
-      setAvailableDevices(uniqueDevices.sort());
-      if (filter !== 'all') data = data.filter((c: Comment) => c.status === filter);
-      if (selectedProject !== 'all') data = data.filter((c: Comment) => c.project_id === parseInt(selectedProject));
-      if (selectedPage !== 'all') data = data.filter((c: Comment) => c.page_section === selectedPage);
-      if (selectedPriority !== 'all') data = data.filter((c: Comment) => c.priority === selectedPriority);
-      if (selectedAssignee !== 'all') data = data.filter((c: Comment) => c.assignee === selectedAssignee);
-      if (selectedDevice !== 'all') data = data.filter((c: Comment) => c.device_category === selectedDevice);
-      setComments(data);
-      setLoading(false);
-    } catch (err) {
-      console.error('Error fetching comments:', err);
-      setLoading(false);
-    }
+  const handleDeleteComment = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this comment? This action cannot be undone.')) return;
+    await deleteComment(id);
   };
 
   const displayComments = highlightedDisplayNumber ? comments.filter(c => c.display_number === highlightedDisplayNumber) : comments;
@@ -215,107 +143,6 @@ export default function ClientCommentsPage() {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
     }
-  };
-
-  // Load images in bulk batches
-  useEffect(() => {
-    if (comments.length === 0 || loading) return;
-
-    let aborted = false;
-    const idsToLoad = displayComments
-      .map(c => c.id)
-      .filter(id => !loadedImages.has(id));
-
-    if (idsToLoad.length === 0) return;
-
-    const loadImageBatch = async (ids: number[]) => {
-      try {
-        const response = await fetch('/api/comments/images', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids, token }),
-        });
-
-        if (aborted) return;
-
-        const { images } = await response.json();
-
-        if (aborted || !images) return;
-
-        setComments(prev => prev.map(c => {
-          const imageData = images[c.id];
-          return imageData ? { ...c, image_data: imageData } : c;
-        }));
-        setLoadedImages(prev => new Set([...prev, ...Object.keys(images).map(Number)]));
-      } catch (error) {
-        console.error('Error loading images:', error);
-      }
-    };
-
-    // Load in batches of 10 (single request per batch)
-    const loadAllBatches = async () => {
-      for (let i = 0; i < idsToLoad.length; i += 10) {
-        if (aborted) break;
-        const batch = idsToLoad.slice(i, i + 10);
-        await loadImageBatch(batch);
-      }
-    };
-
-    loadAllBatches();
-
-    return () => { aborted = true; };
-  }, [comments.length, loading, sortMode, highlightedDisplayNumber]);
-
-  const toggleStatus = async (id: number, currentStatus: 'open' | 'resolved') => {
-    const newStatus = currentStatus === 'open' ? 'resolved' : 'open';
-    try {
-      await fetch(`/api/comments/${id}?token=${token}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) });
-      setComments(prev => prev.map(c => c.id === id ? { ...c, status: newStatus, priority_number: newStatus === 'resolved' ? 0 : c.priority_number } : c));
-    } catch (err) { console.error('Error updating status:', err); }
-  };
-
-  const updatePriority = async (id: number, priority: 'high' | 'med' | 'low', priorityNumber: number) => {
-    try {
-      await fetch(`/api/comments/${id}?token=${token}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority, priorityNumber }) });
-      setComments(prev => prev.map(c => c.id === id ? { ...c, priority, priority_number: priorityNumber } : c));
-    } catch (err) { console.error('Error updating priority:', err); }
-  };
-
-  const updateAssignee = async (id: number, assignee: string) => {
-    try {
-      await fetch(`/api/comments/${id}?token=${token}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignee }) });
-      setComments(prev => prev.map(c => c.id === id ? { ...c, assignee: assignee as Comment['assignee'] } : c));
-    } catch (err) { console.error('Error updating assignee:', err); }
-  };
-
-  const addNote = async (id: number) => {
-    if (!newNote.trim()) return;
-    try {
-      await fetch(`/api/comments/${id}?token=${token}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: newNote }) });
-      setComments(prev => prev.map(c => c.id === id ? { ...c, text_annotations: [...c.text_annotations, { text: newNote, x: 0, y: 0, color: '#000000' }] } : c));
-      if (addNoteToDecisions) {
-        const comment = comments.find(c => c.id === id);
-        const noteIndex = comment ? comment.text_annotations.length : 0;
-        await fetch(`/api/decisions?token=${token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ noteText: newNote, commentId: id, noteIndex, source: 'comment', projectId: comment?.project_id || null }) });
-        fetchDecisionItems();
-      }
-      setNewNote(''); setAddNoteToDecisions(false); setExpandedComment(null);
-    } catch (error) { console.error('Error adding note:', error); }
-  };
-
-  const deleteComment = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this comment? This action cannot be undone.')) return;
-    try {
-      await fetch(`/api/comments/${id}?token=${token}`, { method: 'DELETE' });
-      setComments(prev => prev.filter(c => c.id !== id));
-    } catch (err) { console.error('Error deleting comment:', err); }
-  };
-
-  const batchUpdatePriority = async (updates: Array<{id: number, priorityNumber: number}>) => {
-    try {
-      await fetch(`/api/comments/batch-update?token=${token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ updates }) });
-      setComments(prev => prev.map(c => { const update = updates.find(u => u.id === c.id); return update ? { ...c, priority_number: update.priorityNumber } : c; }));
-    } catch (err) { console.error('Error batch updating priorities:', err); }
   };
 
   // Sort and optionally group by page section. resolved-bottom always groups
@@ -347,70 +174,36 @@ export default function ClientCommentsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
+      {/* Navigation — the scope pill doubles as the project switcher */}
       <div className="sticky top-0 z-10">
-        <ClientNav token={token}>
+        <ClientNav
+          token={token}
+          projects={projects}
+          selectedProject={selectedProject}
+          onProjectChange={setSelectedProject}
+        >
           {highlightedDisplayNumber && (
             <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
               <span className="text-sm text-blue-700">{formatCommentLabel(comments.find(c => c.display_number === highlightedDisplayNumber)?.ref, highlightedDisplayNumber)}</span>
               <button onClick={() => { setHighlightedDisplayNumber(null); setSearchCommentId(''); const urlParams = new URLSearchParams(window.location.search); urlParams.delete('c'); urlParams.delete('commentId'); window.history.replaceState({}, '', urlParams.toString() ? `/c/${token}/comments?${urlParams.toString()}` : `/c/${token}/comments`); }} className="text-blue-700 hover:text-blue-900 font-bold">✕</button>
             </div>
           )}
-          <form onSubmit={(e) => { e.preventDefault(); const q = searchCommentId.trim(); if (!q) return; const foundComment = comments.find(c => (c.ref && c.ref.toLowerCase() === q.toLowerCase()) || (/^\d+$/.test(q) && c.display_number === parseInt(q))); if (foundComment) { setHighlightedDisplayNumber(foundComment.display_number); const urlParams = new URLSearchParams(window.location.search); urlParams.delete('commentId'); urlParams.set('c', foundComment.display_number.toString()); window.history.replaceState({}, '', `/c/${token}/comments?${urlParams.toString()}`); } else { alert(`Comment ${q} not found`); } }} className="flex items-center gap-2">
+          <form onSubmit={(e) => { e.preventDefault(); const q = searchCommentId.trim(); if (!q) return; const foundComment = comments.find(c => (c.ref && c.ref.toLowerCase() === q.toLowerCase()) || (/^\d+$/.test(q) && c.display_number === parseInt(q))); if (foundComment) { setHighlightedDisplayNumber(foundComment.display_number); const urlParams = new URLSearchParams(window.location.search); urlParams.delete('commentId'); urlParams.set('c', foundComment.display_number.toString()); window.history.replaceState({}, '', `/c/${token}/comments?${urlParams.toString()}`); } else { alert(`Comment ${q} not found`); } }} className="hidden sm:flex items-center gap-2">
             <input type="text" value={searchCommentId} onChange={(e) => setSearchCommentId(e.target.value)} placeholder="Jump to ref or #" className="w-28 px-2 py-1 border border-gray-300 rounded text-sm" />
             <button type="submit" className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm">Go</button>
           </form>
         </ClientNav>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex gap-3 flex-wrap items-center">
-            <div className="flex gap-1">
-              {(['open', 'resolved'] as const).map((f) => (
-                <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded capitalize ${filter === f ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}>{f}</button>
-              ))}
-            </div>
-            <select value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)} className="w-28 px-2 py-1.5 border border-gray-300 rounded overflow-hidden text-ellipsis whitespace-nowrap" title={selectedProject === 'all' ? 'Projects' : projects.find(p => String(p.id) === selectedProject)?.name}>
-              <option value="all">Projects</option>
-              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <select value={selectedPage} onChange={(e) => setSelectedPage(e.target.value)} className="w-28 px-2 py-1.5 border border-gray-300 rounded overflow-hidden text-ellipsis whitespace-nowrap" title={selectedPage === 'all' ? 'Pages' : selectedPage}>
-              <option value="all">Pages</option>
-              {pageSections.map((page) => <option key={page} value={page}>{page.split('/').pop() || page}</option>)}
-            </select>
-            <select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)} className="w-28 px-2 py-1.5 border border-gray-300 rounded overflow-hidden text-ellipsis whitespace-nowrap">
-              <option value="all">Priorities</option>
-              <option value="high">High</option>
-              <option value="med">Med</option>
-              <option value="low">Low</option>
-            </select>
-            <select value={selectedAssignee} onChange={(e) => setSelectedAssignee(e.target.value)} className="w-28 px-2 py-1.5 border border-gray-300 rounded overflow-hidden text-ellipsis whitespace-nowrap" title={selectedAssignee === 'all' ? 'Assignees' : selectedAssignee}>
-              <option value="all">Assignees</option>
-              <option value="Unassigned">Unassigned</option>
-              {assignees.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
-            </select>
-            <select value={selectedDevice} onChange={(e) => setSelectedDevice(e.target.value)} className="w-28 px-2 py-1.5 border border-gray-300 rounded overflow-hidden text-ellipsis whitespace-nowrap" title={selectedDevice === 'all' ? 'Devices' : selectedDevice}>
-              <option value="all">Devices</option>
-              {availableDevices.map((d) => <option key={d} value={d}>{d}</option>)}
-            </select>
-            <div className="flex gap-1 border-l pl-3 items-center">
-              {(['recent', 'priority'] as const).map((s) => (
-                <button key={s} onClick={() => setSortMode(s)} className={`px-3 py-1.5 rounded text-sm ${sortMode === s ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}>
-                  {s === 'recent' ? 'Recent' : 'Priority'}
-                </button>
-              ))}
-              {(sortMode === 'recent' || sortMode === 'priority') && (
-                <label className="flex items-center gap-1.5 ml-2 text-sm text-gray-700 cursor-pointer">
-                  <input type="checkbox" checked={groupByPage} onChange={(e) => setGroupByPage(e.target.checked)} />
-                  Group by page
-                </label>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      <CommentsFilterBar
+        status={filter} onStatus={setFilter}
+        pages={pageSections} page={selectedPage} onPage={setSelectedPage}
+        priority={selectedPriority} onPriority={setSelectedPriority}
+        assignees={assignees} assignee={selectedAssignee} onAssignee={setSelectedAssignee}
+        devices={availableDevices} device={selectedDevice} onDevice={setSelectedDevice}
+        sort={sortMode} onSort={setSortMode}
+        groupByPage={groupByPage} onGroupByPage={setGroupByPage}
+      />
 
       {/* Comments */}
       <div className="max-w-7xl mx-auto px-4 py-6">
@@ -421,7 +214,7 @@ export default function ClientCommentsPage() {
             <p className="text-gray-500">No comments found</p>
           </div>
         ) : viewMode === 'table' ? (
-          <CommentsTableView comments={displayComments} assignees={assignees} onUpdatePriority={updatePriority} onUpdateAssignee={updateAssignee} onToggleStatus={toggleStatus} onDeleteComment={deleteComment} onSwitchToCardView={() => setViewMode('card')} onBatchUpdatePriority={batchUpdatePriority} />
+          <CommentsTableView comments={displayComments} assignees={assignees} onUpdatePriority={updatePriority} onUpdateAssignee={updateAssignee} onToggleStatus={toggleStatus} onDeleteComment={handleDeleteComment} onSwitchToCardView={() => setViewMode('card')} onBatchUpdatePriority={batchUpdatePriority} />
         ) : (
           <div className="space-y-8">
             {Object.entries(groupedComments).map(([pageSection, sectionComments]) => (
@@ -449,12 +242,12 @@ export default function ClientCommentsPage() {
                       onToggleStatus={toggleStatus}
                       onUpdatePriority={updatePriority}
                       onUpdateAssignee={updateAssignee}
-                      onDeleteComment={deleteComment}
+                      onDeleteComment={handleDeleteComment}
                       onExpandImage={(imageData, commentId, displayNumber) => setExpandedImage({ imageData, commentId, displayNumber })}
                       onSetExpandedComment={setExpandedComment}
                       onSetNewNote={setNewNote}
                       onSetAddNoteToDecisions={setAddNoteToDecisions}
-                      onAddNote={addNote}
+                      onAddNote={handleAddNote}
                     />
                   ))}
                 </div>
