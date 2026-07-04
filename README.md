@@ -1,106 +1,40 @@
 # Browser Comments
 
-A simple web app for annotating web pages and providing inline feedback to developers.
+> Open-source visual feedback for the web. Clients **mark up the page**; you and
+> your coding agents **fix it**.
 
-## Features
+Testers drop a one-line `<script>` on any site and get a floating feedback
+button. They annotate the current screen — pen, arrows, boxes, text notes — and
+you get a ticket with the screenshot. Those tickets pipe straight into your
+coding agents over **webhooks** or a **poll**. Self-hosted, free, no tracking.
 
-- Load any URL in an iframe
-- Draw annotations with pen, shapes (arrow, rectangle, circle)
-- Add text notes
-- Color picker (red, blue, yellow)
-- Toggle white/transparent background
-- Undo functionality
-- Screen capture with annotations merged
-- Save to PostgreSQL database
-- View all comments grouped by project
-- Filter by open/resolved status
-- Add follow-up notes to existing comments
+![The Browser Comments annotation modal — a captured page marked up with a box, an arrow, and a note.](./public/demo/annotation-demo.png)
 
-## Setup
+## Deploy your own
 
-### 1. Install Dependencies
+One click clones the repo and provisions a free Neon Postgres. You only set a
+`BETTER_AUTH_SECRET`; the schema builds itself on first request.
 
-```bash
-npm install
-```
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fjomafilms%2Fbrowser-comments&project-name=browser-comments&repository-name=browser-comments&env=BETTER_AUTH_SECRET&envDescription=A%20random%2032%2B%20character%20secret%20that%20signs%20your%20owner-login%20session.%20Generate%20one%20with%3A%20openssl%20rand%20-base64%2032&envLink=https%3A%2F%2Fgithub.com%2Fjomafilms%2Fbrowser-comments%2Fblob%2Fmain%2FRELEASE-NOTES.md&products=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22neon%22%2C%22productSlug%22%3A%22neon%22%2C%22protocol%22%3A%22storage%22%7D%5D)
 
-### 2. Set Up Local PostgreSQL
+Then visit `/admin` to create your owner account, add a client, and copy the
+widget snippet. Full walkthrough: **[docs/SETUP.md](./docs/SETUP.md)**.
 
-Create a local database:
+## Docs
 
-```bash
-createdb browser_comments
-```
+- **Live install page** — the `/` route of any deployed instance (e.g. `https://your-instance.vercel.app/`) is the front door, with the Deploy Button and copy-paste snippets.
+- **[docs/SETUP.md](./docs/SETUP.md)** — deploy, local dev, env vars, adding the widget.
+- **[docs/AGENT-SETUP.md](./docs/AGENT-SETUP.md)** — wire tickets to a coding agent (webhooks, polling, Claude Routine / GitHub Action).
+- **[docs/EXTERNAL-DEV-SETUP.md](./docs/EXTERNAL-DEV-SETUP.md)** — tokens, CLI, MCP, direct API.
+- **[docs/CORS.md](./docs/CORS.md)** — make cross-origin assets show up in captures.
+- **[RELEASE-NOTES.md](./RELEASE-NOTES.md)** — ⚠️ read before upgrading a fork.
 
-### 3. Configure Environment Variables
+## Tech stack
 
-Copy the example env file and fill in your values:
+Next.js 15 · React 19 · Tailwind v4 · PostgreSQL (Neon) · Better Auth. The widget
+(`public/widget.js`) is generated from `widget-src/` via `npm run build:widget`.
 
-```bash
-cp .env.example .env.local
-```
+## License
 
-Edit `.env.local` with your database connection and admin secret. See `.env.example` for all available variables.
-
-### 4. Run Development Server
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000)
-
-## Usage
-
-### Creating a Comment
-
-1. Enter a project name and URL on the home page
-2. Click "Start Annotating"
-3. Use the toolbar to:
-   - Select drawing tool (pen, arrow, rectangle, circle, text)
-   - Choose color (red, blue, yellow)
-   - Toggle background opacity
-   - Undo last action
-4. Click "Save" to capture and save the screenshot with annotations
-
-### Viewing Comments
-
-1. Click "View All Comments" from home or "View Comments" while annotating
-2. Filter by status (All, Open, Resolved)
-3. Filter by project using dropdown
-4. Comments are grouped by project name
-5. Click "Add Note" to add follow-up comments
-6. Toggle status between Open/Resolved
-
-## Deployment
-
-### Vercel
-
-1. Push to GitHub
-2. Import project in Vercel
-3. Set up Neon PostgreSQL database
-4. Add `DATABASE_URL` environment variable in Vercel
-5. Deploy
-
-### Database Migration to Neon
-
-1. Sign up at [neon.tech](https://neon.tech)
-2. Create a new project
-3. Copy connection string
-4. Update `DATABASE_URL` in Vercel environment variables
-5. Database schema will be created automatically on first request
-
-## Tech Stack
-
-- Next.js 15
-- TypeScript
-- Tailwind CSS
-- PostgreSQL (local) / Neon (production)
-- html2canvas for screen capture
-
-## Notes
-
-- Some websites may block iframe embedding (X-Frame-Options)
-- For local testing, make sure PostgreSQL is running
-- Images are stored as base64 in the database
-- Text annotations are stored as JSON for easy querying
+[MIT](./LICENSE) — free to self-host, fork, and read. A paid honor-system
+commercial tier may come later; nothing here is gated or metered.

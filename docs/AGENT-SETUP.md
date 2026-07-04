@@ -165,7 +165,7 @@ each ticket is emitted **exactly once, even across restarts**, as newline-delimi
 JSON (one ticket per line) an agent can stream:
 
 ```bash
-export BROWSER_COMMENTS_API=https://dev-tix.vercel.app
+export BROWSER_COMMENTS_API=https://your-instance.vercel.app
 export BROWSER_COMMENTS_TOKEN=<your-token>
 
 browser-comments watch --interval=30 --since-file ~/.bc-checkpoint | while read -r line; do

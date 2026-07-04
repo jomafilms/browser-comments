@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ScopeBadge from './ScopeBadge';
+import { copyToClipboard } from '@/lib/clipboard';
 
 // The unified answer to "which key goes in the snippet, which sites can
 // submit, and what can each link see". Everything here is served by existing
@@ -45,8 +46,8 @@ export default function InstallAccess({
     ? `<script src="${baseUrl}/widget.js" data-key="${widgetKey}"></script>`
     : '';
 
-  const copy = (key: string, text: string) => {
-    navigator.clipboard.writeText(text);
+  const copy = async (key: string, text: string) => {
+    if (!(await copyToClipboard(text))) return;
     setCopied(key);
     setTimeout(() => setCopied(null), 2000);
   };

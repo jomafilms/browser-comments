@@ -2,6 +2,7 @@
 
 import { Client, Project } from './types';
 import WebhooksSettings from '@/components/WebhooksSettings';
+import { copyToClipboard } from '@/lib/clipboard';
 
 // Every credential-ish string for one client in one place: magic link, widget
 // key + snippet, project links/tokens, and the client's webhooks. Session-
@@ -23,9 +24,8 @@ export default function AccessKeys({
     ? `<script src="${origin}/widget.js" data-key="${client.widget_key}"></script>`
     : '';
 
-  const copy = (text: string, message: string) => {
-    navigator.clipboard.writeText(text);
-    alert(message);
+  const copy = async (text: string, message: string) => {
+    alert((await copyToClipboard(text)) ? message : 'Copy failed — clipboard unavailable.');
   };
 
   const regenerateToken = async () => {
@@ -35,8 +35,8 @@ export default function AccessKeys({
       if (response.ok) {
         const { token } = await response.json();
         setClients((prev) => prev.map((c) => (c.id === client.id ? { ...c, token } : c)));
-        navigator.clipboard.writeText(linkFor(token));
-        alert('Token regenerated! New access link copied to clipboard.');
+        const copied = await copyToClipboard(linkFor(token));
+        alert(`Token regenerated!${copied ? ' New access link copied to clipboard.' : ''}`);
       }
     } catch (err) {
       console.error('Error regenerating token:', err);
@@ -64,8 +64,8 @@ export default function AccessKeys({
       if (response.ok) {
         const { token } = await response.json();
         setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, token } : p)));
-        navigator.clipboard.writeText(token);
-        alert('Project token generated and copied! External devs use it in BROWSER_COMMENTS_TOKEN.');
+        const copied = await copyToClipboard(token);
+        alert(`Project token generated${copied ? ' and copied' : ''}! External devs use it in BROWSER_COMMENTS_TOKEN.`);
       }
     } catch (err) {
       console.error('Error generating project token:', err);

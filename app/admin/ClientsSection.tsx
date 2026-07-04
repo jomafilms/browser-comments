@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Client, Project } from './types';
 import ClientCard from './ClientCard';
+import { copyToClipboard } from '@/lib/clipboard';
 
 // Client list: one card per client with its projects nested inside (the old
 // separate all-clients Projects table is gone). Session-cookie authed.
@@ -39,8 +40,8 @@ export default function ClientsSection({
         setNewClientName('');
         setShowClientForm(false);
         const url = `${origin}/c/${client.token}/comments?status=open&sort=priority`;
-        navigator.clipboard.writeText(url);
-        alert(`Client created!\n\nAccess link:\n${url}\n\nCopied to your clipboard.`);
+        const copied = await copyToClipboard(url);
+        alert(`Client created!\n\nAccess link:\n${url}${copied ? '\n\nCopied to your clipboard.' : ''}`);
       }
     } catch (err) {
       console.error('Error creating client:', err);
