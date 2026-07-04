@@ -1,9 +1,11 @@
 # browser-comments — Current Status
 
 **Last Updated:** 2026-07-04
-**Last Commit:** `ui-rethink` lane — scope-visible IA (prior: `landing-install` dev·tix front door)
+**Last Commit:** `b215728` merge ui-rethink — scope-visible IA (final lane of the 8-lane overhaul)
 **Branch:** main
-**Launch:** launched (production: https://dev-tix.vercel.app)  <!-- The /migrate skill reads this to gate prod DB migrations. -->
+**Launch:** launched (production: https://dev-tix.vercel.app — Annie's private instance; public docs use `your-instance.vercel.app`)  <!-- The /migrate skill reads this to gate prod DB migrations. -->
+
+> **🎉 2026-07-04 — the 8-lane overhaul is COMPLETE and deployed.** security · data-model · widget-ux · better-auth · agent-plumbing · landing-install · email · ui-rethink all shipped to prod (schema @ v6 + Better Auth tables). Product displayed name is **Browser Comments** (repo + package + URLs unchanged). Remaining items are human follow-ups only (below).
 
 ---
 
@@ -131,7 +133,18 @@
 ## Open Decisions Needing Annie
 
 - (decided 2026-07-03: Better Auth · per-project prefixed refs · landing at `/` · Cloudflare parked)
-- (decided 2026-07-04: **MIT license** · displayed product name **dev·tix** (repo stays browser-comments) · landing design approved)
+- (decided 2026-07-04: **MIT license** · landing design approved)
+- (decided 2026-07-04: displayed product name is **Browser Comments** — dev·tix was taken as another brand; dev-tix.vercel.app kept as Annie's private instance, public docs neutralized to `your-instance.vercel.app`. Name is plain text in landing/README copy — a future rename is a grep + a GitHub repo rename (redirects automatically).)
+
+---
+
+## Human follow-ups (post-overhaul — Annie, not agent lanes)
+
+- **Turn on email:** set `RESEND_API_KEY` + `EMAIL_FROM` (verified Resend domain) on Vercel prod; then opt in per client under Settings → Notifications. `CRON_SECRET` + `EMAIL_ALLOWLIST=annie@jomafilms.com` already set. First send should be a test to yourself.
+- **Verify the Deploy Button end-to-end** with a throwaway Vercel account (Neon provision → first-request schema init → create owner at /admin).
+- **Vercel WAF rate-limit rules** in prod (recipe in `docs/RATE-LIMITING.md`) — the in-code limiter is per-instance best-effort.
+- **Delete Neon snapshot branches** after a few days stable: `pre-v4/v5/v6-snapshot-2026-07-03` + `pre-auth-snapshot-2026-07-03`.
+- Optional: custom domain for the landing page; the small `useCopy()` cleanup; tier-2 honor-license page when you want to prove the paid tier.
 
 ---
 

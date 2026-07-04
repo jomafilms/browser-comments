@@ -47,3 +47,6 @@ mcp/node_modules/
 
 .codemonkey/
 memory/
+
+# playwright mcp artifacts
+.playwright-mcp/
