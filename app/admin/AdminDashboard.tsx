@@ -5,13 +5,18 @@ import { useRouter } from 'next/navigation';
 import { signOut } from '@/lib/auth-client';
 import { Client, Project } from './types';
 import ClientsSection from './ClientsSection';
-import ProjectsSection from './ProjectsSection';
 import BrandingEditor from './BrandingEditor';
 
-// Admin dashboard shell: loads clients + projects once (session cookie auths the
-// requests — no admin secret anymore), owns that shared state, and composes the
-// sections. Split out of the old app/page.tsx so every file stays under ~300 lines.
-export default function AdminDashboard({ ownerEmail }: { ownerEmail: string }) {
+// Admin dashboard shell: loads clients + projects once (session cookie auths
+// the requests), owns that shared state, and composes the sections. Projects
+// render nested inside their client's card (ClientsSection → ClientCard).
+export default function AdminDashboard({
+  ownerEmail,
+  orphanCount,
+}: {
+  ownerEmail: string;
+  orphanCount: number;
+}) {
   const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -52,7 +57,7 @@ export default function AdminDashboard({ ownerEmail }: { ownerEmail: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-xl shadow-xl p-8 mb-8 flex justify-between items-start">
           <div>
@@ -70,6 +75,16 @@ export default function AdminDashboard({ ownerEmail }: { ownerEmail: string }) {
           </div>
         </div>
 
+        {/* Orphan safety net: tickets with no project are invisible to every
+            client link. Legacy data only — the widget can't create new ones. */}
+        {orphanCount > 0 && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+            ⚠ {orphanCount} ticket{orphanCount === 1 ? ' is' : 's are'} not attached to any project
+            (legacy data) and can&apos;t be seen through any client link. Reassign them in the database
+            to make them visible.
+          </div>
+        )}
+
         {/* Instance branding — shown on all client-facing pages */}
         <div className="bg-white rounded-xl shadow-xl p-6 mb-6">
           <h2 className="text-xl font-bold text-gray-800 mb-1">Branding</h2>
@@ -79,8 +94,12 @@ export default function AdminDashboard({ ownerEmail }: { ownerEmail: string }) {
           <BrandingEditor scope="instance" />
         </div>
 
-        <ClientsSection clients={clients} setClients={setClients} />
-        <ProjectsSection clients={clients} projects={projects} setProjects={setProjects} />
+        <ClientsSection
+          clients={clients}
+          projects={projects}
+          setClients={setClients}
+          setProjects={setProjects}
+        />
       </div>
     </div>
   );

@@ -15,10 +15,10 @@ interface Webhook {
 
 const ALL_EVENTS = ['comment.created', 'comment.updated'];
 
-// Minimal add/remove UI for outbound webhooks. Beauty is the ui-rethink lane's
-// job — this is the functional surface. See docs/AGENT-SETUP.md for wiring.
+// Add/remove UI for outbound webhooks. See docs/AGENT-SETUP.md for wiring.
 export default function WebhooksSettings({ token }: { token: string }) {
   const [hooks, setHooks] = useState<Webhook[]>([]);
+  const [projectNames, setProjectNames] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [url, setUrl] = useState('');
   const [events, setEvents] = useState<string[]>(['comment.created']);
@@ -41,6 +41,22 @@ export default function WebhooksSettings({ token }: { token: string }) {
   useEffect(() => {
     fetchHooks();
   }, [fetchHooks]);
+
+  // Map project ids to names so a scoped hook reads "project LWF App UI",
+  // not "project 4".
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/projects?token=${token}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((projects: Array<{ id: number; name: string }>) => {
+        if (!active || !Array.isArray(projects)) return;
+        setProjectNames(Object.fromEntries(projects.map((p) => [p.id, p.name])));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
   const toggleEvent = (e: string) =>
     setEvents((prev) => (prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e]));
@@ -153,7 +169,9 @@ export default function WebhooksSettings({ token }: { token: string }) {
                   <p className="font-mono text-sm text-gray-800 truncate">{h.url}</p>
                   <p className="text-xs text-gray-500">
                     {h.events.join(', ')} · <span className={s.cls}>{s.text}</span>
-                    {h.project_id === null ? ' · all projects' : ` · project ${h.project_id}`}
+                    {h.project_id === null
+                      ? ' · all projects'
+                      : ` · project ${projectNames[h.project_id] ?? h.project_id}`}
                   </p>
                 </div>
                 <button

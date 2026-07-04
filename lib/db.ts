@@ -10,6 +10,7 @@ export * from './db/refs';
 export { pool, withClient, generateToken } from './db/pool';
 export { initDB, ensureSchema } from './db/schema';
 export * from './db/comments';
+export * from './db/comments-write';
 export * from './db/clients';
 export * from './db/projects';
 export * from './db/decisions';

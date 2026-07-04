@@ -14,5 +14,6 @@ export interface Project {
   name: string;
   url: string;
   token: string | null;
+  ref_prefix?: string | null;
   client_name?: string;
 }
