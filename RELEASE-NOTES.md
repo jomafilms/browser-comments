@@ -43,6 +43,16 @@ Schema migrations are **additive and lazy** — the database upgrades itself on 
 
 Full agent wiring recipes: `docs/AGENT-SETUP.md`.
 
+## Email notifications — opt-in (schema v6)
+
+- **Opt-in email** hangs off the same notify hook as webhooks — it never blocks or 500s the write path, and is **off by default per client**. The product runs fine with no email vendor configured (one startup warning, zero errors).
+- **Providers:** set `RESEND_API_KEY` + `EMAIL_FROM` (Resend, via REST — no dep) **or** `SMTP_HOST`/`SMTP_PORT`[`/SMTP_USER`/`SMTP_PASS`] + `EMAIL_FROM` (nodemailer, lazy-loaded). Resend needs a verified sending domain (human step).
+- **What sends:** instant email on a new ticket (opt-in, hourly cap), a resolved notice, and an hourly/daily **digest** via a Vercel cron at `/api/cron/digest` (registered in `vercel.json`).
+- New **optional** env: `RESEND_API_KEY`+`EMAIL_FROM` or the `SMTP_*` set; `CRON_SECRET` (guards the digest cron — the endpoint is closed when unset); `EMAIL_BASE_URL`, `EMAIL_ALLOWLIST`, `EMAIL_INSTANT_CAP_PER_HOUR`, `EMAIL_DIGEST_HOUR`/`EMAIL_DIGEST_TZ`.
+- New dep: `nodemailer` (only imported when SMTP is configured).
+- ⚠️ **Schema v6 (additive):** first run on a v5 DB adds `clients.notification_settings` (JSONB) + `clients.last_digest_at`; notifications stay off until configured and opted-in per client.
+- Configure per client in **Settings → Notifications** (recipients + mode).
+
 ## Widget UX
 
 - Submitter name and last-used annotation color now persist per browser.
