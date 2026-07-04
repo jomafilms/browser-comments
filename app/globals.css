@@ -1,1 +1,50 @@
 @import "tailwindcss";
+
+/*
+ * dev·tix landing-page design tokens. A cool ink + electric-cobalt "ticket"
+ * palette — deliberately not warm-cream, not purple-gradient, not Inter.
+ * Scoped by unique names (canvas/ink/brand/marker/...) and dedicated font
+ * utilities (font-display/body/code) so nothing overrides Tailwind's defaults
+ * — /admin and /c/* keep their existing look untouched.
+ */
+@theme inline {
+  --font-display: var(--font-bricolage);
+  --font-body: var(--font-schibsted);
+  --font-code: var(--font-jetbrains);
+
+  --color-paper: #eef0ea;         /* cool off-white canvas (not cream) */
+  --color-paper-card: #ffffff;    /* crisp white cards */
+  --color-ink: #131519;           /* cool near-black */
+  --color-ink-soft: #52565f;
+  --color-ink-faint: #888d97;
+  --color-brand: #1f2bff;         /* electric cobalt — the signature */
+  --color-brand-deep: #1620c9;
+  --color-marker: #ff473e;        /* marker-pen red (annotations only) */
+  --color-highlight: #ffe14d;     /* highlighter yellow */
+  --color-line: #dfe1da;          /* cool hairline */
+  --color-slate: #16181d;         /* dark code-block background */
+}
+
+/* Highlighter behind emphasized words in headings. */
+.marker-underline {
+  background-image: linear-gradient(transparent 60%, var(--color-highlight) 60%);
+  background-repeat: no-repeat;
+  padding: 0 0.06em;
+}
+
+@keyframes bc-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bc-draw {
+  from { stroke-dashoffset: var(--dash, 400); }
+  to { stroke-dashoffset: 0; }
+}
+
+.bc-rise { animation: bc-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bc-rise { animation: none; }
+  .bc-draw { animation: none !important; stroke-dashoffset: 0 !important; }
+}

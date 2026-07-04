@@ -16,10 +16,18 @@
     "mcp:build": "cd mcp && npm run build",
     "build:widget": "esbuild widget-src/index.js --bundle --format=iife --target=es2020 --banner:js=\"/* Feedback widget — GENERATED from widget-src/. Edit there, then run: npm run build:widget */ 'use strict';\" --outfile=public/widget.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "keywords": [
+    "feedback",
+    "annotation",
+    "visual-feedback",
+    "bug-reporting",
+    "widget",
+    "self-hosted",
+    "nextjs"
+  ],
+  "author": "joma (jomafilms)",
+  "license": "MIT",
+  "description": "dev·tix — open-source visual feedback widget. Clients annotate any web page and you get a screenshot ticket that pipes straight into your coding agents. Self-hosted on Vercel + Neon. Repo: browser-comments.",
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
     "@tailwindcss/postcss": "^4.1.14",
