@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Client } from './types';
 import BrandingEditor from './BrandingEditor';
 import NotificationSettings from '@/components/NotificationSettings';
+import { copyToClipboard } from '../../lib/clipboard';
 
 // Clients CRUD + widget embed code + per-client branding override.
 // Requests are authed by the owner session cookie (sent automatically).
@@ -19,9 +20,12 @@ export default function ClientsSection({
   const [expandedWidget, setExpandedWidget] = useState<number | null>(null);
   const [expandedBranding, setExpandedBranding] = useState<number | null>(null);
   const [expandedNotifications, setExpandedNotifications] = useState<number | null>(null);
+  const [copiedWidget, setCopiedWidget] = useState<number | null>(null);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const linkFor = (token: string) => `${origin}/c/${token}/comments?status=open&sort=priority`;
+  const widgetSnippet = (widgetKey: string) =>
+    `<script src="${origin}/widget.js" data-key="${widgetKey}"></script>`;
 
   const createClient = async () => {
     if (!newClientName.trim()) {
@@ -54,11 +58,11 @@ export default function ClientsSection({
     alert('Link copied to clipboard!');
   };
 
-  const copyWidgetCode = (widgetKey: string) => {
-    navigator.clipboard.writeText(
-      `<script src="${origin}/widget.js" data-key="${widgetKey}"></script>`
-    );
-    alert('Widget embed code copied to clipboard!');
+  const copyWidgetCode = async (clientId: number, widgetKey: string) => {
+    if (await copyToClipboard(widgetSnippet(widgetKey))) {
+      setCopiedWidget(clientId);
+      setTimeout(() => setCopiedWidget((c) => (c === clientId ? null : c)), 1600);
+    }
   };
 
   const regenerateToken = async (clientId: number) => {
@@ -201,14 +205,14 @@ export default function ClientsSection({
                         Add this script tag to any website to enable the feedback button:
                       </p>
                       <div className="bg-gray-800 text-green-400 p-3 rounded font-mono text-sm overflow-x-auto">
-                        {`<script src="${origin}/widget.js" data-key="${client.widget_key}"></script>`}
+                        {widgetSnippet(client.widget_key)}
                       </div>
                       <div className="mt-3 flex gap-2">
                         <button
-                          onClick={() => copyWidgetCode(client.widget_key!)}
+                          onClick={() => copyWidgetCode(client.id, client.widget_key!)}
                           className="px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
                         >
-                          Copy Code
+                          {copiedWidget === client.id ? '✓ Copied' : 'Copy Code'}
                         </button>
                         <button
                           onClick={() => {

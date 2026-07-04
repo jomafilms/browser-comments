@@ -1,7 +1,7 @@
 # browser-comments — Current Status
 
-**Last Updated:** 2026-07-03
-**Last Commit:** `agent-plumbing` lane — webhooks + polling (prior: `better-auth` owner login at /admin)
+**Last Updated:** 2026-07-04
+**Last Commit:** `landing-install` lane — dev·tix open-source front door (prior: `email` opt-in notifications, v6)
 **Branch:** main
 **Launch:** launched (production: https://dev-tix.vercel.app)  <!-- The /migrate skill reads this to gate prod DB migrations. -->
 
@@ -9,6 +9,15 @@
 
 ## What Was Last Done
 
+- **landing-install lane (Wave 4) SHIPPED** — 2026-07-04 → archived brief: handoff/done/2026-07-04-landing-install.md
+  - **Open-source front door.** `/` (was a redirect stub) is now a public marketing + install landing page, presented as **dev·tix** (repo, npm package `@jomafilms/browser-comments-cli`, `/widget.js`, and all URLs stay `browser-comments`). Sections: hero + a **real annotation-capture showcase** + 3-step install (Vercel Deploy Button provisioning Neon + widget snippet with one-click copy) + agent wiring (webhook / CLI / `llms.txt`) + honest **Known Limitations** (html2canvas reconstruction caveats: cross-origin images/CORS, video, iframes, native UI) + open-source pricing. Cobalt/ink design (Bricolage Grotesque / Schibsted Grotesk / JetBrains Mono); no cookie banner, analytics, or signup. Landing-scoped fonts + tokens leave `/admin` and `/c/*` visually untouched. A "Sign in" nav + "Owner login" footer link restore the `/admin` entry that the old root redirect used to provide.
+  - **Deploy Button** clones the repo + attaches the Neon storage integration; prompts only `BETTER_AUTH_SECRET` (`ADMIN_SECRET` now optional, omitted). URL structure verified; a real end-to-end deploy is a **deferred human step** (needs a Vercel account).
+  - **`/llms.txt`** route serves the requesting instance's **real origin** (dynamic) so a coding agent fetching it self-configures against the live host, not a placeholder.
+  - **Admin:** one-click widget-snippet copy in the client view now uses shared `lib/clipboard.ts` (guarded — only confirms on success; inline "✓ Copied", no `alert()`).
+  - **LICENSE = MIT** (Annie-decided at the copy gate) + `package.json` license/description/keywords/author. **RELEASE-NOTES.md** collates all six lanes (incl. email/v6, added at wrap) for fork owners. **README** rewritten (short + Deploy Button + links); `QUICKSTART.md` + `CORS_SETUP.md` **deleted** → one canonical `docs/SETUP.md` + `docs/CORS.md`.
+  - Verified: tsc + build clean (`/` static, `/llms.txt` dynamic, 18/18 pages); desktop + 375px mobile (no overflow); real widget flow captured from `/test-widget` (dummy key, fake data — **nothing submitted**) → `public/demo/annotation-demo.png`. **Two Annie design gates approved** (copy + the dev·tix rebrand off the initial "too AI-default" look). `/check` business rules PASS + native `/code-review` (high, 41-agent workflow): **10 findings, all fixed** (llms.txt origin, admin entry link, clipboard guard, a11y aria-live, Showcase img lazy+optimized, DRY widgetSnippet/VercelMark/clipboard, dead code removed).
+  - RELEASE-NOTES for fork owners: **no functional/API change** — landing page + docs only. Product is now presented as **dev·tix** (embed snippet, CLI/MCP/API, package name all unchanged). `/llms.txt` added for agent self-config. Project LICENSE is now **MIT** (was ISC in `package.json`).
+  - Note: **no schema changes** this lane. Merged `main` (email/v6) into the branch first — resolved a `ClientsSection.tsx` conflict by keeping both the Notifications panel (email) and the copy affordance (this lane). Deferred: Deploy Button end-to-end human verify; optional custom domain (kept `dev-tix.vercel.app`); a shared `useCopy()` hook to unify the *other* admin copy buttons (`copyLink`/ProjectsSection/settings still use `alert()`/inline).
 - **email lane (Wave 4) SHIPPED** — 2026-07-03 → archived brief: handoff/done/2026-07-03-email.md
   - **Opt-in email notifications** hung off `lib/notify.ts`'s `after()` hooks as a channel beside webhooks — never blocks or 500s the write path (mail outage can't surface as an error). Off by default per client; the product runs fine with no email vendor configured.
   - **Provider abstraction (`lib/email.ts`):** `RESEND_API_KEY`+`EMAIL_FROM` → Resend via REST (no dep) → `SMTP_HOST/PORT[/USER/PASS]` → nodemailer (lazy-imported, only loads when SMTP set) → disabled with ONE startup warning. `EMAIL_ALLOWLIST` restricts recipients (staging/testing gate); `emailLinkBase()` canonical-origin helper.
@@ -79,9 +88,11 @@
 - ~~Trivial one-liner: `ref` in POST `/api/widget` response~~ ✅ done in agent-plumbing lane
 - ~~prod-migrate-v4~~ ✅ done 2026-07-03 (prod @ v4, see Migration Ledger)
 - Wave 3: ~~better-auth~~ ✅ ∥ ~~agent-plumbing~~ ✅ both shipped 2026-07-03 (see What Was Last Done)
-- Wave 4: landing-install [build] → handoff/landing-install.md ∥ ~~email~~ ✅ shipped 2026-07-03 (see What Was Last Done; prod @ v6)
+- Wave 4: ~~landing-install~~ ✅ ∥ ~~email~~ ✅ both shipped (see What Was Last Done; prod @ v6)
 - Wave 5: ui-rethink [design→build, Annie gate between] → handoff/ui-rethink.md
-- Later / parked: Jira bridge via webhook · Cloudflare Workers/D1 spike (parked 2026-07-03) · Turnstile option (see docs/RATE-LIMITING.md) · Vercel WAF rate-limit rules in prod (manual, recipe in docs/RATE-LIMITING.md) · tier-2 honor license page · Next 16 + TS 6 majors · optional submitter email in widget (changes anonymity promise — Annie's call)
+- Manual follow-ups (human/Annie, not agent lanes): **verify the Deploy Button end-to-end** with a real Vercel deploy (Neon provision + first-request schema init + create owner at /admin); optional **custom domain** for the landing page (kept dev-tix.vercel.app).
+- Trivial cleanup (one-liners, no handoff): shared `useCopy()` hook to unify the remaining admin copy buttons (`copyLink`/ProjectsSection/settings still `alert()`/inline).
+- Later / parked: Jira bridge via webhook · Cloudflare Workers/D1 spike (parked 2026-07-03) · Turnstile option (see docs/RATE-LIMITING.md) · Vercel WAF rate-limit rules in prod (manual, recipe in docs/RATE-LIMITING.md) · **tier-2 honor-system commercial license page** (deferred — no payments/enforcement, honor-system only when built) · Next 16 + TS 6 majors · optional submitter email in widget (changes anonymity promise — Annie's call)
 
 ---
 
@@ -110,7 +121,7 @@
 ## Open Decisions Needing Annie
 
 - (decided 2026-07-03: Better Auth · per-project prefixed refs · landing at `/` · Cloudflare parked)
-- MIT vs ISC license — at landing-install gate
+- (decided 2026-07-04: **MIT license** · displayed product name **dev·tix** (repo stays browser-comments) · landing design approved)
 - ui-rethink IA proposal approval — at wave 5
 
 ---
