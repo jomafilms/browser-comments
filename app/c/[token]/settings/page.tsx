@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import ClientNav from '@/components/ClientNav';
 import WebhooksSettings from '@/components/WebhooksSettings';
+import NotificationSettings from '@/components/NotificationSettings';
 
 interface WidgetSettings {
   buttonText: string;
@@ -41,7 +42,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [activeSection, setActiveSection] = useState<'widget' | 'assignees' | 'webhooks'>('widget');
+  const [activeSection, setActiveSection] = useState<'widget' | 'assignees' | 'webhooks' | 'notifications'>('widget');
   const [widgetTab, setWidgetTab] = useState<'appearance' | 'embed'>('appearance');
   const [copied, setCopied] = useState(false);
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
@@ -252,6 +253,16 @@ export default function SettingsPage() {
                 }`}
               >
                 Webhooks
+              </button>
+              <button
+                onClick={() => setActiveSection('notifications')}
+                className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeSection === 'notifications'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                Notifications
               </button>
             </nav>
           </div>
@@ -605,6 +616,7 @@ export default function SettingsPage() {
               </div>
             )}
             {activeSection === 'webhooks' && <WebhooksSettings token={token} />}
+            {activeSection === 'notifications' && <NotificationSettings token={token} />}
           </div>
         </div>
       </div>

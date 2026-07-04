@@ -7,6 +7,7 @@ import {
   recordWebhookDelivery,
 } from './db';
 import { deliverWebhook } from './webhook-delivery';
+import { notifyEmailCommentCreated, notifyEmailCommentResolved } from './email-notify';
 
 // The single notification fan-out. Both write paths (POST /api/comments,
 // POST /api/widget) call onCommentCreated; the PATCH path calls
@@ -84,10 +85,15 @@ async function dispatch(
 }
 
 // Fire-and-forget: schedule after the response is sent. Errors are swallowed so
-// a bad webhook target never surfaces as a 500 on the write path.
+// a bad webhook target (or mail outage) never surfaces as a 500 on the write
+// path. Webhooks and email are independent channels — one failing never blocks
+// the other.
 export function onCommentCreated(comment: Comment, baseUrl: string): void {
   after(() => dispatch('comment.created', comment, baseUrl).catch((err) => {
     console.error('webhook comment.created dispatch failed:', err);
+  }));
+  after(() => notifyEmailCommentCreated(comment, baseUrl).catch((err) => {
+    console.error('email comment.created dispatch failed:', err);
   }));
 }
 
@@ -95,4 +101,10 @@ export function onCommentUpdated(comment: Comment, change: CommentChange, baseUr
   after(() => dispatch('comment.updated', comment, baseUrl, change).catch((err) => {
     console.error('webhook comment.updated dispatch failed:', err);
   }));
+  // Resolved notice fires only on a real open→resolved transition.
+  if (change.field === 'status' && change.to === 'resolved') {
+    after(() => notifyEmailCommentResolved(comment, baseUrl).catch((err) => {
+      console.error('email comment.resolved dispatch failed:', err);
+    }));
+  }
 }

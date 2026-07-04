@@ -17,6 +17,18 @@ export interface Branding {
   supportEmail?: string;
 }
 
+// Email notification preferences, stored per-client (v6 schema). Opt-in by
+// design: an unconfigured client (default {}) sends nothing.
+export type NewTicketMode = 'instant' | 'digest' | 'off';
+export type DigestCadence = 'hourly' | 'daily';
+
+export interface NotificationSettings {
+  recipients?: string[]; // who receives ticket notifications for this client
+  newTicket?: NewTicketMode; // instant email | roll into digest | off (default)
+  digestCadence?: DigestCadence; // how often the digest fires (default daily)
+  resolvedNotice?: boolean; // email recipients when a ticket is resolved
+}
+
 export interface Client {
   id: number;
   token: string;
@@ -24,6 +36,8 @@ export interface Client {
   name: string;
   widget_settings: WidgetSettings | null;
   branding: Branding | null;
+  notification_settings: NotificationSettings | null;
+  last_digest_at: Date | null; // bookkeeping for the digest cron (own column, not in the settings JSONB)
   created_at: Date;
 }
 
