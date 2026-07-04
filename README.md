@@ -1,17 +1,14 @@
-# dev·tix
+# Browser Comments
 
 > Open-source visual feedback for the web. Clients **mark up the page**; you and
 > your coding agents **fix it**.
->
-> _(The product is presented as **dev·tix**; this repository is named
-> `browser-comments`.)_
 
 Testers drop a one-line `<script>` on any site and get a floating feedback
 button. They annotate the current screen — pen, arrows, boxes, text notes — and
 you get a ticket with the screenshot. Those tickets pipe straight into your
 coding agents over **webhooks** or a **poll**. Self-hosted, free, no tracking.
 
-![The dev·tix annotation modal — a captured page marked up with a box, an arrow, and a note.](./public/demo/annotation-demo.png)
+![The Browser Comments annotation modal — a captured page marked up with a box, an arrow, and a note.](./public/demo/annotation-demo.png)
 
 ## Deploy your own
 
@@ -25,7 +22,7 @@ widget snippet. Full walkthrough: **[docs/SETUP.md](./docs/SETUP.md)**.
 
 ## Docs
 
-- **[Live install page](https://dev-tix.vercel.app/)** — the front door, with the Deploy Button and copy-paste snippets.
+- **Live install page** — the `/` route of any deployed instance (e.g. `https://your-instance.vercel.app/`) is the front door, with the Deploy Button and copy-paste snippets.
 - **[docs/SETUP.md](./docs/SETUP.md)** — deploy, local dev, env vars, adding the widget.
 - **[docs/AGENT-SETUP.md](./docs/AGENT-SETUP.md)** — wire tickets to a coding agent (webhooks, polling, Claude Routine / GitHub Action).
 - **[docs/EXTERNAL-DEV-SETUP.md](./docs/EXTERNAL-DEV-SETUP.md)** — tokens, CLI, MCP, direct API.

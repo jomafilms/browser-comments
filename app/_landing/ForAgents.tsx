@@ -13,7 +13,7 @@ export default function ForAgents() {
             Feedback that pipes into your agents.
           </h2>
           <p className="mt-4 font-body text-lg leading-relaxed text-ink-soft">
-            It’s plumbing, not a bot: dev·tix emits webhooks and answers
+            It’s plumbing, not a bot: Browser Comments emits webhooks and answers
             polls. Wire tickets into a Claude Code Routine, a GitHub Action, or a
             watch loop — you stay in control of what the agent does.
           </p>

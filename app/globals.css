@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * dev·tix landing-page design tokens. A cool ink + electric-cobalt "ticket"
+ * Browser Comments landing-page design tokens. A cool ink + electric-cobalt "ticket"
  * palette — deliberately not warm-cream, not purple-gradient, not Inter.
  * Scoped by unique names (canvas/ink/brand/marker/...) and dedicated font
  * utilities (font-display/body/code) so nothing overrides Tailwind's defaults

@@ -86,7 +86,7 @@ end
 
 ## Security note
 
-Allowing a **specific origin** means only your dev·tix instance can read those
+Allowing a **specific origin** means only your Browser Comments instance can read those
 assets cross-origin. Allowing **all origins** (`*`) is simpler but lets any site
 read them. Pick what fits your requirements — for images that are already public
 this rarely matters.

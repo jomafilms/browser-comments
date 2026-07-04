@@ -32,7 +32,7 @@ export default function Closing() {
               The cheapest way to turn feedback into fixes.
             </h2>
             <p className="mt-5 max-w-md font-body text-lg leading-relaxed text-ink-soft">
-              dev·tix is MIT-style open source and self-hosted. A paid,
+              Browser Comments is MIT-style open source and self-hosted. A paid,
               honor-system commercial tier may come later — but nothing here is
               gated, metered, or waiting for a credit card.
             </p>

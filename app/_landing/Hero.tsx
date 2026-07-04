@@ -9,7 +9,7 @@ export default function Hero() {
       {/* Nav */}
       <nav className="mx-auto mb-16 flex max-w-6xl items-center justify-between">
         <span className="font-display text-xl font-bold tracking-tight text-ink">
-          dev<span className="text-brand">·</span>tix
+          Browser<span className="text-brand"> </span>Comments
         </span>
         <div className="flex items-center gap-6 font-body text-sm text-ink-soft">
           <a href="#install" className="hidden transition hover:text-ink sm:inline">

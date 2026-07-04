@@ -1,6 +1,6 @@
 # Setup
 
-The one canonical setup path for **dev·tix** (repo: `browser-comments`). Pick
+The one canonical setup path for **Browser Comments** (repo: `browser-comments`). Pick
 **Deploy** for a hosted instance or **Local development** to hack on it.
 
 - Framework: Next.js 15 · React 19 · Tailwind v4

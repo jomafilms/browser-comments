@@ -31,7 +31,7 @@ export default function Showcase() {
         <figure className="mx-auto max-w-3xl overflow-hidden rounded-xl border border-white/10 bg-slate shadow-2xl">
           <Image
             src="/demo/annotation-demo.png"
-            alt="The dev·tix feedback modal: a captured page with an orange box and arrow drawn around a section and a handwritten note reading ‘spacing feels tight here — can we add padding?’"
+            alt="The Browser Comments feedback modal: a captured page with an orange box and arrow drawn around a section and a handwritten note reading ‘spacing feels tight here — can we add padding?’"
             width={900}
             height={900}
             className="h-auto w-full"

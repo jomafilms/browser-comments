@@ -14,7 +14,7 @@ const schibsted = Schibsted_Grotesk({ subsets: ['latin'], variable: '--font-schi
 const jetbrains = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: 'dev·tix — clients mark up the page, your agents fix it',
+  title: 'Browser Comments — clients mark up the page, your agents fix it',
   description:
     'A dead-simple, open-source feedback widget. Testers annotate any web page; you get a ticket with the screenshot that pipes straight into your coding agents. Self-hosted, free, no tracking.',
 };
