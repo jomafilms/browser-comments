@@ -5,7 +5,7 @@ import { applyAuthSchema } from './schema-auth';
 import { generateRefPrefix, dedupeRefPrefix } from './refs';
 
 // Current schema version - increment this when adding migrations
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 // Check if schema is up to date (fast check that doesn't run migrations)
 async function isSchemaUpToDate(): Promise<boolean> {
@@ -150,6 +150,23 @@ async function applySchemaV5(client: PoolClient): Promise<void> {
   `);
 }
 
+// v6 (additive only): per-client email notification preferences +
+// last_digest_at bookkeeping for the digest cron. Both nullable/defaulted, so
+// a v5 DB gains them with notifications off (opt-in).
+async function applySchemaV6(client: PoolClient): Promise<void> {
+  await client.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='clients' AND column_name='notification_settings') THEN
+        ALTER TABLE clients ADD COLUMN notification_settings JSONB DEFAULT '{}';
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='clients' AND column_name='last_digest_at') THEN
+        ALTER TABLE clients ADD COLUMN last_digest_at TIMESTAMP;
+      END IF;
+    END $$;
+  `);
+}
+
 // Initialize database schema (only runs if needed).
 // Canonical explicit runner: `npm run init-db`. Also invoked lazily via
 // withClient() as a zero-config fallback on fresh deploys.
@@ -179,6 +196,7 @@ export async function initDB() {
     await applyBaseSchema(client);
     await applySchemaV4(client);
     await applySchemaV5(client);
+    await applySchemaV6(client);
 
     // Mark schema as up to date (upsert)
     await client.query(`

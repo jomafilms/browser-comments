@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Client } from './types';
 import BrandingEditor from './BrandingEditor';
+import NotificationSettings from '@/components/NotificationSettings';
 import { copyToClipboard } from '../../lib/clipboard';
 
 // Clients CRUD + widget embed code + per-client branding override.
@@ -18,6 +19,7 @@ export default function ClientsSection({
   const [showClientForm, setShowClientForm] = useState(false);
   const [expandedWidget, setExpandedWidget] = useState<number | null>(null);
   const [expandedBranding, setExpandedBranding] = useState<number | null>(null);
+  const [expandedNotifications, setExpandedNotifications] = useState<number | null>(null);
   const [copiedWidget, setCopiedWidget] = useState<number | null>(null);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -143,6 +145,14 @@ export default function ClientsSection({
                     {expandedBranding === client.id ? 'Hide Branding' : 'Branding'}
                   </button>
                   <button
+                    onClick={() =>
+                      setExpandedNotifications(expandedNotifications === client.id ? null : client.id)
+                    }
+                    className="px-3 py-1.5 bg-teal-100 text-teal-700 rounded hover:bg-teal-200 text-sm"
+                  >
+                    {expandedNotifications === client.id ? 'Hide Notifications' : 'Notifications'}
+                  </button>
+                  <button
                     onClick={() => setExpandedWidget(expandedWidget === client.id ? null : client.id)}
                     className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 text-sm"
                   >
@@ -177,6 +187,12 @@ export default function ClientsSection({
                 <div className="px-4 pb-4 border-t border-gray-200 pt-4 bg-amber-50/40">
                   <h4 className="font-medium text-gray-700 mb-2">Client Branding Override</h4>
                   <BrandingEditor scope="client" id={client.id} />
+                </div>
+              )}
+
+              {expandedNotifications === client.id && (
+                <div className="px-4 pb-4 border-t border-gray-200 pt-4 bg-teal-50/40">
+                  <NotificationSettings token={client.token} />
                 </div>
               )}
 
