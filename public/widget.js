@@ -816,6 +816,19 @@
             const fontStyle = clonedDoc.createElement("style");
             fontStyle.textContent = "* { font-display: block !important; }";
             clonedDoc.head.appendChild(fontStyle);
+            const perfStyle = clonedDoc.createElement("style");
+            perfStyle.textContent = "*, *::before, *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }";
+            clonedDoc.head.appendChild(perfStyle);
+            try {
+              const view = clonedDoc.defaultView || window;
+              clonedDoc.querySelectorAll("*").forEach((el) => {
+                const f = view.getComputedStyle(el).filter;
+                if (f && f !== "none" && f.indexOf("blur(") !== -1) {
+                  el.style.setProperty("filter", "none", "important");
+                }
+              });
+            } catch (_) {
+            }
           }
         }),
         timeoutPromise
@@ -928,7 +941,7 @@
   var screenshot = null;
   var canvas = null;
   var ctx = null;
-  var activeTool = "draw";
+  var activeTool = "rectangle";
   var isDrawing = false;
   var annotations = [];
   var currentAnnotation = null;

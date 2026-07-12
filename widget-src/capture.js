@@ -129,6 +129,31 @@ async function captureScreenshot() {
           const fontStyle = clonedDoc.createElement('style');
           fontStyle.textContent = '* { font-display: block !important; }';
           clonedDoc.head.appendChild(fontStyle);
+
+          // Perf: backdrop-filter blur (near-universal on modal/overlay
+          // backdrops) is one of the slowest effects html2canvas emulates in
+          // JS — it can turn a sub-second capture into many seconds. Kill it
+          // in the clone. The screenshot loses the blur but is otherwise
+          // identical, and captures orders of magnitude faster.
+          const perfStyle = clonedDoc.createElement('style');
+          perfStyle.textContent =
+            '*, *::before, *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }';
+          clonedDoc.head.appendChild(perfStyle);
+
+          // Also strip blur() from regular `filter` (e.g. a blurred overlay
+          // layer) while preserving cheap, wanted filters like drop-shadow.
+          try {
+            const view = clonedDoc.defaultView || window;
+            clonedDoc.querySelectorAll('*').forEach((el) => {
+              const f = view.getComputedStyle(el).filter;
+              if (f && f !== 'none' && f.indexOf('blur(') !== -1) {
+                el.style.setProperty('filter', 'none', 'important');
+              }
+            });
+          } catch (_) {
+            // getComputedStyle unavailable in this clone context — the
+            // backdrop-filter stylesheet above still handles the common case.
+          }
         },
       }),
       timeoutPromise,
