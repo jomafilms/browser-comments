@@ -1,7 +1,7 @@
 # browser-comments — Current Status
 
-**Last Updated:** 2026-07-04
-**Last Commit:** `b215728` merge ui-rethink — scope-visible IA (final lane of the 8-lane overhaul)
+**Last Updated:** 2026-09-23
+**Last Commit:** `4a573af` widget: default to rectangle tool + strip blur in capture (this wrap's admin commit sits on top)
 **Branch:** main
 **Launch:** launched (production: https://dev-tix.vercel.app — Annie's private instance; public docs use `your-instance.vercel.app`)  <!-- The /migrate skill reads this to gate prod DB migrations. -->
 
@@ -10,6 +10,12 @@
 ---
 
 ## What Was Last Done
+
+- **admin per-project “Open” (small lane)** — 2026-09-23. `/admin` could only “Open Portal” at the client level; each project row in a client card now has its own blue **Open** button → `/c/{clientToken}/comments?status=open&sort=priority&project={id}`, i.e. the client portal with the scope pill pre-set to that project. Works for every project (no project token required) and the pill stays switchable once you're in — deliberately *not* the project-token link, which already has its own Open inside **Access & Keys** (that one is the can-only-ever-see-this-project link).
+  - **DRY:** the portal URL was hardcoded in three places (`ClientCard`, `AccessKeys`, `ClientsSection`). Extracted to **`app/admin/links.ts`** — `adminOrigin()`, `portalLink(token)`, `projectPortalLink(clientToken, projectId)` — with the default view (`status=open&sort=priority`) as one named constant, so copy/open/create-client can't drift apart.
+  - **No API, schema, or auth change** (Rule 3). Rule 2 holds by construction: `projectPortalLink` is only ever called as `(client.token, project.id)` where the projects list is already `filter(p => p.client_id === client.id)`; `?project=` is a view filter on a token that already sees all of that client's projects, not a new grant.
+  - Verified: `tsc --noEmit` clean, `next build` clean (18/18 pages). `/check` → business rules PASS + native `/code-review` (low, triggered by the new file) → **(none)**; `/security-review` skipped (no auth/secrets/input/endpoint touched).
+  - ⚠️ **Not visually verified** — `/admin` is session-gated and this repo's active `DATABASE_URL` is the live Neon DB, so the agent had no owner login. Annie to eyeball the button on prod after the auto-deploy (human follow-up below). Note `npm ci` was run (this tree had no `node_modules`).
 
 - **ui-rethink lane (Wave 5) SHIPPED** — 2026-07-04 → archived brief + approved proposal: handoff/done/2026-07-04-ui-rethink.md + handoff/done/2026-07-04-ui-rethink-proposal.md
   - **Magic links land on the Comments dashboard** — `/c/{token}` 307s to `/c/{token}/comments`; the old auto-redirect into the annotation canvas is gone. Capture is an explicit **＋ Capture** header button → `/c/{token}/capture` (project picker when >1) → `/c/{token}/capture/{id}` (canvas + floating "← Comments · project" pill; AnnotationCanvas component untouched). Legacy `/c/{token}/{id}` URLs redirect to the capture route forever.
@@ -144,6 +150,7 @@
 - **Verify the Deploy Button end-to-end** with a throwaway Vercel account (Neon provision → first-request schema init → create owner at /admin).
 - **Vercel WAF rate-limit rules** in prod (recipe in `docs/RATE-LIMITING.md`) — the in-code limiter is per-instance best-effort.
 - **Delete Neon snapshot branches** after a few days stable: `pre-v4/v5/v6-snapshot-2026-07-03` + `pre-auth-snapshot-2026-07-03`.
+- **Eyeball the new per-project `Open` button** on https://dev-tix.vercel.app/admin after this push auto-deploys — one click per project row should land on that project's tickets with the scope pill already showing it. (Agent couldn't verify: `/admin` needs your owner login.)
 - Optional: custom domain for the landing page; the small `useCopy()` cleanup; tier-2 honor-license page when you want to prove the paid tier.
 
 ---

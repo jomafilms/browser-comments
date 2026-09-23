@@ -6,6 +6,7 @@ import BrandingEditor from './BrandingEditor';
 import NotificationSettings from '@/components/NotificationSettings';
 import ProjectForm from './ProjectForm';
 import AccessKeys from './AccessKeys';
+import { portalLink, projectPortalLink } from './links';
 
 const normalizeUrls = (raw: string) =>
   raw
@@ -39,9 +40,6 @@ export default function ClientCard({
   const [editName, setEditName] = useState('');
   const [editUrl, setEditUrl] = useState('');
   const [brandingProjectId, setBrandingProjectId] = useState<number | null>(null);
-
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const linkFor = (token: string) => `${origin}/c/${token}/comments?status=open&sort=priority`;
 
   const toggle = (key: Exclude<Expander, null>) => setExpanded(expanded === key ? null : key);
 
@@ -120,7 +118,7 @@ export default function ClientCard({
           {expanderBtn('branding', 'Branding', 'bg-amber-100 text-amber-700 hover:bg-amber-200')}
           {expanderBtn('notifications', 'Notifications', 'bg-teal-100 text-teal-700 hover:bg-teal-200')}
           <button
-            onClick={() => window.open(linkFor(client.token), '_blank')}
+            onClick={() => window.open(portalLink(client.token), '_blank')}
             className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
           >
             Open Portal
@@ -184,6 +182,13 @@ export default function ClientCard({
                       </>
                     ) : (
                       <>
+                        <button
+                          onClick={() => window.open(projectPortalLink(client.token, project.id), '_blank')}
+                          title={`Open the portal filtered to ${project.name}`}
+                          className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+                        >
+                          Open
+                        </button>
                         <button
                           onClick={() => setBrandingProjectId(brandingProjectId === project.id ? null : project.id)}
                           className="px-2 py-1 bg-amber-100 text-amber-700 rounded hover:bg-amber-200 text-xs"

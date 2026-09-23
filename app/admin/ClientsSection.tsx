@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Client, Project } from './types';
 import ClientCard from './ClientCard';
 import { copyToClipboard } from '@/lib/clipboard';
+import { portalLink } from './links';
 
 // Client list: one card per client with its projects nested inside (the old
 // separate all-clients Projects table is gone). Session-cookie authed.
@@ -21,8 +22,6 @@ export default function ClientsSection({
   const [newClientName, setNewClientName] = useState('');
   const [showClientForm, setShowClientForm] = useState(false);
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-
   const createClient = async () => {
     if (!newClientName.trim()) {
       alert('Please enter a client name');
@@ -39,7 +38,7 @@ export default function ClientsSection({
         setClients((prev) => [...prev, client]);
         setNewClientName('');
         setShowClientForm(false);
-        const url = `${origin}/c/${client.token}/comments?status=open&sort=priority`;
+        const url = portalLink(client.token);
         const copied = await copyToClipboard(url);
         alert(`Client created!\n\nAccess link:\n${url}${copied ? '\n\nCopied to your clipboard.' : ''}`);
       }

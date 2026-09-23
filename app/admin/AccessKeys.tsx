@@ -3,6 +3,7 @@
 import { Client, Project } from './types';
 import WebhooksSettings from '@/components/WebhooksSettings';
 import { copyToClipboard } from '@/lib/clipboard';
+import { adminOrigin, portalLink } from './links';
 
 // Every credential-ish string for one client in one place: magic link, widget
 // key + snippet, project links/tokens, and the client's webhooks. Session-
@@ -18,8 +19,7 @@ export default function AccessKeys({
   setClients: React.Dispatch<React.SetStateAction<Client[]>>;
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
 }) {
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const linkFor = (token: string) => `${origin}/c/${token}/comments?status=open&sort=priority`;
+  const origin = adminOrigin();
   const embedCode = client.widget_key
     ? `<script src="${origin}/widget.js" data-key="${client.widget_key}"></script>`
     : '';
@@ -35,7 +35,7 @@ export default function AccessKeys({
       if (response.ok) {
         const { token } = await response.json();
         setClients((prev) => prev.map((c) => (c.id === client.id ? { ...c, token } : c)));
-        const copied = await copyToClipboard(linkFor(token));
+        const copied = await copyToClipboard(portalLink(token));
         alert(`Token regenerated!${copied ? ' New access link copied to clipboard.' : ''}`);
       }
     } catch (err) {
@@ -85,8 +85,8 @@ export default function AccessKeys({
           <p className="font-mono text-xs text-gray-500 truncate">/c/{client.token}</p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
-          <button onClick={() => copy(linkFor(client.token), 'Link copied to clipboard!')} className={`${btn} bg-gray-200 text-gray-700 hover:bg-gray-300`}>Copy Link</button>
-          <button onClick={() => window.open(linkFor(client.token), '_blank')} className={`${btn} bg-blue-100 text-blue-700 hover:bg-blue-200`}>Open</button>
+          <button onClick={() => copy(portalLink(client.token), 'Link copied to clipboard!')} className={`${btn} bg-gray-200 text-gray-700 hover:bg-gray-300`}>Copy Link</button>
+          <button onClick={() => window.open(portalLink(client.token), '_blank')} className={`${btn} bg-blue-100 text-blue-700 hover:bg-blue-200`}>Open</button>
           <button onClick={regenerateToken} className={`${btn} bg-red-100 text-red-700 hover:bg-red-200`}>Regenerate</button>
         </div>
       </div>
@@ -131,8 +131,8 @@ export default function AccessKeys({
             {project.token ? (
               <>
                 <button onClick={() => copy(project.token!, 'Project token copied!')} className={`${btn} bg-gray-200 text-gray-700 hover:bg-gray-300`}>Copy Token</button>
-                <button onClick={() => copy(linkFor(project.token!), 'Project link copied to clipboard!')} className={`${btn} bg-gray-200 text-gray-700 hover:bg-gray-300`}>Copy Link</button>
-                <button onClick={() => window.open(linkFor(project.token!), '_blank')} className={`${btn} bg-blue-100 text-blue-700 hover:bg-blue-200`}>Open</button>
+                <button onClick={() => copy(portalLink(project.token!), 'Project link copied to clipboard!')} className={`${btn} bg-gray-200 text-gray-700 hover:bg-gray-300`}>Copy Link</button>
+                <button onClick={() => window.open(portalLink(project.token!), '_blank')} className={`${btn} bg-blue-100 text-blue-700 hover:bg-blue-200`}>Open</button>
                 <button
                   onClick={() => {
                     if (confirm('Regenerate project token? The old token will stop working.')) {
