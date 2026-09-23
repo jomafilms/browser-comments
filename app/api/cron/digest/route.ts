@@ -10,10 +10,15 @@ import {
 } from '@/lib/db';
 import { emailEnabled, emailLinkBase, sendEmail } from '@/lib/email';
 import { digestEmail, DigestGroup } from '@/lib/email-templates';
+import { runOwnerDigest } from '@/lib/owner-digest';
 
 // Hourly digest tick (registered in vercel.json). Each run decides who is due:
 // hourly-cadence clients every tick; daily-cadence clients once per day at the
 // local digest hour. Guarded by CRON_SECRET (Vercel attaches it as a Bearer).
+//
+// Two digests ride this one tick: the per-client digests below (addressed to
+// each client), and the operator's single cross-client owner digest
+// (OWNER_DIGEST_TO), which fires at the same daily hour.
 
 export const dynamic = 'force-dynamic';
 
@@ -116,5 +121,26 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, considered: clients.length, sent, empty, skipped, failed });
+  // The owner digest shares the daily hour but not the per-client opt-in — it
+  // is env-gated and runs even when no client opted into a digest of their own.
+  // Caught so the two digests are actually independent: without this, a DB
+  // hiccup here would 500 the whole tick AFTER the per-client digests had
+  // already sent and advanced their checkpoints, reporting a failed cron run.
+  let owner;
+  try {
+    owner = await runOwnerDigest(base, localHour === DIGEST_HOUR);
+  } catch (err) {
+    console.error('[cron/digest] owner digest failed:', err);
+    owner = { status: 'failed' as const, error: err instanceof Error ? err.message : String(err) };
+  }
+
+  return NextResponse.json({
+    ok: true,
+    considered: clients.length,
+    sent,
+    empty,
+    skipped,
+    failed,
+    owner,
+  });
 }

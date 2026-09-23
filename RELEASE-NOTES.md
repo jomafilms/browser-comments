@@ -6,6 +6,33 @@ Schema migrations are **additive and lazy** — the database upgrades itself on 
 
 ---
 
+## Owner digest — one daily email across every client (schema v7)
+
+- **New:** a single daily email to the operator summarizing feedback from **all**
+  clients, grouped client → project, one line per ticket with a deep link to it.
+  This is separate from the per-client digests (which are addressed to each
+  client and opted into in their Settings → Notifications).
+- **New env:** `OWNER_DIGEST_TO` (comma-separated). **Unset = off**, so nothing
+  changes for existing installs. Fires at `EMAIL_DIGEST_HOUR` in
+  `EMAIL_DIGEST_TZ` on the existing hourly `/api/cron/digest` tick.
+- ⚠️ **Operator-only by design.** This email crosses the per-client boundary and
+  each deep link carries that client's magic-link token. Send it to yourself
+  only — never to a client address. `EMAIL_ALLOWLIST` is a useful second gate.
+- **Schema v7 is additive:** one nullable column,
+  `instance_settings.last_owner_digest_at` (the send checkpoint).
+- **Fixed:** the **first** digest mislabelled its contents. With no checkpoint
+  yet there was no "since" to compare against, so every ticket was announced as
+  *new* — including old ones that merely matched the "resolved recently" arm.
+  `created` vs `resolved` is now decided in SQL against the same window boundary.
+  **This affected the existing per-client digest too, and is fixed there as well.**
+- **Fixed:** ticket deep links in notification emails and webhook payloads. They were built as
+  `?c=<ref>` (e.g. `?c=LWF-12`), but the portal parsed `?c=` with `parseInt` —
+  so the linked ticket was never actually highlighted. `?c=` now accepts a
+  **ref or a legacy display number**, and no longer lets the default "open"
+  status filter hide the very ticket the link points at. The portal also stopped
+  stripping `?c=` from the address bar on load, so a refresh or copied link keeps
+  the ticket; `?status=all` is now accepted and round-trips. No API or widget change.
+
 ## Owner login & admin moved — `/admin`
 
 - The admin panel is now at **`/admin`**, behind a real owner login (Better Auth, email + password, sessions in Postgres). The **first visit creates the owner** account; further sign-ups are rejected (single owner).

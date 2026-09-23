@@ -5,7 +5,7 @@ import { applyAuthSchema } from './schema-auth';
 import { generateRefPrefix, dedupeRefPrefix } from './refs';
 
 // Current schema version - increment this when adding migrations
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 // Check if schema is up to date (fast check that doesn't run migrations)
 async function isSchemaUpToDate(): Promise<boolean> {
@@ -167,6 +167,20 @@ async function applySchemaV6(client: PoolClient): Promise<void> {
   `);
 }
 
+// v7 (additive only): checkpoint for the owner digest — one cross-client daily
+// email to the operator, as opposed to v6's per-client digests. Lives on the
+// single instance_settings row because it is instance-wide, not per client.
+async function applySchemaV7(client: PoolClient): Promise<void> {
+  await client.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='instance_settings' AND column_name='last_owner_digest_at') THEN
+        ALTER TABLE instance_settings ADD COLUMN last_owner_digest_at TIMESTAMP;
+      END IF;
+    END $$;
+  `);
+}
+
 // Initialize database schema (only runs if needed).
 // Canonical explicit runner: `npm run init-db`. Also invoked lazily via
 // withClient() as a zero-config fallback on fresh deploys.
@@ -197,6 +211,7 @@ export async function initDB() {
     await applySchemaV4(client);
     await applySchemaV5(client);
     await applySchemaV6(client);
+    await applySchemaV7(client);
 
     // Mark schema as up to date (upsert)
     await client.query(`

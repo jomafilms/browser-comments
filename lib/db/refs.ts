@@ -45,6 +45,17 @@ export function formatCommentLabel(
   return ref || `#${displayNumber || id || '?'}`;
 }
 
+// The widget captures feedback as text annotations, not a comment body — join
+// them into one readable note. Takes the raw JSONB value so both a typed
+// Comment and a raw query row can use it.
+export function joinAnnotationTexts(annotations: unknown): string | null {
+  if (!Array.isArray(annotations)) return null;
+  const parts = annotations
+    .map((a) => (a && typeof (a as { text?: unknown }).text === 'string' ? (a as { text: string }).text.trim() : ''))
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
 // Auto-generate a prefix from a project name:
 // - first word already an acronym ("LWF App UI") → LWF
 // - single word ("joma") → first 4 letters uppercased → JOMA

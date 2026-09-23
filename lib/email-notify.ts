@@ -1,21 +1,12 @@
 import { Comment } from './db/types';
-import { getClientById, getProjectById, resolveBranding, getNotificationSettings } from './db';
+import { getClientById, getProjectById, resolveBranding, getNotificationSettings, joinAnnotationTexts } from './db';
 import { emailEnabled, emailLinkBase, sendEmail } from './email';
+import { ticketLink } from './portal-links';
 import { instantEmail, resolvedEmail, pausedEmail } from './email-templates';
 
 // The email notification channel. Hung off lib/notify.ts's after() hooks
 // alongside webhooks, so it never adds latency to the write path and a mail
 // outage can never surface as a 500. All sends are opt-in per client.
-
-function dashboardLink(base: string, token: string | null, ref: string): string {
-  return token ? `${base}/c/${token}/comments?c=${encodeURIComponent(ref)}` : base;
-}
-
-// The widget captures feedback as text annotations; join them into a readable note.
-function commentNote(comment: Comment): string | null {
-  const parts = (comment.text_annotations || []).map((a) => a.text).filter(Boolean);
-  return parts.length > 0 ? parts.join(' · ') : null;
-}
 
 // --- Instant new-ticket cap: bound per-client email volume ---
 // In-memory, per-instance best-effort (same caveat as lib/rate-limit.ts). A
@@ -55,7 +46,7 @@ export async function notifyEmailCommentCreated(comment: Comment, baseUrl: strin
   if (!client) return;
   const branding = await resolveBranding(comment.project_id, comment.client_id);
   const base = emailLinkBase(baseUrl);
-  const dashboardUrl = dashboardLink(base, client.token, ref(comment));
+  const dashboardUrl = ticketLink(base, client.token, ref(comment));
 
   if (verdict === 'pause-notice') {
     const { subject, html, text } = pausedEmail({ branding, cap: INSTANT_CAP, dashboardUrl });
@@ -70,7 +61,7 @@ export async function notifyEmailCommentCreated(comment: Comment, baseUrl: strin
     projectName: project?.name ?? null,
     pageSection: comment.page_section,
     submitterName: comment.submitter_name,
-    comment: commentNote(comment),
+    comment: joinAnnotationTexts(comment.text_annotations),
     dashboardUrl,
   });
   await sendEmail({ to: settings.recipients, subject, html, text });
@@ -88,7 +79,7 @@ export async function notifyEmailCommentResolved(comment: Comment, baseUrl: stri
   if (!client) return;
   const branding = await resolveBranding(comment.project_id, comment.client_id);
   const project = comment.project_id ? await getProjectById(comment.project_id) : null;
-  const dashboardUrl = dashboardLink(emailLinkBase(baseUrl), client.token, ref(comment));
+  const dashboardUrl = ticketLink(emailLinkBase(baseUrl), client.token, ref(comment));
 
   const { subject, html, text } = resolvedEmail({
     branding,

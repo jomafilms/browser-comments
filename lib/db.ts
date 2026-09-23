@@ -18,5 +18,6 @@ export * from './db/assignees';
 export * from './db/branding';
 export * from './db/webhooks';
 export * from './db/notifications';
+export * from './db/owner-digest';
 
 export { default } from './db/pool';

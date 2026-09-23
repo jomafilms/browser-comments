@@ -27,6 +27,7 @@ export default function ClientCommentsPage() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [highlightedDisplayNumber, setHighlightedDisplayNumber] = useState<number | null>(null);
   const [pendingLegacyCommentId, setPendingLegacyCommentId] = useState<number | null>(null);
+  const [pendingRef, setPendingRef] = useState<string | null>(null);
   const [searchCommentId, setSearchCommentId] = useState<string>('');
   const [expandedImage, setExpandedImage] = useState<{ imageData: string; commentId: number; displayNumber: number } | null>(null);
   const [expandedComment, setExpandedComment] = useState<number | null>(null);
@@ -51,7 +52,8 @@ export default function ClientCommentsPage() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const statusParam = urlParams.get('status');
-    if (statusParam === 'open' || statusParam === 'resolved') setFilter(statusParam);
+    const validStatus = statusParam === 'open' || statusParam === 'resolved' || statusParam === 'all';
+    if (validStatus) setFilter(statusParam as 'open' | 'resolved' | 'all');
     const projectParam = urlParams.get('project');
     if (projectParam) setSelectedProject(projectParam);
     const pageParam = urlParams.get('page');
@@ -69,8 +71,16 @@ export default function ClientCommentsPage() {
     if (urlParams.get('groupByPage') === 'true') setGroupByPage(true);
     const cParam = urlParams.get('c');
     if (cParam) {
-      const num = parseInt(cParam);
-      if (!isNaN(num)) setHighlightedDisplayNumber(num);
+      // ?c= accepts a ref ("LWF-12") or a legacy display number — email deep
+      // links carry the ref. A ref can only be mapped to a display number once
+      // comments load, so stash it like the legacy ?commentId= path does.
+      const c = cParam.trim();
+      if (/^\d+$/.test(c)) setHighlightedDisplayNumber(parseInt(c, 10));
+      else setPendingRef(c);
+      // Pointing at one ticket means "show me this ticket" — an unrelated
+      // default status filter must not hide it. Only a VALID explicit ?status=
+      // wins; ?status=garbage was rejected above and must not count as intent.
+      if (!validStatus) setFilter('all');
     } else {
       const legacyId = urlParams.get('commentId');
       if (legacyId) {
@@ -85,7 +95,9 @@ export default function ClientCommentsPage() {
   useEffect(() => {
     if (!isInitialized) return;
     const urlParams = new URLSearchParams();
-    if (filter !== 'all') urlParams.set('status', filter);
+    // Always emit the status, 'all' included: it has to survive a refresh, or a
+    // deep-linked resolved ticket comes back hidden behind the 'open' default.
+    urlParams.set('status', filter);
     if (selectedProject !== 'all') urlParams.set('project', selectedProject);
     if (selectedPage !== 'all') urlParams.set('page', selectedPage);
     if (selectedPriority !== 'all') urlParams.set('priority', selectedPriority);
@@ -94,10 +106,13 @@ export default function ClientCommentsPage() {
     if (viewMode !== 'card') urlParams.set('view', viewMode);
     urlParams.set('sort', sortMode);
     if (groupByPage) urlParams.set('groupByPage', 'true');
+    // Keep the deep-linked ticket in the URL so a refresh, bookmark, or copied
+    // link still lands on it — this effect used to strip ?c= on mount.
+    if (highlightedDisplayNumber !== null) urlParams.set('c', String(highlightedDisplayNumber));
     const queryString = urlParams.toString();
     const newUrl = queryString ? `/c/${token}/comments?${queryString}` : `/c/${token}/comments`;
     window.history.replaceState({}, '', newUrl);
-  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee, selectedDevice, viewMode, sortMode, groupByPage, isInitialized, token]);
+  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee, selectedDevice, viewMode, sortMode, groupByPage, highlightedDisplayNumber, isInitialized, token]);
 
   // Resolve legacy ?commentId=<dbId> links once comments load by mapping to display_number
   useEffect(() => {
@@ -112,6 +127,14 @@ export default function ClientCommentsPage() {
     }
     setPendingLegacyCommentId(null);
   }, [pendingLegacyCommentId, comments, token]);
+
+  // Resolve a ?c=<ref> link once comments load by mapping the ref to its display_number
+  useEffect(() => {
+    if (pendingRef === null || comments.length === 0) return;
+    const found = comments.find(c => c.ref && c.ref.toLowerCase() === pendingRef.toLowerCase());
+    if (found) setHighlightedDisplayNumber(found.display_number);
+    setPendingRef(null);
+  }, [pendingRef, comments]);
 
   const handleAddNote = async (id: number) => {
     if (!newNote.trim()) return;

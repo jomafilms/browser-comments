@@ -7,6 +7,7 @@ import {
   recordWebhookDelivery,
 } from './db';
 import { deliverWebhook } from './webhook-delivery';
+import { ticketLink } from './portal-links';
 import { notifyEmailCommentCreated, notifyEmailCommentResolved } from './email-notify';
 
 // The single notification fan-out. Both write paths (POST /api/comments,
@@ -75,7 +76,7 @@ async function dispatch(
       const token = hook.project_id ? project?.token : client?.token;
       const links = {
         api: `${base}/api/comments/${comment.uuid}`,
-        dashboard: token ? `${base}/c/${token}/comments?c=${ticketRef}` : null,
+        dashboard: token ? ticketLink(base, token, ticketRef) : null,
       };
       const payload = { event, timestamp, data, ...(change ? { change } : {}), links };
       const status = await deliverWebhook(hook.url, hook.secret, event, JSON.stringify(payload));

@@ -1,5 +1,6 @@
 import { withClient } from './pool';
 import { refSelectSql } from './refs';
+import { digestWindowSql } from './digest-sql';
 import { DigestCadence, NewTicketMode, NotificationSettings } from './types';
 
 // Per-client email notification settings (v6 schema) + the queries the digest
@@ -156,33 +157,29 @@ export async function getDigestItems(
   fallbackInterval: string
 ): Promise<DigestItem[]> {
   const REF_SELECT = refSelectSql('p');
+  const window = digestWindowSql('$2', '$3');
   return withClient(async (client) => {
     const result = await client.query(
       `SELECT c.project_id, p.name AS project_name, c.page_section, c.submitter_name,
-              c.status, c.created_at, c.updated_at, ${REF_SELECT}
+              c.created_at, ${REF_SELECT}, ${window.kindSelect}
        FROM comments c
        LEFT JOIN projects p ON c.project_id = p.id
-       WHERE c.client_id = $1
-         AND (
-           c.created_at > COALESCE($2::timestamp, NOW() - $3::interval)
-           OR (c.status = 'resolved' AND c.updated_at > COALESCE($2::timestamp, NOW() - $3::interval))
-         )
+       WHERE c.client_id = $1 AND ${window.where}
        ORDER BY p.name NULLS FIRST, c.created_at DESC`,
       [clientId, since, fallbackInterval]
     );
-    return result.rows.map((r) => {
-      const createdSince = since === null || new Date(r.created_at) > new Date(since);
-      return {
-        ref: r.ref,
-        projectId: r.project_id,
-        projectName: r.project_name,
-        pageSection: r.page_section,
-        submitterName: r.submitter_name,
-        // A ticket both created and resolved in-window counts as 'created' (new work).
-        kind: createdSince ? 'created' : 'resolved',
-        createdAt: r.created_at,
-      } as DigestItem;
-    });
+    return result.rows.map(
+      (r) =>
+        ({
+          ref: r.ref,
+          projectId: r.project_id,
+          projectName: r.project_name,
+          pageSection: r.page_section,
+          submitterName: r.submitter_name,
+          kind: r.kind,
+          createdAt: r.created_at,
+        }) as DigestItem
+    );
   });
 }
 
