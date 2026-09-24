@@ -53,7 +53,7 @@ function currentHourIn(tz: string): number {
 function isDue(client: DigestClient, localHour: number): boolean {
   return client.cadence === 'hourly'
     ? client.hourlyDue
-    : client.dailyWindowOk && localHour === DIGEST_HOUR;
+    : client.dueToday && localHour === DIGEST_HOUR;
 }
 
 function groupByProject(items: DigestItem[]): DigestGroup[] {
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
 
   const base = emailLinkBase(new URL(request.url).origin);
   const localHour = currentHourIn(DIGEST_TZ);
-  const clients = await getDigestClients();
+  const clients = await getDigestClients(DIGEST_TZ);
 
   let sent = 0;
   let empty = 0;
@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
   // already sent and advanced their checkpoints, reporting a failed cron run.
   let owner;
   try {
-    owner = await runOwnerDigest(base, localHour === DIGEST_HOUR);
+    owner = await runOwnerDigest(base, localHour === DIGEST_HOUR, DIGEST_TZ);
   } catch (err) {
     console.error('[cron/digest] owner digest failed:', err);
     owner = { status: 'failed' as const, error: err instanceof Error ? err.message : String(err) };

@@ -1,6 +1,6 @@
 import { withClient } from './pool';
 import { refSelectSql } from './refs';
-import { digestWindowSql } from './digest-sql';
+import { digestWindowSql, dueTodaySql } from './digest-sql';
 import { DigestCadence, NewTicketMode, NotificationSettings } from './types';
 
 // Per-client email notification settings (v6 schema) + the queries the digest
@@ -109,10 +109,10 @@ export interface DigestClient {
   cadence: DigestCadence;
   since: string | null; // last_digest_at as a naive wall-clock string (DB tz), null if never sent
   hourlyDue: boolean; // ≥ ~1h since the last digest (or never)
-  dailyWindowOk: boolean; // ≥ ~20h since the last digest (or never) — pair with the 9am local check
+  dueToday: boolean; // no digest sent yet on today's local date — pair with the local-hour check
 }
 
-export async function getDigestClients(): Promise<DigestClient[]> {
+export async function getDigestClients(tz: string): Promise<DigestClient[]> {
   return withClient(async (client) => {
     const result = await client.query(
       `SELECT id, token, name,
@@ -120,10 +120,11 @@ export async function getDigestClients(): Promise<DigestClient[]> {
               notification_settings->'recipients' AS recipients,
               last_digest_at::text AS since,
               (last_digest_at IS NULL OR last_digest_at < NOW() - INTERVAL '55 minutes') AS hourly_due,
-              (last_digest_at IS NULL OR last_digest_at < NOW() - INTERVAL '20 hours') AS daily_window_ok
+              ${dueTodaySql('last_digest_at', '$1')} AS due_today
        FROM clients
        WHERE notification_settings->>'newTicket' = 'digest'
-         AND jsonb_array_length(COALESCE(notification_settings->'recipients', '[]'::jsonb)) > 0`
+         AND jsonb_array_length(COALESCE(notification_settings->'recipients', '[]'::jsonb)) > 0`,
+      [tz]
     );
     return result.rows.map((r) => ({
       id: r.id,
@@ -133,7 +134,7 @@ export async function getDigestClients(): Promise<DigestClient[]> {
       cadence: r.cadence === 'hourly' ? 'hourly' : 'daily',
       since: r.since,
       hourlyDue: r.hourly_due,
-      dailyWindowOk: r.daily_window_ok,
+      dueToday: r.due_today,
     }));
   });
 }

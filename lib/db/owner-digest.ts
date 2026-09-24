@@ -1,6 +1,6 @@
 import { withClient } from './pool';
 import { refSelectSql, joinAnnotationTexts } from './refs';
-import { digestWindowSql } from './digest-sql';
+import { digestWindowSql, dueTodaySql } from './digest-sql';
 
 // The OWNER digest: one cross-client roll-up for the operator running this
 // instance. Distinct from lib/db/notifications.ts, whose digest is per-client
@@ -13,30 +13,37 @@ import { digestWindowSql } from './digest-sql';
 
 export interface OwnerDigestCheckpoint {
   since: string | null; // last send as a naive wall-clock string (DB tz), null if never
-  dailyWindowOk: boolean; // ≥ ~20h since the last send — pair with the local-hour check
+  dueToday: boolean; // no digest sent yet on today's local date — pair with the local-hour check
 }
 
-export async function getOwnerDigestCheckpoint(): Promise<OwnerDigestCheckpoint> {
+export async function getOwnerDigestCheckpoint(tz: string): Promise<OwnerDigestCheckpoint> {
   return withClient(async (client) => {
     const result = await client.query(
       `SELECT last_owner_digest_at::text AS since,
-              (last_owner_digest_at IS NULL OR last_owner_digest_at < NOW() - INTERVAL '20 hours') AS daily_window_ok
-       FROM instance_settings WHERE id = 1`
+              ${dueTodaySql('last_owner_digest_at', '$1')} AS due_today
+       FROM instance_settings WHERE id = 1`,
+      [tz]
     );
     const row = result.rows[0];
     // No instance_settings row yet (pre-init) → treat as never sent.
-    return { since: row?.since ?? null, dailyWindowOk: row ? row.daily_window_ok : true };
+    return { since: row?.since ?? null, dueToday: row ? row.due_today : true };
   });
 }
 
 // Upsert, not a bare UPDATE: if the singleton row were ever missing, an UPDATE
 // would match zero rows and the checkpoint would never advance — re-sending the
 // same window forever. Mirrors setBranding()'s pattern.
-export async function touchOwnerDigestAt(): Promise<void> {
+//
+// `asOf` should be the moment the digest was QUERIED, not the moment the send
+// finished. Stamping "now" after the send would leave the query→send duration
+// (~1s) outside both windows, so a ticket filed in it is never reported. Using
+// the query time makes consecutive windows exactly contiguous.
+export async function touchOwnerDigestAt(asOf?: string): Promise<void> {
   await withClient((client) =>
     client.query(
-      `INSERT INTO instance_settings (id, last_owner_digest_at) VALUES (1, NOW())
-       ON CONFLICT (id) DO UPDATE SET last_owner_digest_at = NOW()`
+      `INSERT INTO instance_settings (id, last_owner_digest_at) VALUES (1, COALESCE($1::timestamp, NOW()))
+       ON CONFLICT (id) DO UPDATE SET last_owner_digest_at = COALESCE($1::timestamp, NOW())`,
+      [asOf ?? null]
     )
   );
 }
@@ -71,6 +78,8 @@ export const OWNER_DIGEST_MAX_ITEMS = 200;
 export interface OwnerDigestPage {
   items: OwnerDigestItem[];
   truncated: boolean;
+  /** DB clock at query time — the exact end of this window, and the start of the next. */
+  asOf: string;
 }
 
 export async function getOwnerDigestItems(
@@ -84,7 +93,8 @@ export async function getOwnerDigestItems(
       `SELECT c.client_id, cl.name AS client_name, cl.token AS client_token,
               c.project_id, p.name AS project_name,
               c.display_number, c.page_section, c.submitter_name,
-              c.text_annotations, ${REF_SELECT}, ${window.kindSelect}
+              c.text_annotations, ${REF_SELECT}, ${window.kindSelect},
+              NOW()::text AS as_of
        FROM comments c
        LEFT JOIN clients cl ON c.client_id = cl.id
        LEFT JOIN projects p ON c.project_id = p.id
@@ -96,8 +106,12 @@ export async function getOwnerDigestItems(
     // One row over the cap is the truncation signal; it never reaches the email.
     const truncated = result.rows.length > OWNER_DIGEST_MAX_ITEMS;
     const rows = truncated ? result.rows.slice(0, OWNER_DIGEST_MAX_ITEMS) : result.rows;
+    // No rows → no NOW() from the row set; ask for it separately.
+    const asOf =
+      result.rows[0]?.as_of ?? (await client.query(`SELECT NOW()::text AS n`)).rows[0].n;
     return {
       truncated,
+      asOf,
       items: rows.map((r) => ({
         clientId: r.client_id,
         clientName: r.client_name,

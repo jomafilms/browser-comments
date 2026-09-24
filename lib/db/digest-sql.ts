@@ -30,3 +30,20 @@ export function digestWindowSql(sinceParam: string, intervalParam: string): Dige
     kindSelect: `CASE WHEN c.created_at > ${boundary} THEN 'created' ELSE 'resolved' END AS kind`,
   };
 }
+
+// "Haven't sent yet today", in the operator's digest timezone.
+//
+// This replaces an elapsed-hours guard (">= 20h since the last send"), which
+// had a nasty property for a DAILY digest: any off-schedule send — a manual
+// trigger, a test — landed inside the window and silently ate the NEXT
+// morning's digest. A calendar-day check can't do that. A same-day manual send
+// suppresses only that day, and tomorrow's run always fires.
+//
+// `column` is a naive TIMESTAMP holding UTC (the DB session is GMT), so it is
+// pinned to UTC before being converted. `tzParam` is a SQL placeholder name
+// written by the call site, never user input.
+export function dueTodaySql(column: string, tzParam: string): string {
+  return `(${column} IS NULL
+           OR (${column} AT TIME ZONE 'UTC' AT TIME ZONE ${tzParam})::date
+              < (NOW() AT TIME ZONE ${tzParam})::date)`;
+}
