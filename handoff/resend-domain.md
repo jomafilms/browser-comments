@@ -1,4 +1,4 @@
-# Handoff — verify jomafilms.com in Resend, then restore EMAIL_FROM
+# Handoff — verify joma.film in Resend, then confirm EMAIL_FROM sends
 
 **Mode:** fix / ops. Small, but the digest is on a temporary sender until it's done.
 
@@ -8,8 +8,8 @@
 
 ## Goal
 
-The daily owner digest sends from `annie@jomafilms.com` instead of Resend's
-shared test sender.
+The daily owner digest sends from **`noreply@joma.film`** (Annie's choice,
+2026-09-23) instead of Resend's shared test sender.
 
 ## Why
 
@@ -32,12 +32,14 @@ else if `OWNER_DIGEST_TO` ever gains a second recipient.
 
 ## Do
 
-1. Resend → https://resend.com/domains → add `jomafilms.com`, add the DNS
+1. Resend → https://resend.com/domains → add **`joma.film`** (note: NOT
+   `jomafilms.com` — different domain), add the DNS
    records it gives you (SPF/DKIM) at the domain registrar, wait for verified.
-2. Flip the sender back:
+2. `EMAIL_FROM` is **already set to `noreply@joma.film`** on prod (2026-09-23,
+   clean deploy). Nothing to change unless it needs to move again:
    ```bash
    vercel env rm EMAIL_FROM production --yes
-   printf 'annie@jomafilms.com' | vercel env add EMAIL_FROM production
+   printf 'noreply@joma.film' | vercel env add EMAIL_FROM production
    vercel deploy --prod --yes     # NOT `vercel redeploy` — see gotcha below
    ```
 3. Confirm with a forced send (see "Forcing a send" below), or just wait for the
@@ -45,7 +47,14 @@ else if `OWNER_DIGEST_TO` ever gains a second recipient.
 
 ## Done when
 
-A digest arrives from `annie@jomafilms.com`.
+A digest arrives from `noreply@joma.film`.
+
+Check verification without sending anything:
+```bash
+read -rs RESEND_KEY
+curl -s -H "Authorization: Bearer $RESEND_KEY" https://api.resend.com/domains \
+  | jq '.data[] | {name, status}'
+```
 
 ## Gotcha that cost an afternoon — do not repeat
 
