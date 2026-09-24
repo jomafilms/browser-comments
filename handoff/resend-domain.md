@@ -1,4 +1,4 @@
-# Handoff — verify joma.film in Resend, then confirm EMAIL_FROM sends
+# Handoff — confirm the first real send from noreply@joma.film
 
 **Mode:** fix / ops. Small, but the digest is on a temporary sender until it's done.
 
@@ -30,11 +30,17 @@ because that is Annie's address, but it is a test sender — it should not be th
 long-term From on a daily operational email, and it will not deliver anywhere
 else if `OWNER_DIGEST_TO` ever gains a second recipient.
 
+## Status 2026-09-23
+
+`joma.film` **is verified** in Resend (Annie confirmed). `EMAIL_FROM` is set to
+`noreply@joma.film` on prod and cleanly deployed. What has NOT happened is a
+real send from it — the pipeline was proven with `onboarding@resend.dev`, and
+no digest has run since the sender changed.
+
 ## Do
 
-1. Resend → https://resend.com/domains → add **`joma.film`** (note: NOT
-   `jomafilms.com` — different domain), add the DNS
-   records it gives you (SPF/DKIM) at the domain registrar, wait for verified.
+1. ~~Verify the domain~~ — done. (Note `jomafilms.com` ≠ `joma.film`; only the
+   latter is verified. The earlier 403 was the former.)
 2. `EMAIL_FROM` is **already set to `noreply@joma.film`** on prod (2026-09-23,
    clean deploy). Nothing to change unless it needs to move again:
    ```bash
