@@ -1,7 +1,10 @@
 import { CLIResponse } from './types';
+import { formatTicketLabel } from './refs';
 
-// Strip the internal db `id` from any tickets in the response so consumers (humans, agents)
-// only ever see display_number — preventing confusion between the two numbers.
+// Strip the internal db `id` from any tickets in the response so consumers
+// (humans, agents) only ever see `ref` — the same identity the dashboard shows.
+// Any second number is a second answer to "which ticket?"; that mismatch is the
+// bug this exists to prevent.
 function stripInternalIds(response: CLIResponse): CLIResponse {
   if (!response.ok) return response;
   return {
@@ -36,7 +39,7 @@ export function formatText(response: CLIResponse): string {
     const firstAnnotation = t.text_annotations?.[0]?.text || '';
     const annotation = firstAnnotation.length > 40 ? firstAnnotation.slice(0, 37) + '...' : firstAnnotation;
     lines.push(padRow([
-      t.ref || `#${t.display_number}`,
+      formatTicketLabel(t.ref, t.uuid),
       t.status,
       t.priority,
       t.assignee || 'Unassigned',

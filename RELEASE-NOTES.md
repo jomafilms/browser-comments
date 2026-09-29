@@ -6,6 +6,58 @@ Schema migrations are **additive and lazy** — the database upgrades itself on 
 
 ---
 
+## ⚠️ One ticket number: `ref` is now the only ticket identity
+
+**Read this if anything you run consumes the API, webhooks, the CLI or MCP.**
+
+A ticket used to carry three numbers, and two of them were visible to callers:
+
+| | what it counted | who read it |
+|---|---|---|
+| `ref` (`LWF-12`) | per **project** | humans — dashboard, widget confirmation, emails |
+| `display_number` | per **client** | agents — API rows, webhooks, CLI, MCP |
+| `id` | global serial PK | the dashboard's own internals |
+
+Because one counted per project and the other per client, they **drifted on any
+client with more than one project** — by exactly the number of tickets the
+client's other projects had absorbed. On one real client the ticket a person read
+as `JOMA-114` was reported by their agent as `116`. Two apart looks like a typo,
+so nobody caught it; on a busier client the same bug showed up as `596` vs `269`.
+People and agents were naming the same ticket with different numbers.
+
+**What changed**
+
+- ⚠️ **`display_number` is gone from every response** — `/api/comments` rows,
+  `/api/comments/<selector>`, webhook payloads, CLI JSON/text, and MCP output.
+  If you read that field, switch to **`ref`** (or `uuid` to key your own state).
+- ⚠️ **Bare integers are no longer ticket selectors.** `GET|PATCH|DELETE
+  /api/comments/12` now returns **400** with a message naming the ref form. It
+  previously resolved the **serial row id**, which meant an agent holding any
+  other number silently addressed a different ticket (or got a mystery 404).
+  Use `/api/comments/LWF-12` or `/api/comments/<uuid>`.
+- **`ref` is always available** — every ticket has a project and a project
+  number, so there is no case where the old field was the only identity.
+- **Humans typing a bare number still work.** The portal's jump-to box and the
+  CLI/MCP ticket argument resolve `12` against the **ref tail** (`LWF-12`) and
+  say so when it is ambiguous, instead of guessing. That convenience never
+  reaches the wire. Previously typing `114` in the jump-to box took you to
+  `JOMA-112` — that is fixed.
+- **Old `?c=<number>` portal links keep working** and self-upgrade to
+  `?c=<ref>` in the address bar once resolved.
+- `id` remains in raw `/api/comments` rows because the dashboard uses it, but it
+  is an internal row handle — not a ticket number, absent from webhooks, and
+  stripped by the CLI and MCP.
+
+**No schema change.** The `display_number` column is still written and still
+carries its unique index; it is simply never read. It can be dropped in a later
+release once no deployed client is behind this build.
+
+**If you are upgrading:** deploy the app, then rebuild/reinstall the CLI and MCP
+packages from this repo. A pre-upgrade CLI keeps working against the new API for
+refs and uuids; only its bare-number lookup stops resolving.
+
+---
+
 ## Owner digest — one daily email across every client (schema v7)
 
 - **New:** a single daily email to the operator summarizing feedback from **all**
@@ -55,6 +107,7 @@ Schema migrations are **additive and lazy** — the database upgrades itself on 
 
 - The comments API adds **`uuid`**, **`project_number`**, and a human **`ref`** (e.g. `LWF-12`). Decisions add `comment_ref`; settings add `branding`.
 - `GET /api/comments/[id]` also accepts a **ref** or **uuid** (bare integers still resolve as legacy serial IDs). `projects` PATCH accepts `refPrefix`.
+  <br>↳ **Superseded:** bare integers are now rejected, and `display_number` is no longer returned — see *One ticket number* at the top.
 - ⚠️ **First run against a v3 database backfills and de-duplicates** historic `display_number`s. Additive, but it rewrites some numbers — see the Migration Ledger.
 - New canonical migration runner: **`npm run init-db`** (lazy init kept as a zero-config fallback).
 

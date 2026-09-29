@@ -116,8 +116,8 @@ Named schedules: `manual` (one-shot), `hourly`, `daily`, `weekly`.
   "filters": { "status": "open", "priority": "high" },
   "count": 1,
   "tickets": [{
-    "id": 45,
-    "display_number": 3,
+    "uuid": "6f1b9c22-6c1e-4a4f-9a0a-1e0b2c3d4e5f",
+    "ref": "LWF-12",
     "url": "https://example.com/dashboard",
     "page_section": "/dashboard",
     "status": "open",

@@ -1,17 +1,20 @@
 import { Pool } from 'pg';
 import { Ticket, TicketFilters } from './types';
+import { UUID_RE, REF_RE, ambiguousRefError } from './refs';
 
 // Image-free column list (image_data is the heaviest column). Includes uuid +
-// project_number so refs resolve. Queries JOIN projects as `p` for ref_prefix.
-const LIGHT_COLUMNS =
-  "c.id, c.uuid, c.project_id, c.client_id, c.display_number, c.project_number, c.url, c.page_section, '' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.created_at, c.updated_at";
+// project_number so refs resolve; deliberately excludes the dead per-client
+// counter that used to disagree with the ref humans read. Explicit, never
+// `c.*`, so that counter cannot reach an agent through the --include-images
+// path. Queries JOIN projects as `p` for ref_prefix.
+const BASE_COLUMNS =
+  'c.id, c.uuid, c.project_id, c.client_id, c.project_number, c.url, c.page_section, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.created_at, c.updated_at';
+const LIGHT_COLUMNS = `${BASE_COLUMNS}, '' as image_data`;
+const FULL_COLUMNS = `${BASE_COLUMNS}, c.image_data`;
 
 // Computed ref column ("LWF-12"), mirrors the server's refSelectSql.
 const REF_EXPR =
   "CASE WHEN c.project_number IS NOT NULL AND p.ref_prefix IS NOT NULL THEN p.ref_prefix || '-' || c.project_number::text END AS ref";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const REF_RE = /^([A-Za-z][A-Za-z0-9]{0,7})-([0-9]+)$/;
 
 let pool: Pool | null = null;
 
@@ -77,7 +80,7 @@ export async function queryTickets(
   const p = getPool(dbUrl);
   const client = await p.connect();
   try {
-    const selectClause = excludeImages ? LIGHT_COLUMNS : 'c.*';
+    const selectClause = excludeImages ? LIGHT_COLUMNS : FULL_COLUMNS;
 
     const conditions: string[] = [];
     const params: (string | number)[] = [];
@@ -136,9 +139,11 @@ export async function queryTickets(
   }
 }
 
-// Resolve a single ticket by uuid / ref ("LWF-12") / bare number (legacy
-// display_number), scoped to the token. Mirrors the server's findCommentByRef
-// (this package can't import lib/db, so the resolution is kept minimal here).
+// Resolve a single ticket by ref ("LWF-12") or uuid, scoped to the token.
+// A bare number is resolved against the REF TAIL — a human reading "LWF-12"
+// types "12" — and an ambiguous one is reported, not guessed. Mirrors the
+// server's findCommentByRef + the API client's findByRefTail (this package
+// can't import lib/db, so the resolution is kept minimal here).
 export async function queryTicketByRef(
   dbUrl: string,
   token: string,
@@ -161,7 +166,10 @@ export async function queryTicketByRef(
     matchCondition = 'UPPER(p.ref_prefix) = $1 AND c.project_number = $2';
     params.push(refMatch[1].toUpperCase(), parseInt(refMatch[2], 10));
   } else if (/^\d+$/.test(value) && parseInt(value, 10) <= 2147483647) {
-    matchCondition = 'c.display_number = $1';
+    // A bare number is the tail of a ref, so the project must have a prefix —
+    // without the NOT NULL check this mode would resolve a ref-less ticket that
+    // api mode (which matches on the rendered ref) reports as not found.
+    matchCondition = 'c.project_number = $1 AND p.ref_prefix IS NOT NULL';
     params.push(parseInt(value, 10));
   } else {
     return null;
@@ -170,7 +178,7 @@ export async function queryTicketByRef(
   const scopeCondition = ctx.projectId ? `c.project_id = $${params.length + 1}` : `p.client_id = $${params.length + 1}`;
   params.push(ctx.projectId ?? ctx.clientId);
 
-  const selectClause = includeImages ? 'c.*' : LIGHT_COLUMNS;
+  const selectClause = includeImages ? FULL_COLUMNS : LIGHT_COLUMNS;
 
   const p = getPool(dbUrl);
   const client = await p.connect();
@@ -181,6 +189,11 @@ export async function queryTicketByRef(
        WHERE ${matchCondition} AND ${scopeCondition}`,
       params
     );
+    // A bare number can end more than one ref under a client-scoped token
+    // (LWF-12 and EC-12) — say so rather than return an arbitrary one.
+    if (result.rows.length > 1) {
+      throw ambiguousRefError(value, result.rows.map((r) => r.ref));
+    }
     return result.rows[0] ? mapRow(result.rows[0]) : null;
   } finally {
     client.release();
@@ -199,7 +212,6 @@ function mapRow(row: any): Ticket {
     id: row.id,
     uuid: row.uuid,
     ref: row.ref ?? null,
-    display_number: row.display_number,
     url: row.url || '',
     page_section: row.page_section || '',
     status: row.status || 'open',

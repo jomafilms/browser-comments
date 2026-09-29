@@ -1,5 +1,5 @@
 import { withClient } from './pool';
-import { isUuid, parseRef, refSelectSql } from './refs';
+import { parseTicketSelector, refSelectSql } from './refs';
 import { Comment, CommentFilters, TokenContext } from './types';
 
 // Read/query side of the comments module. Writes (saveComment + the small
@@ -8,8 +8,14 @@ import { Comment, CommentFilters, TokenContext } from './types';
 // Computed ref column — requires `LEFT JOIN projects p ON c.project_id = p.id`
 const REF_SELECT = refSelectSql('p');
 
-// Column list for image-free reads (image_data is by far the heaviest column)
-const LIGHT_COLUMNS = `c.id, c.uuid, c.project_id, c.client_id, c.display_number, c.project_number, c.url, c.page_section, '' as image_data, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.user_agent, c.viewport_w, c.viewport_h, c.device_category, c.device_model, c.created_at, c.updated_at`;
+// Every column we expose, minus image_data (by far the heaviest). Explicit —
+// never `c.*` — so the dead `display_number` column cannot leak into a
+// response by accident. See THE ONE TICKET IDENTITY in ./refs.
+const BASE_COLUMNS = `c.id, c.uuid, c.project_id, c.client_id, c.project_number, c.url, c.page_section, c.text_annotations, c.status, c.priority, c.priority_number, c.assignee, c.submitter_name, c.user_agent, c.viewport_w, c.viewport_h, c.device_category, c.device_model, c.created_at, c.updated_at`;
+
+// Image-free reads still carry an empty image_data so the shape never varies.
+const LIGHT_COLUMNS = `${BASE_COLUMNS}, '' as image_data`;
+const FULL_COLUMNS = `${BASE_COLUMNS}, c.image_data`;
 
 // Tickets not attached to any project are invisible to every token scope —
 // the admin dashboard shows a warning when any exist (legacy data only; the
@@ -29,7 +35,7 @@ async function queryComments(
   excludeImages?: boolean,
   filters?: CommentFilters
 ): Promise<Comment[]> {
-  const selectClause = excludeImages ? LIGHT_COLUMNS : 'c.*';
+  const selectClause = excludeImages ? LIGHT_COLUMNS : FULL_COLUMNS;
 
   const conditions: string[] = [`${scope.column} = $1`];
   const params: (string | number)[] = [scope.id];
@@ -120,7 +126,7 @@ export async function getCommentById(
   id: number,
   includeImage = false
 ): Promise<Comment | null> {
-  const selectClause = includeImage ? 'c.*' : LIGHT_COLUMNS;
+  const selectClause = includeImage ? FULL_COLUMNS : LIGHT_COLUMNS;
   return withClient(async (client) => {
     const result = await client.query(
       `SELECT ${selectClause}, ${REF_SELECT} FROM comments c
@@ -155,36 +161,29 @@ export async function verifyCommentOwnershipByContext(
   });
 }
 
-// Resolve a ticket reference within a token's scope. Accepts, in order:
-// - a UUID (comments.uuid)
-// - a ref like "LWF-12" (project prefix + project_number, case-insensitive)
-// - a bare number, treated as the legacy per-client display_number
-// Note: bare numbers here are NOT serial PKs — the /api/comments/[id] route
-// keeps bare-integer params as PKs for back-compat and only delegates
-// non-integer params to this helper.
+// Resolve a ticket selector within a token's scope. Accepts a ref like
+// "LWF-12" (case-insensitive) or a uuid — and nothing else. Bare numbers are
+// rejected by parseTicketSelector rather than resolved against some counter:
+// see THE ONE TICKET IDENTITY in ./refs for why that used to return the wrong
+// ticket. Callers that want to tell a bad selector from a missing ticket should
+// call parseTicketSelector themselves first.
 // Returns the comment without image_data (fetch that separately by id).
 export async function findCommentByRef(
   ctx: TokenContext,
-  refOrNumber: string
+  selector: string
 ): Promise<Comment | null> {
-  const value = refOrNumber.trim();
+  const parsed = parseTicketSelector(selector);
 
   let condition: string;
   const params: (string | number)[] = [];
-  if (isUuid(value)) {
+  if (parsed.kind === 'uuid') {
     condition = `c.uuid = $1`;
-    params.push(value);
+    params.push(parsed.uuid);
+  } else if (parsed.kind === 'ref') {
+    condition = `UPPER(p.ref_prefix) = $1 AND c.project_number = $2`;
+    params.push(parsed.prefix, parsed.number);
   } else {
-    const ref = parseRef(value);
-    if (ref) {
-      condition = `UPPER(p.ref_prefix) = $1 AND c.project_number = $2`;
-      params.push(ref.prefix, ref.number);
-    } else if (/^\d+$/.test(value) && parseInt(value, 10) <= 2147483647) {
-      condition = `c.display_number = $1`;
-      params.push(parseInt(value, 10));
-    } else {
-      return null;
-    }
+    return null;
   }
 
   // Ref resolution never crosses the token's scope

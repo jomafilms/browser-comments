@@ -1,6 +1,9 @@
 // Verifies atomic ticket-number allocation (schema v4): concurrent
 // saveComment calls to the same project must never produce duplicate
-// project_numbers or display_numbers. Creates a throwaway client + project,
+// project_numbers (the numeric half of `ref`) — nor duplicate legacy
+// display_numbers, which are still written under a unique index even though
+// nothing reads them, so they are asserted straight from the DB rather than off
+// the returned row. Creates a throwaway client + project,
 // fires ROUNDS × CONCURRENCY inserts, asserts uniqueness, and cleans up
 // everything it created. Run against the DEV database only:
 //   npx tsx scripts/test-concurrent-numbering.ts
@@ -31,11 +34,16 @@ async function main() {
     }
 
     const projectNumbers = results.map((r) => r.project_number);
-    const displayNumbers = results.map((r) => r.display_number);
     const refs = results.map((r) => r.ref);
+    // display_number never leaves the database, so read it back directly.
+    const legacy = await pool.query<{ display_number: number }>(
+      'SELECT display_number FROM comments WHERE project_id = $1',
+      [project.id]
+    );
+    const displayNumbers = legacy.rows.map((r) => r.display_number);
     console.log('project_numbers:', projectNumbers.join(', '));
-    console.log('display_numbers:', displayNumbers.join(', '));
     console.log('refs:', refs.join(', '));
+    console.log('display_numbers (DB-only, legacy):', displayNumbers.join(', '));
 
     const failures: string[] = [];
     if (new Set(projectNumbers).size !== results.length) failures.push('duplicate project_number');
@@ -43,6 +51,9 @@ async function main() {
     if (projectNumbers.some((n) => n == null)) failures.push('null project_number');
     if (results.some((r) => !r.uuid)) failures.push('missing uuid');
     if (refs.some((r) => !r)) failures.push('missing ref');
+    // The whole point of the coordination work: nothing a consumer receives may
+    // carry a second, competing ticket number.
+    if (results.some((r) => 'display_number' in r)) failures.push('display_number leaked into a returned comment');
 
     if (failures.length > 0) {
       console.error(`FAIL: ${failures.join('; ')}`);

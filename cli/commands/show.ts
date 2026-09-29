@@ -2,8 +2,9 @@ import { CLIConfig, SuccessResponse, Ticket } from '../lib/types';
 import { queryTicketByRef } from '../lib/db-reader';
 import { fetchTicketByRef } from '../lib/api-client';
 
-// A ticket ref is a ref ("LWF-12"), uuid, or bare number; strip a leading '#'
-// and pass the rest through untouched (the endpoint resolves all three forms).
+// A ticket reference is a ref ("LWF-12"), a uuid, or the bare number off the end
+// of a ref (a human reading "LWF-12" naturally types "12" — resolved against the
+// ref tail, never against an internal counter). Strip a leading '#'.
 export function cleanRef(ref: string): string {
   const trimmed = ref.trim();
   return trimmed.startsWith('#') ? trimmed.slice(1) : trimmed;
@@ -22,7 +23,6 @@ export function ackResponse(mode: 'db' | 'api', fields: Partial<Ticket>): Succes
       {
         id: 0,
         ref: null,
-        display_number: 0,
         url: '',
         page_section: '',
         status: '',

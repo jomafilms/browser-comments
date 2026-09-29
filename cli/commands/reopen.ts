@@ -16,5 +16,5 @@ export async function reopenCommand(
   const target = await resolveWriteTarget(config.apiUrl, config.token, cleaned);
   await patchTicket(config.apiUrl, config.token, target, { status: 'open' });
 
-  return ackResponse(config.mode, { ref: cleaned, status: 'open' });
+  return ackResponse(config.mode, { ref: target, status: 'open' });
 }

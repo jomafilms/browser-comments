@@ -1,8 +1,13 @@
+import { refTail, ambiguousRefError } from './refs';
+
+// `ref` is the ONE ticket identity — the same string a human reads in the
+// dashboard and in notification emails. `uuid` is the stable machine handle.
+// There is deliberately no second number: a second number is a second answer to
+// "which ticket?", which is how agents and humans ended up disagreeing.
 export interface Ticket {
   id: number;
   uuid?: string;
   ref?: string | null; // "<PREFIX>-<project_number>", e.g. "LWF-12"
-  display_number: number;
   url: string;
   page_section: string;
   status: string;
@@ -48,10 +53,10 @@ export async function fetchTickets(
   return await res.json();
 }
 
-// Fetch one ticket by ref ("LWF-12") / uuid / legacy number. ref & uuid resolve
-// directly via the single-ticket endpoint (no scan); a bare number is the
-// legacy display_number, resolved via one scoped list lookup (the endpoint
-// treats bare integers as serial ids). Prefer refs/uuids.
+// Fetch one ticket by ref ("LWF-12") or uuid — both resolve directly via the
+// single-ticket endpoint (no scan). A bare number is a convenience only: it is
+// matched against the REF TAIL via one scoped list lookup, and an ambiguous one
+// is reported rather than guessed. The endpoint itself rejects bare numbers.
 export async function fetchTicketByRef(
   apiUrl: string,
   token: string,
@@ -59,8 +64,17 @@ export async function fetchTicketByRef(
   includeImage: boolean = false
 ): Promise<Ticket | null> {
   if (/^\d+$/.test(ref)) {
-    const tickets = await fetchTickets(apiUrl, token, {}, includeImage);
-    return tickets.find(t => t.display_number === parseInt(ref, 10)) || null;
+    const n = parseInt(ref, 10);
+    // Resolve off an image-FREE list: this scan exists only to find the ref, and
+    // include_image defaults to true, so scanning with images would download
+    // every screenshot in the client's scope to answer "which ticket is 12?".
+    const tickets = await fetchTickets(apiUrl, token, {}, false);
+    const matches = tickets.filter(t => refTail(t.ref) === n);
+    if (matches.length > 1) throw ambiguousRefError(ref, matches.map(t => t.ref));
+    const resolved = matches[0];
+    if (!resolved) return null;
+    // Re-fetch the single ticket so the caller still gets its screenshot.
+    return resolved.ref ? fetchTicketByRef(apiUrl, token, resolved.ref, includeImage) : resolved;
   }
 
   const url = new URL(`/api/comments/${encodeURIComponent(ref)}`, apiUrl);
@@ -75,8 +89,9 @@ export async function fetchTicketByRef(
   return await res.json();
 }
 
-// Map a write target to something the endpoint accepts scan-free: ref/uuid pass
-// through; a bare display_number is resolved to its uuid via one lookup.
+// Map a write target to something the endpoint accepts: a ref/uuid passes
+// through; a bare number is resolved to the ticket's ref via one lookup,
+// because the endpoint rejects bare numbers outright.
 export async function resolveWriteTarget(
   apiUrl: string,
   token: string,
@@ -85,18 +100,20 @@ export async function resolveWriteTarget(
   if (!/^\d+$/.test(ref)) return ref;
   const ticket = await fetchTicketByRef(apiUrl, token, ref);
   if (!ticket) throw new Error(`Ticket ${ref} not found.`);
-  // Must resolve to a uuid — a bare number would be read as a serial id (wrong ticket).
-  if (!ticket.uuid) throw new Error(`Ticket ${ref} has no uuid; cannot safely target it.`);
-  return ticket.uuid;
+  const target = ticket.ref ?? ticket.uuid;
+  if (!target) throw new Error(`Ticket ${ref} has no ref or uuid; cannot safely target it.`);
+  return target;
 }
 
+// PATCH by ref or uuid. Callers pass the output of resolveWriteTarget, never a
+// bare number — the endpoint rejects those.
 export async function patchTicket(
   apiUrl: string,
   token: string,
-  ref: string | number,
+  ref: string,
   body: Record<string, unknown>
 ): Promise<void> {
-  const url = new URL(`/api/comments/${encodeURIComponent(String(ref))}`, apiUrl);
+  const url = new URL(`/api/comments/${encodeURIComponent(ref)}`, apiUrl);
   const res = await fetch(url.toString(), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },

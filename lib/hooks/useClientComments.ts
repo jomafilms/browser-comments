@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Comment } from '@/components/CommentCard';
+import { ticketKey } from '@/lib/db/refs';
 
 // Data + mutation layer for the client comments page, extracted so the page
 // stays presentational (and under the file-size cap). Behavior is a straight
@@ -32,11 +33,11 @@ interface Options {
   enabled: boolean; // wait until the page has parsed its URL params
   filters: CommentsFilters;
   sortMode: string;
-  highlightedDisplayNumber: number | null;
+  highlightedRef: string | null; // ref (or uuid for a ref-less legacy row)
 }
 
 export function useClientComments(token: string, opts: Options) {
-  const { enabled, filters, sortMode, highlightedDisplayNumber } = opts;
+  const { enabled, filters, sortMode, highlightedRef } = opts;
 
   const [comments, setComments] = useState<Comment[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -128,8 +129,8 @@ export function useClientComments(token: string, opts: Options) {
     if (comments.length === 0 || loading) return;
 
     let aborted = false;
-    const displayed = highlightedDisplayNumber
-      ? comments.filter(c => c.display_number === highlightedDisplayNumber)
+    const displayed = highlightedRef
+      ? comments.filter(c => ticketKey(c.ref, c.uuid) === highlightedRef)
       : comments;
     const idsToLoad = displayed.map(c => c.id).filter(id => !loadedImages.has(id));
     if (idsToLoad.length === 0) return;
@@ -164,35 +165,60 @@ export function useClientComments(token: string, opts: Options) {
 
     return () => { aborted = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [comments.length, loading, sortMode, highlightedDisplayNumber]);
+  }, [comments.length, loading, sortMode, highlightedRef]);
 
-  // --- Mutations (optimistic local updates, same as before the extraction) ---
+  // --- Mutations (optimistic local updates) ---
+  //
+  // Callbacks still take the row `id`, which is purely a React key inside this
+  // page. The WIRE never carries it: /api/comments/<selector> takes a ref or a
+  // uuid only, so we resolve the uuid from local state here. See THE ONE TICKET
+  // IDENTITY in lib/db/refs.
+  // These callbacks are recreated each render, so they close over the current
+  // `comments`. Returns null only if the row has no uuid — impossible since
+  // schema v4 (NOT NULL, backfilled) — so log rather than fail silently: a dead
+  // button with no console trace is the expensive kind of bug.
+  const ticketUrl = (id: number): string | null => {
+    const uuid = comments.find(c => c.id === id)?.uuid;
+    if (!uuid) {
+      console.error(`No uuid for comment ${id} — cannot address the ticket; skipping write.`);
+      return null;
+    }
+    return `/api/comments/${uuid}?token=${token}`;
+  };
 
   const toggleStatus = async (id: number, currentStatus: 'open' | 'resolved') => {
     const newStatus = currentStatus === 'open' ? 'resolved' : 'open';
     try {
-      await fetch(`/api/comments/${id}?token=${token}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) });
+      const url = ticketUrl(id);
+      if (!url) return;
+      await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) });
       setComments(prev => prev.map(c => c.id === id ? { ...c, status: newStatus, priority_number: newStatus === 'resolved' ? 0 : c.priority_number } : c));
     } catch (err) { console.error('Error updating status:', err); }
   };
 
   const updatePriority = async (id: number, priority: 'high' | 'med' | 'low', priorityNumber: number) => {
     try {
-      await fetch(`/api/comments/${id}?token=${token}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority, priorityNumber }) });
+      const url = ticketUrl(id);
+      if (!url) return;
+      await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority, priorityNumber }) });
       setComments(prev => prev.map(c => c.id === id ? { ...c, priority, priority_number: priorityNumber } : c));
     } catch (err) { console.error('Error updating priority:', err); }
   };
 
   const updateAssignee = async (id: number, assignee: string) => {
     try {
-      await fetch(`/api/comments/${id}?token=${token}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignee }) });
+      const url = ticketUrl(id);
+      if (!url) return;
+      await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignee }) });
       setComments(prev => prev.map(c => c.id === id ? { ...c, assignee: assignee as Comment['assignee'] } : c));
     } catch (err) { console.error('Error updating assignee:', err); }
   };
 
   const addNote = async (id: number, noteText: string, alsoDecision: boolean) => {
     try {
-      await fetch(`/api/comments/${id}?token=${token}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: noteText }) });
+      const url = ticketUrl(id);
+      if (!url) return false;
+      await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: noteText }) });
       setComments(prev => prev.map(c => c.id === id ? { ...c, text_annotations: [...c.text_annotations, { text: noteText, x: 0, y: 0, color: '#000000' }] } : c));
       if (alsoDecision) {
         const comment = comments.find(c => c.id === id);
@@ -209,7 +235,9 @@ export function useClientComments(token: string, opts: Options) {
 
   const deleteComment = async (id: number) => {
     try {
-      await fetch(`/api/comments/${id}?token=${token}`, { method: 'DELETE' });
+      const url = ticketUrl(id);
+      if (!url) return;
+      await fetch(url, { method: 'DELETE' });
       setComments(prev => prev.filter(c => c.id !== id));
     } catch (err) { console.error('Error deleting comment:', err); }
   };

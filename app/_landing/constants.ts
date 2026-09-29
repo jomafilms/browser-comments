@@ -76,7 +76,13 @@ Find new/changed tickets — pick one:
   Webhook: POST /api/webhooks {"url","events":["comment.created","comment.updated"]}
            Verify X-BC-Signature (HMAC-SHA256 of the raw body) before trusting.
 
-Read one ticket:  GET /api/comments/<ref|uuid|id>          (e.g. LWF-12)
+Ticket identity:  every ticket has exactly ONE number, its ref — e.g. LWF-12.
+                  Same string in the dashboard, emails, webhooks, CLI and MCP,
+                  so you and the person who filed it say the same thing. uuid
+                  is the stable machine handle. Bare numbers are NOT selectors
+                  and return 400; never quote a ticket by anything but its ref.
+
+Read one ticket:  GET /api/comments/<ref|uuid>              (e.g. LWF-12)
                   add ?includeImage=true for the annotated screenshot.
 Update a ticket:  PATCH /api/comments/<ref> {"status":"resolved","note":"..."}
 

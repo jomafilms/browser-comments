@@ -31,7 +31,6 @@ function serializeComment(comment: Comment, project: Project | null) {
   return {
     uuid: comment.uuid,
     ref: comment.ref,
-    display_number: comment.display_number,
     url: comment.url,
     page_section: comment.page_section,
     status: comment.status,
@@ -64,7 +63,8 @@ async function dispatch(
   const client = await getClientById(comment.client_id);
   const data = serializeComment(comment, project);
   const timestamp = new Date().toISOString();
-  const ticketRef = comment.ref ?? comment.display_number;
+  // Deep links are keyed on the ticket identity; uuid covers a ref-less legacy row.
+  const ticketRef = comment.ref ?? comment.uuid;
   // Prefer a trusted canonical URL over the request Host (which a comment
   // submitter could spoof, since the widget key is public).
   const base = process.env.WEBHOOK_BASE_URL || baseUrl;

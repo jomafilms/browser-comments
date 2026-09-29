@@ -6,6 +6,7 @@ import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fetchTickets, fetchTicketByRef, patchTicket, resolveWriteTarget, Ticket } from './api-client';
+import { formatTicketLabel } from './refs';
 
 // Load .env.local from current working directory (the project Claude Code is running in).
 // This lets users put a global MCP config in ~/.claude/settings.json and store
@@ -53,7 +54,7 @@ function formatTicket(t: Ticket): string {
     .join('\n');
 
   return [
-    `${t.ref || '#' + t.display_number} [${t.status}] ${t.priority} priority`,
+    `${formatTicketLabel(t.ref, t.uuid)} [${t.status}] ${t.priority} priority`,
     `  URL: ${t.url}`,
     `  Section: ${t.page_section}`,
     `  Assignee: ${t.assignee}`,
@@ -106,9 +107,9 @@ server.tool(
 
 server.tool(
   'show_ticket',
-  'Show details for a single ticket by ref (e.g. "LWF-12"), uuid, or legacy number. Includes screenshot by default.',
+  'Show details for a single ticket by ref (e.g. "LWF-12") or uuid. Includes screenshot by default.',
   {
-    ref: z.union([z.string(), z.number()]).describe('Ticket ref (e.g. "LWF-12"), uuid, or legacy number'),
+    ref: z.union([z.string(), z.number()]).describe('Ticket ref (e.g. "LWF-12") or uuid — the number shown in the dashboard and emails. A bare number is matched against the ref when unambiguous.'),
     include_image: z.boolean().default(true).describe('Include the annotated screenshot image'),
   },
   async ({ ref, include_image }) => {
@@ -134,13 +135,13 @@ server.tool(
   'resolve_ticket',
   'Mark a ticket as resolved, optionally with a note',
   {
-    ref: z.union([z.string(), z.number()]).describe('Ticket ref (e.g. "LWF-12"), uuid, or legacy number'),
+    ref: z.union([z.string(), z.number()]).describe('Ticket ref (e.g. "LWF-12") or uuid — the number shown in the dashboard and emails. A bare number is matched against the ref when unambiguous.'),
     note: z.string().optional().describe('Resolution note (e.g. "Fixed in commit abc123")'),
   },
   async ({ ref, note }) => {
     const target = await resolveWriteTarget(apiUrl, token, String(ref));
     await patchTicket(apiUrl, token, target, { status: 'resolved', ...(note ? { note } : {}) });
-    return { content: [{ type: 'text' as const, text: `Ticket ${ref} resolved.${note ? ` Note: ${note}` : ''}` }] };
+    return { content: [{ type: 'text' as const, text: `Ticket ${target} resolved.${note ? ` Note: ${note}` : ''}` }] };
   }
 );
 
@@ -148,12 +149,12 @@ server.tool(
   'reopen_ticket',
   'Reopen a previously resolved ticket',
   {
-    ref: z.union([z.string(), z.number()]).describe('Ticket ref (e.g. "LWF-12"), uuid, or legacy number'),
+    ref: z.union([z.string(), z.number()]).describe('Ticket ref (e.g. "LWF-12") or uuid — the number shown in the dashboard and emails. A bare number is matched against the ref when unambiguous.'),
   },
   async ({ ref }) => {
     const target = await resolveWriteTarget(apiUrl, token, String(ref));
     await patchTicket(apiUrl, token, target, { status: 'open' });
-    return { content: [{ type: 'text' as const, text: `Ticket ${ref} reopened.` }] };
+    return { content: [{ type: 'text' as const, text: `Ticket ${target} reopened.` }] };
   }
 );
 
@@ -161,13 +162,13 @@ server.tool(
   'assign_ticket',
   'Assign a ticket to a team member',
   {
-    ref: z.union([z.string(), z.number()]).describe('Ticket ref (e.g. "LWF-12"), uuid, or legacy number'),
+    ref: z.union([z.string(), z.number()]).describe('Ticket ref (e.g. "LWF-12") or uuid — the number shown in the dashboard and emails. A bare number is matched against the ref when unambiguous.'),
     assignee: z.string().describe('Name of the person to assign to'),
   },
   async ({ ref, assignee }) => {
     const target = await resolveWriteTarget(apiUrl, token, String(ref));
     await patchTicket(apiUrl, token, target, { assignee });
-    return { content: [{ type: 'text' as const, text: `Ticket ${ref} assigned to ${assignee}.` }] };
+    return { content: [{ type: 'text' as const, text: `Ticket ${target} assigned to ${assignee}.` }] };
   }
 );
 

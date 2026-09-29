@@ -11,12 +11,14 @@ interface TextAnnotation {
 }
 
 export interface Comment {
+  // `id` is an internal row handle (React keys, the bulk images/batch-update
+  // endpoints). It is NOT a ticket number — `ref` is. See THE ONE TICKET
+  // IDENTITY in lib/db/refs.
   id: number;
   uuid?: string;
   project_id?: number;
-  display_number: number; // legacy per-client number — prefer ref for display
   project_number?: number | null;
-  ref?: string | null; // e.g. "LWF-12"
+  ref?: string | null; // the ticket identity, e.g. "LWF-12"
   url: string;
   page_section: string;
   image_data: string;
@@ -54,7 +56,7 @@ interface CommentCardProps {
   onUpdatePriority: (id: number, priority: 'high' | 'med' | 'low', priorityNumber: number) => void;
   onUpdateAssignee: (id: number, assignee: string) => void;
   onDeleteComment: (id: number) => void;
-  onExpandImage: (imageData: string, commentId: number, displayNumber: number) => void;
+  onExpandImage: (imageData: string, commentId: number, ref: string | null) => void;
   onSetExpandedComment: (id: number | null) => void;
   onSetNewNote: (note: string) => void;
   onSetAddNoteToDecisions: (value: boolean) => void;
@@ -96,7 +98,7 @@ export default function CommentCard({
               src={comment.image_data}
               alt="Screenshot"
               className="max-w-full max-h-[60vh] object-contain cursor-pointer hover:opacity-90 transition-opacity"
-              onClick={() => onExpandImage(comment.image_data, comment.id, comment.display_number)}
+              onClick={() => onExpandImage(comment.image_data, comment.id, comment.ref ?? null)}
             />
           ) : (
             <div className="text-gray-400 text-sm">Loading image...</div>
@@ -108,7 +110,7 @@ export default function CommentCard({
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="px-2 py-1 rounded bg-gray-200 text-gray-700 text-xs font-mono">
-                {formatCommentLabel(comment.ref, comment.display_number, comment.id)}
+                {formatCommentLabel(comment.ref, comment.uuid)}
               </span>
               <button
                 onClick={() => {
@@ -181,7 +183,7 @@ export default function CommentCard({
           {comment.image_data && (
             <div className="text-sm text-gray-600 mb-3">
               <button
-                onClick={() => onExpandImage(comment.image_data, comment.id, comment.display_number)}
+                onClick={() => onExpandImage(comment.image_data, comment.id, comment.ref ?? null)}
                 className="text-blue-500 hover:underline text-left"
               >
                 View full size →

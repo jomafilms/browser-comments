@@ -54,10 +54,16 @@ export async function saveComment(data: {
     const deviceCategory =
       data.deviceCategory || (data.userAgent ? categorizeUA(data.userAgent) : null);
 
-    // display_number (legacy per-client, DEPRECATED — prefer ref) and
-    // project_number are allocated inside the INSERT. Two concurrent inserts
-    // can still compute the same MAX; the unique indexes turn that into a
-    // 23505, which we retry once with freshly computed numbers.
+    // project_number (the numeric half of `ref`) is allocated inside the
+    // INSERT. Two concurrent inserts can still compute the same MAX; the unique
+    // indexes turn that into a 23505, which we retry with freshly computed
+    // numbers.
+    //
+    // display_number is still WRITTEN — the v4 unique index
+    // uniq_comments_client_display covers it and the schema stays additive
+    // (Rule 3) — but it is DEAD: nothing reads it, and it is stripped from the
+    // row below so it can never reach a response. See THE ONE TICKET IDENTITY
+    // in ./refs. Drop the column once no deployed install is behind this build.
     const insertSQL = `INSERT INTO comments (url, page_section, image_data, text_annotations, priority, priority_number, assignee, project_id, client_id, submitter_name, user_agent, viewport_w, viewport_h, device_category, device_model, display_number, project_number)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
          CASE WHEN $9::int IS NULL THEN 1
@@ -94,7 +100,10 @@ export async function saveComment(data: {
       }
     }
 
-    return { ...row, ref: formatRef(refPrefix, row.project_number) };
+    // Strip the dead legacy counter off `RETURNING *` — a caller that saw both
+    // numbers would have no way to tell which one is the ticket's identity.
+    const { display_number: _deadLegacyCounter, ...comment } = row;
+    return { ...comment, ref: formatRef(refPrefix, row.project_number) };
   });
 }
 

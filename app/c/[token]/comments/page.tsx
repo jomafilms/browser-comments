@@ -8,7 +8,8 @@ import CommentsTableView from '@/components/CommentsTableView';
 import CommentCard, { Comment } from '@/components/CommentCard';
 import ImageModal from '@/components/ImageModal';
 import { useClientComments } from '@/lib/hooks/useClientComments';
-import { formatCommentLabel } from '@/lib/db/refs';
+import { writeTicketToUrl, resolveJump, highlightKey, matchesHighlight } from './ticket-lookup';
+import { groupComments } from './grouping';
 
 export default function ClientCommentsPage() {
   const params = useParams();
@@ -25,11 +26,14 @@ export default function ClientCommentsPage() {
   const [sortMode, setSortMode] = useState<SortMode>('priority');
   const [groupByPage, setGroupByPage] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [highlightedDisplayNumber, setHighlightedDisplayNumber] = useState<number | null>(null);
+  // Highlighted ticket, keyed by ref (or uuid if ref-less) — see highlightKey.
+  const [highlightedRef, setHighlightedRef] = useState<string | null>(null);
   const [pendingLegacyCommentId, setPendingLegacyCommentId] = useState<number | null>(null);
-  const [pendingRef, setPendingRef] = useState<string | null>(null);
+  const [pendingSelector, setPendingSelector] = useState<string | null>(null);
+  // A ?c= that matched nothing — kept so the URL survives and the user is told.
+  const [unresolvedSelector, setUnresolvedSelector] = useState<string | null>(null);
   const [searchCommentId, setSearchCommentId] = useState<string>('');
-  const [expandedImage, setExpandedImage] = useState<{ imageData: string; commentId: number; displayNumber: number } | null>(null);
+  const [expandedImage, setExpandedImage] = useState<{ imageData: string; ref: string | null } | null>(null);
   const [expandedComment, setExpandedComment] = useState<number | null>(null);
   const [newNote, setNewNote] = useState('');
   const [addNoteToDecisions, setAddNoteToDecisions] = useState(false);
@@ -45,7 +49,7 @@ export default function ClientCommentsPage() {
       priority: selectedPriority, assignee: selectedAssignee, device: selectedDevice,
     },
     sortMode,
-    highlightedDisplayNumber,
+    highlightedRef,
   });
 
   // Initialize filters from URL parameters
@@ -71,12 +75,8 @@ export default function ClientCommentsPage() {
     if (urlParams.get('groupByPage') === 'true') setGroupByPage(true);
     const cParam = urlParams.get('c');
     if (cParam) {
-      // ?c= accepts a ref ("LWF-12") or a legacy display number — email deep
-      // links carry the ref. A ref can only be mapped to a display number once
-      // comments load, so stash it like the legacy ?commentId= path does.
-      const c = cParam.trim();
-      if (/^\d+$/.test(c)) setHighlightedDisplayNumber(parseInt(c, 10));
-      else setPendingRef(c);
+      // ?c= carries the ticket's ref ("LWF-12"). Resolved once comments load.
+      setPendingSelector(cParam.trim());
       // Pointing at one ticket means "show me this ticket" — an unrelated
       // default status filter must not hide it. Only a VALID explicit ?status=
       // wins; ?status=garbage was rejected above and must not count as intent.
@@ -107,34 +107,58 @@ export default function ClientCommentsPage() {
     urlParams.set('sort', sortMode);
     if (groupByPage) urlParams.set('groupByPage', 'true');
     // Keep the deep-linked ticket in the URL so a refresh, bookmark, or copied
-    // link still lands on it — this effect used to strip ?c= on mount.
-    if (highlightedDisplayNumber !== null) urlParams.set('c', String(highlightedDisplayNumber));
+    // link still lands on it. `pendingSelector` matters as much as the resolved
+    // ref: this effect runs before the comments arrive, and dropping ?c= for
+    // even that moment loses the ticket for anyone who refreshes or copies the
+    // URL mid-load. Only an explicit dismiss (the ✕) clears both.
+    const deepLink = highlightedRef ?? pendingSelector ?? unresolvedSelector;
+    if (deepLink !== null) urlParams.set('c', deepLink);
     const queryString = urlParams.toString();
     const newUrl = queryString ? `/c/${token}/comments?${queryString}` : `/c/${token}/comments`;
     window.history.replaceState({}, '', newUrl);
-  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee, selectedDevice, viewMode, sortMode, groupByPage, highlightedDisplayNumber, isInitialized, token]);
+  }, [filter, selectedProject, selectedPage, selectedPriority, selectedAssignee, selectedDevice, viewMode, sortMode, groupByPage, highlightedRef, pendingSelector, unresolvedSelector, isInitialized, token]);
 
-  // Resolve legacy ?commentId=<dbId> links once comments load by mapping to display_number
+  // Legacy ?commentId=<row id> links: resolve to the ticket's ref, then rewrite
+  // the URL to ?c=<ref> so the link that gets copied onward is a ref.
   useEffect(() => {
-    if (pendingLegacyCommentId === null || comments.length === 0) return;
+    if (pendingLegacyCommentId === null || loading) return;
     const found = comments.find(c => c.id === pendingLegacyCommentId);
-    if (found) {
-      setHighlightedDisplayNumber(found.display_number);
-      const urlParams = new URLSearchParams(window.location.search);
-      urlParams.delete('commentId');
-      urlParams.set('c', found.display_number.toString());
-      window.history.replaceState({}, '', `/c/${token}/comments?${urlParams.toString()}`);
+    const key = found ? highlightKey(found) : null;
+    if (key) {
+      setHighlightedRef(key);
+      writeTicketToUrl(token, key);
     }
     setPendingLegacyCommentId(null);
-  }, [pendingLegacyCommentId, comments, token]);
+  }, [pendingLegacyCommentId, comments, loading, token]);
 
-  // Resolve a ?c=<ref> link once comments load by mapping the ref to its display_number
+  // Same lookup as the jump-to box; a deep link records the miss instead of
+  // alerting. Gated on `loading`, not on an empty list: `comments` is already
+  // filter-reduced, so an active filter can legitimately empty it — and that IS
+  // an unresolved deep link, not a still-loading one.
   useEffect(() => {
-    if (pendingRef === null || comments.length === 0) return;
-    const found = comments.find(c => c.ref && c.ref.toLowerCase() === pendingRef.toLowerCase());
-    if (found) setHighlightedDisplayNumber(found.display_number);
-    setPendingRef(null);
-  }, [pendingRef, comments]);
+    if (pendingSelector === null || loading) return;
+    const result = resolveJump(comments, pendingSelector);
+    if (result?.kind === 'found') {
+      setHighlightedRef(result.key);
+      setUnresolvedSelector(null);
+    } else {
+      setUnresolvedSelector(pendingSelector);
+    }
+    setPendingSelector(null);
+  }, [pendingSelector, comments, loading]);
+
+  // The ✕ on the deep-link pill: the only thing that clears ?c=. Both the
+  // resolved and the unresolved state have to go, or the effect writes it back.
+  const clearDeepLink = () => {
+    setHighlightedRef(null);
+    setUnresolvedSelector(null);
+    setPendingSelector(null);
+    setSearchCommentId('');
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.delete('c');
+    urlParams.delete('commentId');
+    window.history.replaceState({}, '', urlParams.toString() ? `/c/${token}/comments?${urlParams.toString()}` : `/c/${token}/comments`);
+  };
 
   const handleAddNote = async (id: number) => {
     if (!newNote.trim()) return;
@@ -142,47 +166,28 @@ export default function ClientCommentsPage() {
     if (ok) { setNewNote(''); setAddNoteToDecisions(false); setExpandedComment(null); }
   };
 
+  // "Jump to" accepts the ref or just its number — an ambiguous one says so
+  // instead of guessing, which is how the old lookup hit the wrong ticket.
+  const handleJumpTo = (query: string) => {
+    const result = resolveJump(comments, query);
+    if (!result) return;
+    if (result.kind === 'found') {
+      setHighlightedRef(result.key);
+      setUnresolvedSelector(null);
+      writeTicketToUrl(token, result.key);
+    } else {
+      alert(result.message);
+    }
+  };
+
   const handleDeleteComment = async (id: number) => {
     if (!confirm('Are you sure you want to delete this comment? This action cannot be undone.')) return;
     await deleteComment(id);
   };
 
-  const displayComments = highlightedDisplayNumber ? comments.filter(c => c.display_number === highlightedDisplayNumber) : comments;
+  const displayComments = highlightedRef ? comments.filter(c => matchesHighlight(c, highlightedRef)) : comments;
 
-  const sortComments = (commentsToSort: Comment[]) => {
-    if (sortMode === 'recent') {
-      return [...commentsToSort].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    } else if (sortMode === 'resolved-bottom') {
-      return [...commentsToSort].sort((a, b) => {
-        if (a.status === 'resolved' && b.status === 'open') return 1;
-        if (a.status === 'open' && b.status === 'resolved') return -1;
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      });
-    } else {
-      const priorityOrder = { high: 0, med: 1, low: 2 };
-      return [...commentsToSort].sort((a, b) => {
-        if (priorityOrder[a.priority] !== priorityOrder[b.priority]) return priorityOrder[a.priority] - priorityOrder[b.priority];
-        if (a.priority_number !== b.priority_number) return a.priority_number - b.priority_number;
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      });
-    }
-  };
-
-  // Sort and optionally group by page section. resolved-bottom always groups
-  // (it's only accessible via URL param); recent and priority respect the checkbox.
-  const shouldGroup = sortMode === 'resolved-bottom' || groupByPage;
-  const flatHeader = sortMode === 'recent' ? 'Most Recent First' : 'By Priority';
-  const groupedComments = shouldGroup
-    ? displayComments.reduce((acc, comment) => {
-        const pageSection = comment.page_section || 'Unknown';
-        if (!acc[pageSection]) acc[pageSection] = [];
-        acc[pageSection].push(comment);
-        return acc;
-      }, {} as Record<string, Comment[]>)
-    : { [flatHeader]: sortComments(displayComments) };
-  if (shouldGroup) {
-    Object.keys(groupedComments).forEach(pageSection => { groupedComments[pageSection] = sortComments(groupedComments[pageSection]); });
-  }
+  const groupedComments = groupComments(displayComments, sortMode, groupByPage);
 
   if (error) {
     return (
@@ -205,14 +210,16 @@ export default function ClientCommentsPage() {
           selectedProject={selectedProject}
           onProjectChange={setSelectedProject}
         >
-          {highlightedDisplayNumber && (
-            <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
-              <span className="text-sm text-blue-700">{formatCommentLabel(comments.find(c => c.display_number === highlightedDisplayNumber)?.ref, highlightedDisplayNumber)}</span>
-              <button onClick={() => { setHighlightedDisplayNumber(null); setSearchCommentId(''); const urlParams = new URLSearchParams(window.location.search); urlParams.delete('c'); urlParams.delete('commentId'); window.history.replaceState({}, '', urlParams.toString() ? `/c/${token}/comments?${urlParams.toString()}` : `/c/${token}/comments`); }} className="text-blue-700 hover:text-blue-900 font-bold">✕</button>
+          {(highlightedRef || unresolvedSelector) && (
+            <div className={`flex items-center gap-2 px-3 py-1 border rounded-lg ${highlightedRef ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'}`}>
+              <span className={`text-sm ${highlightedRef ? 'text-blue-700' : 'text-amber-800'}`}>
+                {highlightedRef ?? `${unresolvedSelector} not in this view`}
+              </span>
+              <button onClick={clearDeepLink} className={`font-bold ${highlightedRef ? 'text-blue-700 hover:text-blue-900' : 'text-amber-800 hover:text-amber-900'}`}>✕</button>
             </div>
           )}
-          <form onSubmit={(e) => { e.preventDefault(); const q = searchCommentId.trim(); if (!q) return; const foundComment = comments.find(c => (c.ref && c.ref.toLowerCase() === q.toLowerCase()) || (/^\d+$/.test(q) && c.display_number === parseInt(q))); if (foundComment) { setHighlightedDisplayNumber(foundComment.display_number); const urlParams = new URLSearchParams(window.location.search); urlParams.delete('commentId'); urlParams.set('c', foundComment.display_number.toString()); window.history.replaceState({}, '', `/c/${token}/comments?${urlParams.toString()}`); } else { alert(`Comment ${q} not found`); } }} className="hidden sm:flex items-center gap-2">
-            <input type="text" value={searchCommentId} onChange={(e) => setSearchCommentId(e.target.value)} placeholder="Jump to ref or #" className="w-28 px-2 py-1 border border-gray-300 rounded text-sm" />
+          <form onSubmit={(e) => { e.preventDefault(); handleJumpTo(searchCommentId); }} className="hidden sm:flex items-center gap-2">
+            <input type="text" value={searchCommentId} onChange={(e) => setSearchCommentId(e.target.value)} placeholder="Jump to e.g. LWF-12" className="w-32 px-2 py-1 border border-gray-300 rounded text-sm" />
             <button type="submit" className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm">Go</button>
           </form>
         </ClientNav>
@@ -254,19 +261,19 @@ export default function ClientCommentsPage() {
                     <CommentCard
                       key={comment.id}
                       comment={comment}
-                      isHighlighted={highlightedDisplayNumber === comment.display_number}
+                      isHighlighted={matchesHighlight(comment, highlightedRef)}
                       decisionNoteKeys={decisionNoteKeys}
                       expandedComment={expandedComment}
                       newNote={newNote}
                       addNoteToDecisions={addNoteToDecisions}
                       decisionsLink={`/c/${token}/decisions`}
-                      copyLinkUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/c/${token}/comments?c=${comment.display_number}`}
+                      copyLinkUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/c/${token}/comments?c=${encodeURIComponent(highlightKey(comment) ?? '')}`}
                       assignees={assignees}
                       onToggleStatus={toggleStatus}
                       onUpdatePriority={updatePriority}
                       onUpdateAssignee={updateAssignee}
                       onDeleteComment={handleDeleteComment}
-                      onExpandImage={(imageData, commentId, displayNumber) => setExpandedImage({ imageData, commentId, displayNumber })}
+                      onExpandImage={(imageData, _id, ref) => setExpandedImage({ imageData, ref })}
                       onSetExpandedComment={setExpandedComment}
                       onSetNewNote={setNewNote}
                       onSetAddNoteToDecisions={setAddNoteToDecisions}
@@ -283,9 +290,7 @@ export default function ClientCommentsPage() {
       {expandedImage && (
         <ImageModal
           imageData={expandedImage.imageData}
-          commentId={expandedImage.commentId}
-          displayNumber={expandedImage.displayNumber}
-          commentRef={comments.find(c => c.id === expandedImage.commentId)?.ref}
+          commentRef={expandedImage.ref}
           onClose={() => setExpandedImage(null)}
         />
       )}

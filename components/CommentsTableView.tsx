@@ -232,7 +232,7 @@ export default function CommentsTableView({
 
                       {/* Comment # */}
                       <td className="px-2 py-2 align-top text-sm font-mono text-gray-700">
-                        {formatCommentLabel(comment.ref, comment.display_number, comment.id)}
+                        {formatCommentLabel(comment.ref, comment.uuid)}
                       </td>
 
                       {/* Priority toggle buttons */}

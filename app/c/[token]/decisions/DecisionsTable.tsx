@@ -13,9 +13,9 @@ export interface DecisionItem {
   source: string | null;
   created_at: string;
   updated_at: string;
-  comment_display_number: number | null;
+  comment_uuid?: string | null; // fallback handle when a legacy row has no ref
   comment_project_id: number | null;
-  comment_ref?: string | null; // e.g. "LWF-12"
+  comment_ref?: string | null; // the ticket identity, e.g. "LWF-12"
 }
 
 interface Project {
@@ -94,12 +94,10 @@ export default function DecisionsTable({
               <td className="px-4 py-3 text-sm">
                 {decision.comment_id ? (
                   <Link
-                    href={decision.comment_display_number
-                      ? `/c/${token}/comments?c=${decision.comment_display_number}`
-                      : `/c/${token}/comments?commentId=${decision.comment_id}`}
+                    href={`/c/${token}/comments?c=${encodeURIComponent(decision.comment_ref ?? decision.comment_uuid ?? '')}`}
                     className="text-blue-500 hover:underline font-mono"
                   >
-                    {formatCommentLabel(decision.comment_ref, decision.comment_display_number, decision.comment_id)}
+                    {formatCommentLabel(decision.comment_ref, decision.comment_uuid)}
                   </Link>
                 ) : (
                   <span className="text-gray-400">—</span>

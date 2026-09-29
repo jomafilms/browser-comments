@@ -75,16 +75,16 @@ function groupByClientAndProject(items: OwnerDigestItem[], base: string): OwnerD
       entry.group.projects.push(project);
     }
 
-    // Prefer the ref in the URL (human-readable, survives a copy/paste into
-    // the portal's jump-to box); fall back to the legacy display number.
-    const linkId = item.ref ?? item.displayNumber;
+    // The ref goes in the URL: human-readable, and it survives a copy/paste
+    // into the portal's jump-to box. A ref-less legacy row links by uuid.
+    const linkId = item.ref ?? item.uuid;
     project.lines.push({
-      ref: item.ref ?? (item.displayNumber != null ? `#${item.displayNumber}` : null),
+      ref: item.ref ?? `#${item.uuid.slice(0, 8)}`,
       note: item.note,
       pageSection: item.pageSection,
       submitterName: item.submitterName,
       kind: item.kind,
-      url: linkId != null && item.clientToken ? ticketLink(base, item.clientToken, linkId) : null,
+      url: item.clientToken ? ticketLink(base, item.clientToken, linkId) : null,
     });
   }
 

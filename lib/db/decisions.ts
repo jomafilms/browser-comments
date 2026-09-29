@@ -61,9 +61,10 @@ export async function getDecisionItemsByProjectId(projectId: number): Promise<De
     // Match decisions explicitly tagged with this project, OR decisions
     // linked to a comment that belongs to this project (covers older items
     // created before project_id was passed on POST).
-    // Also return the comment's display_number, project_id, and ref for the UI.
+    // Also return the linked comment's uuid, project_id, and ref for the UI —
+    // ref is the ticket identity, uuid the fallback handle (see ./refs).
     const result = await client.query(
-      `SELECT d.*, c.display_number as comment_display_number, c.project_id as comment_project_id, ${commentRefSelect('p')}
+      `SELECT d.*, c.uuid as comment_uuid, c.project_id as comment_project_id, ${commentRefSelect('p')}
        FROM decision_items d
        LEFT JOIN comments c ON d.comment_id = c.id
        LEFT JOIN projects p ON c.project_id = p.id
@@ -80,7 +81,7 @@ export async function getDecisionItemsByProjectId(projectId: number): Promise<De
 export async function getDecisionItemsByClientId(clientId: number): Promise<DecisionItem[]> {
   return withClient(async (client) => {
     const result = await client.query(
-      `SELECT d.*, c.display_number as comment_display_number, c.project_id as comment_project_id, ${commentRefSelect('cp')}
+      `SELECT d.*, c.uuid as comment_uuid, c.project_id as comment_project_id, ${commentRefSelect('cp')}
        FROM decision_items d
        LEFT JOIN comments c ON d.comment_id = c.id
        LEFT JOIN projects p ON COALESCE(d.project_id, c.project_id) = p.id

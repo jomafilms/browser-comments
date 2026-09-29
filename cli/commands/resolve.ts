@@ -17,9 +17,9 @@ export async function resolveCommand(
   const body: Record<string, unknown> = { status: 'resolved' };
   if (note) body.note = note;
 
-  // ref/uuid PATCH directly; a bare number resolves once to its uuid first.
+  // ref/uuid PATCH directly; a bare number resolves to its ref first.
   const target = await resolveWriteTarget(config.apiUrl, config.token, cleaned);
   await patchTicket(config.apiUrl, config.token, target, body);
 
-  return ackResponse(config.mode, { ref: cleaned, status: 'resolved' });
+  return ackResponse(config.mode, { ref: target, status: 'resolved' });
 }

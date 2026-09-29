@@ -1,35 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateCommentStatus, addNoteToComment, deleteComment, updateCommentPriority, updateCommentAssignee, findCommentByRef, getCommentById, withClient } from '@/lib/db';
-import { requireToken, verifyCommentScope } from '@/lib/auth';
+import { requireToken } from '@/lib/auth';
+import { parseTicketSelector } from '@/lib/db/refs';
 import { onCommentUpdated, CommentChange } from '@/lib/notify';
 
 const VALID_STATUSES = ['open', 'resolved'] as const;
 const VALID_PRIORITIES = ['high', 'med', 'low'] as const;
 
-// Resolve auth + the [id] param to a serial comment id.
-// Bare integers stay serial PKs (the pre-v4 API contract — CLI/MCP send db
-// ids here); refs like "LWF-12" and UUIDs resolve via findCommentByRef,
-// which enforces the token's scope.
+// Resolve auth + the [id] param to an internal comment id.
+//
+// The param is a TICKET SELECTOR: a ref like "LWF-12" or a uuid, resolved via
+// findCommentByRef, which enforces the token's scope. A bare number is a 400,
+// not a lookup — before this it was read as the serial PK, so an agent that had
+// picked up any other number (the legacy display_number, say) silently targeted
+// a different ticket. See THE ONE TICKET IDENTITY in lib/db/refs.
 async function resolveComment(
   request: NextRequest,
-  idString: string
+  selector: string
 ): Promise<{ id: number } | { response: NextResponse }> {
   const auth = await requireToken(request);
   if (!auth.ok) return { response: auth.response };
 
-  if (/^\d+$/.test(idString)) {
-    const id = Number(idString);
-    const hasAccess =
-      Number.isInteger(id) && id <= 2147483647 && (await verifyCommentScope(auth.ctx, id));
-    if (!hasAccess) {
-      return {
-        response: NextResponse.json({ error: 'Comment not found or access denied' }, { status: 404 }),
-      };
-    }
-    return { id };
+  const parsed = parseTicketSelector(selector);
+  if (parsed.kind === 'invalid') {
+    return { response: NextResponse.json({ error: parsed.reason }, { status: 400 }) };
   }
 
-  const found = await findCommentByRef(auth.ctx, idString);
+  const found = await findCommentByRef(auth.ctx, selector);
   if (!found) {
     return {
       response: NextResponse.json({ error: 'Comment not found or access denied' }, { status: 404 }),
@@ -38,8 +35,7 @@ async function resolveComment(
   return { id: found.id };
 }
 
-// Single-ticket read. Accepts a serial id, uuid, or ref (e.g. "LWF-12"),
-// scope-checked. Returns the full record by default (light — no image_data);
+// Single-ticket read. Accepts a ref (e.g. "LWF-12") or a uuid, scope-checked. Returns the full record by default (light — no image_data);
 //  - ?includeImage=true  → full record WITH image_data
 //  - ?imageOnly=true     → legacy { image_data } shape (back-compat)
 export async function GET(

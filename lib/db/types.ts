@@ -76,9 +76,8 @@ export interface Comment {
   id: number;
   uuid: string; // stable external identifier (v4 schema)
   project_id: number | null;
-  client_id: number | null; // denormalized from project for per-client numbering + scoping
-  display_number: number; // DEPRECATED: per-client sequential number — kept for back-compat, prefer ref
-  project_number: number | null; // per-project sequential number (v4 schema)
+  client_id: number | null; // denormalized from project for scoping
+  project_number: number | null; // per-project sequential number (v4 schema) — the numeric half of `ref`
   ref: string | null; // "<PREFIX>-<project_number>", computed in queries, e.g. "LWF-12"
   url: string;
   page_section: string; // Auto-populated from URL path, can be manually overridden

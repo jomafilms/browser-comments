@@ -22,6 +22,32 @@ are intentionally not a durable queue.
 
 ---
 
+## The ticket number: `ref`
+
+**A ticket has exactly one number, its `ref` — e.g. `LWF-12`.** It is the same
+string in the dashboard, in the widget's "Your ticket:" confirmation, in
+notification emails, in webhook payloads, in the CLI, and in MCP. When a person
+says "ticket 12" about `LWF-12`, they mean the same ticket your agent sees.
+
+- **`ref`** (`"LWF-12"`) — the identity. `<project prefix>-<per-project number>`.
+  Quote this back to humans. Use it as the selector on every endpoint.
+- **`uuid`** — the stable machine handle. Equivalent to the ref as a selector,
+  and the right thing to store in your own state.
+- **`id`** — an internal row handle. Present in raw `/api/comments` rows because
+  the dashboard uses it; **not a ticket number**, absent from webhooks, and
+  stripped by the CLI and MCP. Never show it to a person.
+
+**Bare numbers are rejected as selectors.** `GET /api/comments/12` returns `400`,
+not a ticket. That is deliberate: this project used to carry a second,
+per-*client* counter (`display_number`) alongside the per-*project* ref number,
+and on any client with more than one project the two drifted — often by just one
+or two, so `116` and `JOMA-114` looked like the same ticket with a typo. Humans
+read the ref, agents read the other number, and they disagreed. The second
+counter is gone from every response, and a bare number now fails loudly instead
+of silently addressing the wrong ticket. (The CLI and MCP still *accept* a bare
+number from a human typing what they see on screen, resolving it against the ref
+and erroring if it is ambiguous — they never put it on the wire.)
+
 ## Webhooks
 
 Register a webhook from the client **Settings → Webhooks** page, or via the API:
@@ -47,7 +73,7 @@ Each event is a `POST` with a JSON body:
   "event": "comment.created",
   "timestamp": "2026-07-03T18:22:10.000Z",
   "data": {
-    "uuid": "…", "ref": "LWF-12", "display_number": 12,
+    "uuid": "…", "ref": "LWF-12",
     "url": "https://app.example.com/dashboard",
     "page_section": "/dashboard",
     "status": "open", "priority": "high", "assignee": "Unassigned",

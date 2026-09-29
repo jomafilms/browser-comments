@@ -55,12 +55,16 @@ const USAGE = `browser-comments <command> [options]
 
 Commands:
   list    [--status=open|resolved] [--priority=high|med|low] [--assignee=X] [--section=X] [--project=ID] [--include-images]
-  show    <ref|uuid|number> [--include-images]
-  resolve <ref|uuid|number> [--note="reason"]
-  reopen  <ref|uuid|number>
-  assign  <ref|uuid|number> --to=<assignee>
+  show    <ref> [--include-images]
+  resolve <ref> [--note="reason"]
+  reopen  <ref>
+  assign  <ref> --to=<assignee>
   watch   [--interval=60] [--schedule=manual|hourly|daily|weekly] [--since-file=PATH] [+ any list filters]
             --since-file streams only new/changed tickets as JSON lines, exactly once across restarts
+
+<ref> is the ticket number shown in the dashboard, emails and webhooks, e.g.
+LWF-12. A uuid works too, and a bare number ("12") is matched against the ref
+when it is unambiguous. There is no other ticket number.
 
 Global:
   --format=json|text    (default: json)
@@ -89,7 +93,7 @@ async function main() {
 
       case 'show': {
         const ref = positional[0];
-        if (!ref) throw Object.assign(new Error('Usage: browser-comments show <display_number>'), { _code: 'USAGE_ERROR' });
+        if (!ref) throw Object.assign(new Error('Usage: browser-comments show <ref>   (e.g. LWF-12)'), { _code: 'USAGE_ERROR' });
         const includeImages = flags['include-images'] === 'true';
         const result = await showCommand(config, ref, includeImages);
         output(result, format);
@@ -98,7 +102,7 @@ async function main() {
 
       case 'resolve': {
         const ref = positional[0];
-        if (!ref) throw Object.assign(new Error('Usage: browser-comments resolve <display_number>'), { _code: 'USAGE_ERROR' });
+        if (!ref) throw Object.assign(new Error('Usage: browser-comments resolve <ref>   (e.g. LWF-12)'), { _code: 'USAGE_ERROR' });
         const result = await resolveCommand(config, ref, flags.note);
         output(result, format);
         break;
@@ -106,7 +110,7 @@ async function main() {
 
       case 'reopen': {
         const ref = positional[0];
-        if (!ref) throw Object.assign(new Error('Usage: browser-comments reopen <display_number>'), { _code: 'USAGE_ERROR' });
+        if (!ref) throw Object.assign(new Error('Usage: browser-comments reopen <ref>   (e.g. LWF-12)'), { _code: 'USAGE_ERROR' });
         const result = await reopenCommand(config, ref);
         output(result, format);
         break;
@@ -115,7 +119,7 @@ async function main() {
       case 'assign': {
         const ref = positional[0];
         const assignee = flags.to;
-        if (!ref || !assignee) throw Object.assign(new Error('Usage: browser-comments assign <display_number> --to=<assignee>'), { _code: 'USAGE_ERROR' });
+        if (!ref || !assignee) throw Object.assign(new Error('Usage: browser-comments assign <ref> --to=<assignee>   (e.g. LWF-12)'), { _code: 'USAGE_ERROR' });
         const result = await assignCommand(config, ref, assignee);
         output(result, format);
         break;

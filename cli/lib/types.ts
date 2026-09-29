@@ -1,8 +1,12 @@
+// A ticket as this CLI hands it to an agent. `ref` is the ONE ticket identity —
+// the same string a human reads in the dashboard and in notification emails.
+// `uuid` is the stable machine handle. `id` is an internal row handle and is
+// stripped before output (see lib/output.ts); there is deliberately no second
+// number, because a second number is a second answer to "which ticket?".
 export interface Ticket {
   id: number;
   uuid?: string;
   ref?: string | null; // "<PREFIX>-<project_number>", e.g. "LWF-12"
-  display_number: number;
   url: string;
   page_section: string;
   status: string;

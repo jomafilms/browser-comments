@@ -3,12 +3,10 @@
 interface ImageModalProps {
   imageData: string;
   onClose: () => void;
-  commentId?: number;
-  displayNumber?: number;
-  commentRef?: string | null; // e.g. "LWF-12" — preferred label when present
+  commentRef?: string | null; // the ticket identity, e.g. "LWF-12"
 }
 
-export default function ImageModal({ imageData, onClose, commentId, displayNumber, commentRef }: ImageModalProps) {
+export default function ImageModal({ imageData, onClose, commentRef }: ImageModalProps) {
   const handleDownload = () => {
     // Convert base64 to blob for proper download
     const byteString = atob(imageData.split(',')[1]);
@@ -27,7 +25,8 @@ export default function ImageModal({ imageData, onClose, commentId, displayNumbe
 
     // Generate filename
     const ext = mimeString.includes('png') ? 'png' : 'jpg';
-    const label = commentRef || displayNumber || commentId || 'screenshot';
+    // Filenames carry the ticket identity, never an internal number.
+    const label = commentRef || 'screenshot';
     link.download = `feedback-${label}.${ext}`;
 
     document.body.appendChild(link);

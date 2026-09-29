@@ -30,7 +30,7 @@ function instantVerdict(clientId: number): 'send' | 'pause-notice' | 'drop' {
   return 'drop';
 }
 
-const ref = (comment: Comment): string => comment.ref ?? String(comment.display_number);
+const ref = (comment: Comment): string => comment.ref ?? comment.uuid;
 
 // New ticket → instant email, if the client opted into 'instant'.
 export async function notifyEmailCommentCreated(comment: Comment, baseUrl: string): Promise<void> {

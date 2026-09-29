@@ -1,4 +1,5 @@
 import { Ticket, TicketFilters } from './types';
+import { refTail, ambiguousRefError } from './refs';
 
 // Push list filters server-side (they are honored on the token-scoped GET —
 // the old "API ignores filters" comment was stale). Only `project` stays
@@ -38,11 +39,12 @@ export async function fetchTickets(
   return tickets.map(mapTicket);
 }
 
-// Fetch one ticket by ref ("LWF-12") / uuid / legacy number.
+// Fetch one ticket by ref ("LWF-12") or uuid.
 //  - ref & uuid resolve directly via the single-ticket endpoint (no scan).
-//  - a BARE number means the legacy per-client display_number. The endpoint
-//    treats bare integers as serial DB ids (dashboard contract), so we resolve
-//    a display_number via one scoped list lookup instead. Prefer refs/uuids.
+//  - a BARE number is a convenience for humans who read "LWF-12" off the
+//    dashboard and type "12". It is resolved against the REF TAIL via one
+//    scoped list lookup — never sent to the endpoint, which rejects bare
+//    numbers outright, and never matched against any internal counter.
 export async function fetchTicketByRef(
   apiUrl: string,
   token: string,
@@ -50,7 +52,12 @@ export async function fetchTicketByRef(
   includeImages: boolean = false
 ): Promise<Ticket | null> {
   if (/^\d+$/.test(ref)) {
-    return findByDisplayNumber(apiUrl, token, parseInt(ref, 10), !includeImages);
+    // Always scan image-FREE: this lookup exists only to find the ref. Then
+    // re-fetch the one ticket so --include-images still gets its screenshot.
+    const resolved = await findByRefTail(apiUrl, token, parseInt(ref, 10), true);
+    if (!resolved) return null;
+    if (!includeImages || !resolved.ref) return resolved;
+    return fetchTicketByRef(apiUrl, token, resolved.ref, includeImages);
   }
 
   const url = new URL(`/api/comments/${encodeURIComponent(ref)}`, apiUrl);
@@ -65,38 +72,50 @@ export async function fetchTicketByRef(
   return mapTicket(await res.json());
 }
 
-// One scoped list fetch to map a legacy display_number → its ticket.
-async function findByDisplayNumber(
+// One scoped list fetch to map a bare number → the ticket whose ref ends in it.
+// A client-scoped token can span projects, so the same number may end two refs
+// (LWF-12 and EC-12); that is reported, never guessed at.
+async function findByRefTail(
   apiUrl: string,
   token: string,
-  displayNumber: number,
+  n: number,
   excludeImages: boolean
 ): Promise<Ticket | null> {
   const tickets = await fetchTickets(apiUrl, token, {}, excludeImages);
-  return tickets.find((t) => t.display_number === displayNumber) ?? null;
+  const matches = tickets.filter((t) => refTail(t.ref) === n);
+  if (matches.length > 1) throw ambiguousRefError(n, matches.map((t) => t.ref));
+  return matches[0] ?? null;
 }
 
-// Resolve a write target to something the endpoint accepts scan-free: a ref/uuid
-// passes through; a bare display_number is mapped to its uuid via one lookup.
+// Resolve a write target to something the endpoint accepts: a ref/uuid passes
+// through; a bare number is mapped to its ref via one lookup, because the
+// endpoint rejects bare numbers (they used to be read as an internal row id,
+// silently targeting a different ticket).
+//
+// The return value is what the write ACK echoes back, so it must always be a
+// valid selector the caller can reuse. Echoing the caller's raw input instead
+// would hand an agent back a bare number it can never use again.
 export async function resolveWriteTarget(
   apiUrl: string,
   token: string,
   ref: string
 ): Promise<string> {
   if (!/^\d+$/.test(ref)) return ref; // already a ref/uuid
-  const ticket = await findByDisplayNumber(apiUrl, token, parseInt(ref, 10), true);
+  const ticket = await findByRefTail(apiUrl, token, parseInt(ref, 10), true);
   if (!ticket) throw new Error(`Ticket ${ref} not found.`);
-  // Must resolve to a uuid — falling back to the bare number would make the
-  // endpoint treat it as a serial id (a different ticket). v4 always has a uuid.
-  if (!ticket.uuid) throw new Error(`Ticket ${ref} has no uuid; cannot safely target it.`);
-  return ticket.uuid;
+  // Prefer the ref itself; a uuid covers a legacy row that has none. Never the
+  // bare number — the endpoint rejects it rather than guess.
+  const target = ticket.ref ?? ticket.uuid;
+  if (!target) throw new Error(`Ticket ${ref} has no ref or uuid; cannot safely target it.`);
+  return target;
 }
 
-// PATCH by ref / uuid / number — the single-ticket endpoint resolves + scope-checks it.
+// PATCH by ref or uuid — the single-ticket endpoint resolves + scope-checks it.
+// Callers pass the output of resolveWriteTarget, never a bare number.
 export async function patchTicket(
   apiUrl: string,
   token: string,
-  ref: string | number,
+  ref: string,
   body: Record<string, unknown>
 ): Promise<void> {
   const url = new URL(`/api/comments/${encodeURIComponent(String(ref))}`, apiUrl);
@@ -116,7 +135,6 @@ function mapTicket(row: any): Ticket {
     id: row.id,
     uuid: row.uuid,
     ref: row.ref ?? null,
-    display_number: row.display_number,
     url: row.url || '',
     page_section: row.page_section || '',
     status: row.status || 'open',

@@ -17,5 +17,5 @@ export async function assignCommand(
   const target = await resolveWriteTarget(config.apiUrl, config.token, cleaned);
   await patchTicket(config.apiUrl, config.token, target, { assignee });
 
-  return ackResponse(config.mode, { ref: cleaned, assignee });
+  return ackResponse(config.mode, { ref: target, assignee });
 }

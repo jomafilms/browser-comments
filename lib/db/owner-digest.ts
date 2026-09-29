@@ -55,7 +55,7 @@ export interface OwnerDigestItem {
   projectId: number | null;
   projectName: string | null;
   ref: string | null;
-  displayNumber: number | null;
+  uuid: string; // fallback handle when a legacy row has no ref
   pageSection: string;
   submitterName: string | null;
   note: string | null; // the widget's text annotations, joined
@@ -92,7 +92,7 @@ export async function getOwnerDigestItems(
     const result = await client.query(
       `SELECT c.client_id, cl.name AS client_name, cl.token AS client_token,
               c.project_id, p.name AS project_name,
-              c.display_number, c.page_section, c.submitter_name,
+              c.uuid, c.page_section, c.submitter_name,
               c.text_annotations, ${REF_SELECT}, ${window.kindSelect},
               NOW()::text AS as_of
        FROM comments c
@@ -119,7 +119,7 @@ export async function getOwnerDigestItems(
         projectId: r.project_id,
         projectName: r.project_name,
         ref: r.ref,
-        displayNumber: r.display_number ?? null,
+        uuid: r.uuid,
         pageSection: r.page_section,
         submitterName: r.submitter_name,
         note: joinAnnotationTexts(r.text_annotations),

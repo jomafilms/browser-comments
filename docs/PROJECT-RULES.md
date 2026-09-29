@@ -1,6 +1,6 @@
 # browser-comments — Project Rules
 
-**Last Updated:** 2026-07-03
+**Last Updated:** 2026-09-28
 **Owner:** Annie Lundgren
 
 <!-- This is the authoritative source for business rules and constraints. -->
@@ -24,10 +24,38 @@
 - **Rule:** The widget embed snippet, CLI commands/flags, MCP tool contracts, and API request/response shapes already deployed on client sites must keep working. Additive changes only; deprecate, don't break.
 - **Why:** The widget is embedded on live client sites Annie doesn't always control; agents have the CLI wired into other repos.
 - **Edge cases:** DB schema changes must be additive (new columns nullable/defaulted); `initDb` runs against a live production database.
+- **Granted exception — `display_number` removal (2026-09-28, Annie-approved):** the
+  per-client `display_number` was **removed** from every API/webhook/CLI/MCP
+  response, and `/api/comments/<selector>` now **rejects bare integers with 400**
+  where it used to read them as serial PKs. This is a deliberate break, taken
+  because the field was *actively wrong*: it disagreed with the `ref` humans read
+  (joma: `116` vs `JOMA-114`), so agents and people were naming different
+  tickets. A loud break beat a silent mismatch. The schema stayed additive — the
+  column is still written, just never read. **Do not "restore" it for
+  compatibility.** See Rule 5.
 
 ### Rule 4: Agent-consumable output stays machine-friendly
 - **Rule:** CLI outputs JSON to stdout (no decorative logging on stdout); MCP tools return structured data.
 - **Why:** The primary consumer is AI agents, not humans.
+
+### Rule 5: A ticket has exactly one number — its `ref`
+- **Rule:** `ref` (`"<PREFIX>-<project_number>"`, e.g. `LWF-12`) is the **only**
+  ticket identity shown to a human or handed to an agent. `uuid` is the stable
+  machine handle. `comments.id` is an internal row handle: never a ticket number,
+  never displayed, never a selector. Never introduce a second user- or
+  agent-visible ticket number, and never accept a bare integer as a ticket
+  selector on the API.
+- **Why:** Two numbers for one ticket means two answers to "which ticket?" That
+  is exactly what went wrong: a per-client counter drifted from the per-project
+  ref number by the count of the client's other tickets, so a user reading
+  `JOMA-114` and an agent reporting `116` were talking about the same ticket and
+  neither could tell. Small drift is worse than large — it reads as a typo.
+- **Edge cases:** A human typing a bare number (the portal jump-to box, a CLI
+  arg) is resolved against the **ref tail** — `12` → `LWF-12` — and reports
+  ambiguity rather than guessing when a client token spans projects. That
+  convenience never reaches the wire. The canonical statement of this rule lives
+  in `lib/db/refs.ts` ("THE ONE TICKET IDENTITY"); `docs/AGENT-SETUP.md` is the
+  version agents read.
 
 ---
 
